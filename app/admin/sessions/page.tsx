@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import SessionFilters from './SessionFilters';
-import { ArrowLeft, Search } from 'lucide-react';
+import { ArrowLeft, Search, Plus } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +77,13 @@ export default async function SessionsPage({
             {filtered.length} תיקים {searchParams.status && `· סטטוס: ${STATUS_LABELS[searchParams.status]}`}
           </p>
         </div>
+        <Link
+          href="/admin/sessions/new"
+          className="btn-primary flex items-center gap-2"
+        >
+          <Plus size={18} />
+          תיק חדש
+        </Link>
       </div>
 
       <SessionFilters current={{ q: searchParams.q, status: searchParams.status, filter: searchParams.filter }} />
