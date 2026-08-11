@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   // Aggregate stats
   const [{ count: totalActive }, { count: awaitingParent }, { count: awaitingTeacher }, { count: readyToSchedule }, stuck, todayAppointments] =
     await Promise.all([
-      supabase.from('intake_sessions').select('*', { count: 'exact', head: true }).not('status', 'in', '(completed,cancelled)'),
+      supabase.from('intake_sessions').select('*', { count: 'exact', head: true }).not('status', 'in', '(closed,cancelled,reported)'),
       supabase.from('intake_sessions').select('*', { count: 'exact', head: true }).eq('status', 'parent_form_started'),
       supabase.from('intake_sessions').select('*', { count: 'exact', head: true }).in('status', ['teacher_link_sent', 'teacher_form_started']),
       supabase.from('intake_sessions').select('*', { count: 'exact', head: true }).eq('status', 'profile_ready'),

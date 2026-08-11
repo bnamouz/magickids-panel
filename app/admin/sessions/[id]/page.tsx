@@ -16,9 +16,9 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
   const { data: session } = await supabase
     .from('intake_sessions')
     .select(`
-      id, status, created_at, updated_at, concerns, channel,
-      parent_token, teacher_token, teacher_name, teacher_phone, teacher_email,
-      patients(id, first_name, last_name, birth_date, school, grade, gender),
+      id, status, created_at, updated_at, reason_for_referral, channel,
+      parent_token, teacher_token,
+      patients(id, first_name, last_name, birth_date, school, grade, gender, teacher_name, teacher_phone),
       parents(full_name, phone, email, relation)
     `)
     .eq('id', params.id)
@@ -77,12 +77,12 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           </div>
 
           {/* Complaint */}
-          {session.concerns && (
+          {(session as any).reason_for_referral && (
             <div className="card">
               <h2 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
                 <ClipboardList size={18} className="text-[#01696f]" /> תלונה ראשית
               </h2>
-              <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{session.concerns}</p>
+              <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{(session as any).reason_for_referral}</p>
             </div>
           )}
 
@@ -112,9 +112,9 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               <div className="border-t border-slate-100 pt-3">
                 <ContactBlock
                   title="מורה"
-                  name={session.teacher_name}
-                  phone={session.teacher_phone}
-                  email={session.teacher_email}
+                  name={patient?.teacher_name}
+                  phone={patient?.teacher_phone}
+                  email={undefined}
                 />
               </div>
             </div>

@@ -52,7 +52,7 @@ export default async function SessionsPage({
 
   if (searchParams.filter === 'stuck') {
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-    query = query.lt('updated_at', threeDaysAgo).not('status', 'in', '(completed,cancelled)');
+    query = query.lt('updated_at', threeDaysAgo).not('status', 'in', '(closed,cancelled,reported)');
   }
 
   const { data: sessions, error } = await query;
