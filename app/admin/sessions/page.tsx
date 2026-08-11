@@ -42,7 +42,7 @@ export default async function SessionsPage({
 
   let query = supabase
     .from('intake_sessions')
-    .select('id, status, created_at, updated_at, patients!inner(first_name, last_name, dob), parents(name, phone)')
+    
     .order('updated_at', { ascending: false })
     .limit(100);
 
@@ -111,9 +111,9 @@ export default async function SessionsPage({
                       <Link href={`/admin/sessions/${s.id}`} className="hover:text-[#01696f]">
                         {childName}
                       </Link>
-                      {child?.dob && (
+                      {child?.birth_date && (
                         <div className="text-xs text-slate-500 font-normal">
-                          {calcAge(child.dob)} · {new Date(child.dob).toLocaleDateString('he-IL')}
+                          {calcAge(child.birth_date)} · {new Date(child.birth_date).toLocaleDateString('he-IL')}
                         </div>
                       )}
                     </td>
