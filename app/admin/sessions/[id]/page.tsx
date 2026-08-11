@@ -6,6 +6,7 @@ import { ArrowRight, User, School, Phone, Mail, Calendar, ClipboardList, Brain }
 import ClinicalNotes from '@/components/admin/ClinicalNotes';
 import ResponsesTable from '@/components/admin/ResponsesTable';
 import ScoreCard from '@/components/admin/ScoreCard';
+import BookAppointment from './BookAppointment';
 
 export const dynamic = 'force-dynamic';
 
@@ -122,21 +123,41 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
 
           {/* Appointments */}
           <div className="card">
-            <h2 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-              <Calendar size={18} className="text-[#01696f]" /> פגישות
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                <Calendar size={18} className="text-[#01696f]" /> פגישות
+              </h2>
+              <BookAppointment sessionId={session.id} childName={childName} />
+            </div>
             {!appointments?.length ? (
               <p className="text-sm text-slate-500">טרם נקבעה פגישה</p>
             ) : (
               <ul className="space-y-2">
-                {appointments.map((a: any) => (
-                  <li key={a.id} className="text-sm border-r-2 border-r-[#01696f] pr-3">
-                    <div className="font-semibold text-slate-800">{a.appointment_type ?? 'פגישת אבחון'}</div>
-                    <div className="text-slate-500 text-xs">
-                      {new Date(a.scheduled_at).toLocaleString('he-IL')} · {a.status}
-                    </div>
-                  </li>
-                ))}
+                {appointments.map((a: any) => {
+                  const typeLabel = a.appointment_type === 'assessment' ? 'אבחון ADHD'
+                    : a.appointment_type === 'followup' ? 'מעקב'
+                    : a.appointment_type === 'moxo' ? 'בדיקת Moxo'
+                    : (a.appointment_type ?? 'פגישה');
+                  const statusLabel: Record<string, string> = {
+                    scheduled: 'מתוזמן',
+                    confirmed: 'אושר',
+                    attended: 'התקיים',
+                    no_show: 'לא הופיע',
+                    cancelled: 'בוטל',
+                    rescheduled: 'תוזמן מחדש',
+                  };
+                  return (
+                    <li key={a.id} className="text-sm border-r-2 border-r-[#01696f] pr-3">
+                      <div className="font-semibold text-slate-800">{typeLabel}</div>
+                      <div className="text-slate-500 text-xs">
+                        {new Date(a.scheduled_at).toLocaleString('he-IL')} · {statusLabel[a.status] ?? a.status}
+                      </div>
+                      {a.location && (
+                        <div className="text-slate-400 text-xs">{a.location}</div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
