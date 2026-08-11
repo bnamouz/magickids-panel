@@ -42,7 +42,7 @@ export default async function SessionsPage({
 
   let query = supabase
     .from('intake_sessions')
-    .select('id, status, created_at, updated_at, patients!inner(first_name, last_name, birth_date), parents(name, phone)')
+    .select('id, status, created_at, updated_at, patients!inner(first_name, last_name, birth_date), parents(full_name, phone)')
     .order('updated_at', { ascending: false })
     .limit(100);
 
@@ -62,7 +62,7 @@ export default async function SessionsPage({
   const filtered = q
     ? (sessions ?? []).filter((s: any) => {
         const name = `${s.patients?.first_name ?? ''} ${s.patients?.last_name ?? ''}`.toLowerCase();
-        const parentName = (s.parents?.[0]?.name ?? '').toLowerCase();
+        const parentName = (s.parents?.[0]?.full_name ?? '').toLowerCase();
         const phone = (s.parents?.[0]?.phone ?? '').toLowerCase();
         return name.includes(q) || parentName.includes(q) || phone.includes(q);
       })
@@ -117,7 +117,7 @@ export default async function SessionsPage({
                         </div>
                       )}
                     </td>
-                    <td className="p-3 text-slate-700">{parent?.name ?? '—'}</td>
+                    <td className="p-3 text-slate-700">{parent?.full_name ?? '—'}</td>
                     <td className="p-3 text-slate-600 font-mono text-xs" dir="ltr">
                       {parent?.phone ?? '—'}
                     </td>

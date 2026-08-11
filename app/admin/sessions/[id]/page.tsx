@@ -19,7 +19,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
       id, status, created_at, updated_at, concerns, channel,
       parent_token, teacher_token, teacher_name, teacher_phone, teacher_email,
       patients(id, first_name, last_name, birth_date, school, grade, gender),
-      parents(name, phone, email, relationship)
+      parents(full_name, phone, email, relation)
     `)
     .eq('id', params.id)
     .maybeSingle();
@@ -108,7 +108,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               <User size={18} className="text-[#01696f]" /> אנשי קשר
             </h2>
             <div className="space-y-3 text-sm">
-              <ContactBlock title={`הורה (${parent?.relationship ?? 'הורה'})`} name={parent?.name} phone={parent?.phone} email={parent?.email} />
+              <ContactBlock title={`הורה (${parent?.relation ?? 'הורה'})`} name={parent?.full_name} phone={parent?.phone} email={parent?.email} />
               <div className="border-t border-slate-100 pt-3">
                 <ContactBlock
                   title="מורה"
