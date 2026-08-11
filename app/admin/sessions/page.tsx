@@ -42,7 +42,7 @@ export default async function SessionsPage({
 
   let query = supabase
     .from('intake_sessions')
-    
+    .select('id, status, created_at, updated_at, patients!inner(first_name, last_name, birth_date), parents(name, phone)')
     .order('updated_at', { ascending: false })
     .limit(100);
 
@@ -143,8 +143,8 @@ export default async function SessionsPage({
   );
 }
 
-function calcAge(dob: string): string {
-  const years = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+function calcAge(birth_date: string): string {
+  const years = Math.floor((Date.now() - new Date(birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
   return `בן/בת ${years}`;
 }
 

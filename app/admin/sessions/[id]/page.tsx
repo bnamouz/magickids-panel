@@ -18,7 +18,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
     .select(`
       id, status, created_at, updated_at, concerns, channel,
       parent_token, teacher_token, teacher_name, teacher_phone, teacher_email,
-      patients(id, first_name, last_name, dob, school, grade, gender),
+      patients(id, first_name, last_name, birth_date, school, grade, gender),
       parents(name, phone, email, relationship)
     `)
     .eq('id', params.id)
@@ -56,7 +56,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           <div>
             <h1 className="text-3xl font-bold text-slate-800">{childName}</h1>
             <p className="text-slate-500 mt-1">
-              {patient?.dob && `${calcAge(patient.dob)} · נולד/ה ${new Date(patient.dob).toLocaleDateString('he-IL')}`}
+              {patient?.birth_date && `${calcAge(patient.birth_date)} · נולד/ה ${new Date(patient.birth_date).toLocaleDateString('he-IL')}`}
               {patient?.school && ` · ${patient.school}`}
               {patient?.grade && ` · כיתה ${patient.grade}`}
             </p>
@@ -204,7 +204,7 @@ function ContactBlock({ title, name, phone, email }: { title: string; name?: str
   );
 }
 
-function calcAge(dob: string): string {
-  const years = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+function calcAge(birth_date: string): string {
+  const years = Math.floor((Date.now() - new Date(birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
   return `גיל ${years}`;
 }
