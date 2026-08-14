@@ -34,7 +34,7 @@ function getCalendarClient(): calendar_v3.Calendar {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON');
   }
 
-  const impersonate = process.env.GOOGLE_IMPERSONATE_USER;
+  const impersonate = process.env.GOOGLE_IMPERSONATE_USER?.trim();
 
   const auth = new google.auth.JWT({
     email: credentials.client_email,

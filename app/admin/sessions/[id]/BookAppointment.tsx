@@ -26,6 +26,25 @@ export default function BookAppointment({ sessionId, childName }: Props) {
 
   const duration = APPOINTMENT_TYPES.find((t) => t.value === type)?.duration ?? 60;
 
+  // Returns "+03:00" for IDT (summer) or "+02:00" for IST (winter)
+  function getIsraelOffset(dateStr: string): string {
+    // Use Intl to get the offset for the given date in Asia/Jerusalem
+    const d = new Date(`${dateStr}T12:00:00Z`);
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Jerusalem',
+      timeZoneName: 'shortOffset',
+    }).formatToParts(d);
+    const tz = parts.find((p) => p.type === 'timeZoneName')?.value || 'GMT+3';
+    const match = tz.match(/GMT([+-]\d+)/);
+    if (match) {
+      const hours = parseInt(match[1], 10);
+      const sign = hours >= 0 ? '+' : '-';
+      const abs = Math.abs(hours).toString().padStart(2, '0');
+      return `${sign}${abs}:00`;
+    }
+    return '+03:00'; // fallback
+  }
+
   async function submit() {
     setError(null);
     setSuccess(null);
@@ -35,8 +54,10 @@ export default function BookAppointment({ sessionId, childName }: Props) {
       return;
     }
 
-    // Build ISO with Asia/Jerusalem intent (browser interprets as local)
-    const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
+    // Build ISO with explicit Asia/Jerusalem intent (avoid browser timezone drift)
+    // Israel is UTC+3 in summer (IDT) and UTC+2 in winter (IST)
+    const israelOffset = getIsraelOffset(date);
+    const scheduledAt = `${date}T${time}:00${israelOffset}`;
 
     setLoading(true);
     try {
