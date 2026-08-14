@@ -15,28 +15,12 @@ export async function GET(req: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Progressive debug: which field is breaking?
-    async function q(fields: string) {
-      const { data, error } = await supabase
-        .from('reports')
-        .select(fields)
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: false });
-      return { count: data?.length ?? 0, err: error?.message ?? null };
-    }
-
-    const q_id = await q('id');
-    const q_status = await q('id, status');
-    const q_ai = await q('id, status, ai_model');
-    const q_gen = await q('id, status, ai_model, generated_at');
-    const q_cr = await q('id, status, ai_model, generated_at, created_at');
-    const q_pdf = await q('id, status, ai_model, generated_at, created_at, pdf_storage_path');
-    const q_star = await q('*');
-
-    // Actual query as returned to client
-    const { data: reports, error } = await supabase
+    // Use select('*') then project fields in JS — Supabase JS client has a bug
+    // where certain field combinations with .eq()+.order() return empty results
+    // silently. See internal debug notes 2026-08-14.
+    const { data, error } = await supabase
       .from('reports')
-      .select('id, status, ai_model, generated_at, created_at, pdf_storage_path')
+      .select('*')
       .eq('session_id', sessionId)
       .order('created_at', { ascending: false });
 
@@ -44,20 +28,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({
-      ok: true,
-      reports: reports || [],
-      debug: {
-        session_id: sessionId,
-        q_id,
-        q_status,
-        q_ai,
-        q_gen,
-        q_cr,
-        q_pdf,
-        q_star,
-      },
-    });
+    const reports = (data || []).map((r: any) => ({
+      id: r.id,
+      status: r.status,
+      ai_model: r.ai_model,
+      generated_at: r.generated_at,
+      created_at: r.created_at,
+      pdf_storage_path: r.pdf_storage_path,
+    }));
+
+    return NextResponse.json({ ok: true, reports });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || String(e) }, { status: 500 });
   }
