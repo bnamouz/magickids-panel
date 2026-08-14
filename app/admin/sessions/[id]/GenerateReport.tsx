@@ -30,12 +30,17 @@ export default function GenerateReport({ sessionId, childName, hasParentForm }: 
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/reports/list?session_id=${sessionId}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'שגיאה בטעינת דוחות');
+      const res = await fetch(`/api/admin/reports/list?session_id=${sessionId}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      if (!res.ok) throw new Error(data.error || `שגיאה בטעינת דוחות (HTTP ${res.status})`);
       setReports(data.reports || []);
+      console.log('[GenerateReport] loaded', data.reports?.length ?? 0, 'reports');
     } catch (e: any) {
-      setError(e.message);
+      console.error('[GenerateReport] load error:', e);
+      setError(`שגיאה בטעינת דוחות: ${e.message}`);
     } finally {
       setLoading(false);
     }
