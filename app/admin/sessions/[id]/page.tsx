@@ -7,7 +7,7 @@ import ClinicalNotes from '@/components/admin/ClinicalNotes';
 import ResponsesTable from '@/components/admin/ResponsesTable';
 import ScoreCard from '@/components/admin/ScoreCard';
 import BookAppointment from './BookAppointment';
-import GenerateReport from './GenerateReport';
+import ReportsList from './ReportsList';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,11 +64,6 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <GenerateReport
-              sessionId={session.id}
-              childName={childName}
-              hasParentForm={!!parentQ?.is_complete}
-            />
             <StatusBadge status={session.status} />
           </div>
         </div>
@@ -94,6 +89,13 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{(session as any).reason_for_referral}</p>
             </div>
           )}
+
+          {/* Reports — always visible section */}
+          <ReportsList
+            sessionId={session.id}
+            childName={childName}
+            hasParentForm={!!parentQ?.is_complete}
+          />
 
           {/* Responses tabs */}
           {(parentQ || teacherQ) && (
