@@ -191,10 +191,11 @@ export async function POST(req: NextRequest) {
     // Render PDF
     const pdfBuffer = await generatePdfReport(pdfInput);
 
-    // Upload to Supabase Storage
+    // Upload to Supabase Storage.
+    // Storage keys must be ASCII-safe (Hebrew/RTL characters are rejected as 'Invalid key').
+    // We keep session_id as the folder for organization and use ASCII-only filenames.
     const timestamp = Date.now();
-    const safeName = childName.replace(/[^\u0590-\u05FFa-zA-Z0-9\-_]/g, '_') || 'report';
-    const filePath = `${session_id}/${timestamp}_${safeName}.pdf`;
+    const filePath = `${session_id}/${timestamp}_report.pdf`;
 
     const { error: uploadErr } = await supabase.storage
       .from('reports')
