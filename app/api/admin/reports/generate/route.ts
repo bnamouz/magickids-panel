@@ -53,8 +53,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'תיק לא נמצא' }, { status: 404 });
     }
 
-    const patient = (session as any).patients;
-    const parents = (session as any).parents || [];
+    const patientRaw = (session as any).patients;
+    const patient = Array.isArray(patientRaw) ? patientRaw[0] : patientRaw;
+    const parentsRaw = (session as any).parents;
+    const parents: any[] = Array.isArray(parentsRaw)
+      ? parentsRaw
+      : parentsRaw
+      ? [parentsRaw]
+      : [];
     if (!patient) {
       return NextResponse.json({ error: 'ילד לא נמצא בתיק' }, { status: 404 });
     }
