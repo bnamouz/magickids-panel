@@ -78,7 +78,7 @@ export default async function DashboardPage() {
                     <div className="text-xs text-slate-500">{row.appointment_type} · {row.duration_min} דק'</div>
                   </div>
                   <div className="text-sm font-mono text-[#01696f]">
-                    {new Date(row.scheduled_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(row.scheduled_at).toLocaleTimeString('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </li>
               ))}

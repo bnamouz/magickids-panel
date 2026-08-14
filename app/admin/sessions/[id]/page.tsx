@@ -150,7 +150,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
                     <li key={a.id} className="text-sm border-r-2 border-r-[#01696f] pr-3">
                       <div className="font-semibold text-slate-800">{typeLabel}</div>
                       <div className="text-slate-500 text-xs">
-                        {new Date(a.scheduled_at).toLocaleString('he-IL')} · {statusLabel[a.status] ?? a.status}
+                        {new Date(a.scheduled_at).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' })} · {statusLabel[a.status] ?? a.status}
                       </div>
                       {a.location && (
                         <div className="text-slate-400 text-xs">{a.location}</div>

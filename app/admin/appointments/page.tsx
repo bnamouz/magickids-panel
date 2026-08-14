@@ -88,6 +88,7 @@ export default async function AppointmentsPage() {
                   <tr key={a.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="p-3 font-mono text-xs whitespace-nowrap">
                       {new Date(a.scheduled_at).toLocaleString('he-IL', {
+                        timeZone: 'Asia/Jerusalem',
                         dateStyle: 'short',
                         timeStyle: 'short',
                       })}
