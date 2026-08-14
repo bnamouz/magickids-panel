@@ -24,10 +24,19 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message, debug: { sessionId, len: sessionId.length } }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, reports: reports || [] });
+    return NextResponse.json({
+      ok: true,
+      reports: reports || [],
+      debug: {
+        received_session_id: sessionId,
+        session_id_length: sessionId.length,
+        session_id_char_codes: [...sessionId].slice(0, 5).map(c => c.charCodeAt(0)),
+        row_count: reports?.length ?? 0,
+      },
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || String(e) }, { status: 500 });
   }
