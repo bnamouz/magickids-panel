@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Download, Loader2, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { FileText, Download, Loader2, Sparkles, CheckCircle2, AlertCircle, Send } from 'lucide-react';
 
 interface Props {
   sessionId: string;
@@ -25,6 +25,7 @@ export default function GenerateReport({ sessionId, childName, hasParentForm }: 
   const [error, setError] = useState<string | null>(null);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   async function loadReports() {
     setLoading(true);
@@ -77,6 +78,39 @@ export default function GenerateReport({ sessionId, childName, hasParentForm }: 
 
   function downloadUrl(reportId: string) {
     return `/api/admin/reports/${reportId}/download`;
+  }
+
+  async function handleSendWhatsApp(reportId: string) {
+    if (
+      !confirm(
+        `לשלוח דוח זה להורה של ${childName} דרך WhatsApp?\n\n` +
+          `הפעולה תשלח את קובץ ה-PDF בצירוף הודעת ליווי לטלפון ההורה הרשום בתיק.\n` +
+          `לאחר השליחה סטטוס הדוח יעודכן ל'נשלח'.`,
+      )
+    ) return;
+
+    setSendingId(reportId);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      const res = await fetch(`/api/admin/reports/${reportId}/send-whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      if (!res.ok) throw new Error(data.error || `שליחה נכשלה (HTTP ${res.status})`);
+
+      setSuccessMsg(`הדוח נשלח בהצלחה ל-${data.sent_to} ב-WhatsApp`);
+      await loadReports();
+    } catch (e: any) {
+      console.error('[send-whatsapp] error:', e);
+      setError(`שליחת WhatsApp נכשלה: ${e.message}`);
+    } finally {
+      setSendingId(null);
+    }
   }
 
   return (
@@ -187,15 +221,37 @@ export default function GenerateReport({ sessionId, childName, hasParentForm }: 
                             )}
                           </div>
                         </div>
-                        <a
-                          href={downloadUrl(r.id)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#01696f] text-white text-sm font-semibold hover:bg-[#014a4f]"
-                        >
-                          <Download size={14} />
-                          הורדה
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={downloadUrl(r.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#01696f] text-white text-sm font-semibold hover:bg-[#014a4f]"
+                          >
+                            <Download size={14} />
+                            הורדה
+                          </a>
+                          {r.status !== 'sent' && r.pdf_storage_path && (
+                            <button
+                              onClick={() => handleSendWhatsApp(r.id)}
+                              disabled={sendingId === r.id}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60"
+                              title="שלח PDF להורה דרך WhatsApp"
+                            >
+                              {sendingId === r.id ? (
+                                <>
+                                  <Loader2 size={14} className="animate-spin" />
+                                  שולח...
+                                </>
+                              ) : (
+                                <>
+                                  <Send size={14} />
+                                  שלח בוואטסאפ
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </li>
                     );
                   })}
