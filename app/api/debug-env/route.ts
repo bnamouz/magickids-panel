@@ -26,14 +26,32 @@ export async function GET(req: Request) {
     dbCount = count;
     dbError = error?.message;
 
-    const { data: rows, error: e2 } = await supabase
+    // Test 1: filter by session_id string
+    const targetSession = '2cab02c2-4afb-4d05-8fdd-8a2be506a826';
+    const { data: rows1, error: e1 } = await supabase
       .from('reports')
-      .select('id, session_id, created_at')
-      .order('created_at', { ascending: false })
-      .limit(20);
-    sessionCount = rows?.length ?? 0;
-    sampleReport = rows ?? null;
-    if (e2) dbError = (dbError ? dbError + ' | ' : '') + e2.message;
+      .select('id, session_id')
+      .eq('session_id', targetSession);
+    // Test 2: no filter
+    const { data: rows2 } = await supabase
+      .from('reports')
+      .select('session_id');
+    // Test 3: filter using ilike
+    const { data: rows3 } = await supabase
+      .from('reports')
+      .select('id')
+      .filter('session_id', 'eq', targetSession);
+    sessionCount = {
+      by_eq_string: rows1?.length ?? 0,
+      no_filter: rows2?.length ?? 0,
+      by_filter: rows3?.length ?? 0,
+      unique_sessions_seen: [...new Set(rows2?.map((r:any)=>r.session_id))],
+      first_row_session_id_type: rows2?.[0] ? typeof rows2[0].session_id : 'none',
+      first_row_session_id: rows2?.[0]?.session_id,
+      target_matches_first: rows2?.[0]?.session_id === targetSession,
+    };
+    sampleReport = rows1;
+    if (e1) dbError = (dbError ? dbError + ' | ' : '') + e1.message;
   } catch (e: any) {
     dbError = e.message;
   }
