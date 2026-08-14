@@ -29,11 +29,10 @@ export async function GET(req: Request) {
     const { data: rows, error: e2 } = await supabase
       .from('reports')
       .select('id, session_id, created_at')
-      .eq('session_id', '2cab02c2-4afb-4d05-8fdd-8a2be506a826')
       .order('created_at', { ascending: false })
-      .limit(3);
+      .limit(20);
     sessionCount = rows?.length ?? 0;
-    sampleReport = rows?.[0] ?? null;
+    sampleReport = rows ?? null;
     if (e2) dbError = (dbError ? dbError + ' | ' : '') + e2.message;
   } catch (e: any) {
     dbError = e.message;
