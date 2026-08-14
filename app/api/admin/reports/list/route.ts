@@ -15,22 +15,22 @@ export async function GET(req: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Isolate: is it the .order() call that breaks things?
-    const { data: q1 } = await supabase
-      .from('reports')
-      .select('id, session_id')
-      .eq('session_id', sessionId);
-
-    const { data: q2 } = await supabase
-      .from('reports')
-      .select('id, session_id, created_at')
-      .eq('session_id', sessionId)
-      .order('created_at', { ascending: false });
-
-    const { data: q3 } = await supabase
-      .from('reports')
-      .select('id, session_id, created_at')
-      .order('created_at', { ascending: false });
+    // Isolate: which field is causing the empty result?
+    async function q(fields: string) {
+      const { data, error } = await supabase
+        .from('reports')
+        .select(fields)
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false });
+      return { count: data?.length ?? 0, err: error?.message ?? null };
+    }
+    const qStatus = await q('id, status');
+    const qAiModel = await q('id, ai_model');
+    const qGeneratedAt = await q('id, generated_at');
+    const qPdfPath = await q('id, pdf_storage_path');
+    const qDownloadExpires = await q('id, download_expires_at');
+    const qCreatedAt = await q('id, created_at');
+    const qFull = await q('id, status, ai_model, generated_at, created_at, pdf_storage_path, download_expires_at');
 
     const { data: reports, error } = await supabase
       .from('reports')
@@ -50,10 +50,15 @@ export async function GET(req: NextRequest) {
       debug: {
         received_session_id: sessionId,
         session_id_length: sessionId.length,
-        q1_filter_only: q1?.length ?? 0,
-        q2_filter_and_order: q2?.length ?? 0,
-        q3_order_only: q3?.length ?? 0,
-        q4_full_select: reports?.length ?? 0,
+        by_field: {
+          status: qStatus,
+          ai_model: qAiModel,
+          generated_at: qGeneratedAt,
+          pdf_storage_path: qPdfPath,
+          download_expires_at: qDownloadExpires,
+          created_at: qCreatedAt,
+          full: qFull,
+        },
       },
     });
   } catch (e: any) {
