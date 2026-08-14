@@ -83,9 +83,9 @@ export default function GenerateReport({ sessionId, childName, hasParentForm }: 
   async function handleSendWhatsApp(reportId: string) {
     if (
       !confirm(
-        `לשלוח דוח זה להורה של ${childName} דרך WhatsApp?\n\n` +
-          `הפעולה תשלח את קובץ ה-PDF בצירוף הודעת ליווי לטלפון ההורה הרשום בתיק.\n` +
-          `לאחר השליחה סטטוס הדוח יעודכן ל'נשלח'.`,
+        `לפתוח WhatsApp עם דוח ל-${childName}?\n\n` +
+          `המערכת תיצור קישור הורדה (תוקף 7 ימים), תפתח את WhatsApp עם מספר ההורה והודעה מוכנה — אתה רק לוחץ שלח.\n\n` +
+          `הסטטוס יעודכן ל'נשלח'.`,
       )
     ) return;
 
@@ -101,13 +101,18 @@ export default function GenerateReport({ sessionId, childName, hasParentForm }: 
         credentials: 'include',
       });
       const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-      if (!res.ok) throw new Error(data.error || `שליחה נכשלה (HTTP ${res.status})`);
+      if (!res.ok) throw new Error(data.error || `נכשל (HTTP ${res.status})`);
 
-      setSuccessMsg(`הדוח נשלח בהצלחה ל-${data.sent_to} ב-WhatsApp`);
+      // Open WhatsApp in a new tab with pre-filled message + link
+      window.open(data.wa_link, '_blank', 'noopener,noreferrer');
+
+      setSuccessMsg(
+        `WhatsApp נפתח עם ההודעה מוכנה ל-${data.parent_name} (${data.phone}). לחץ 'שלח' בחלון ה-WhatsApp.`,
+      );
       await loadReports();
     } catch (e: any) {
-      console.error('[send-whatsapp] error:', e);
-      setError(`שליחת WhatsApp נכשלה: ${e.message}`);
+      console.error('[whatsapp] error:', e);
+      setError(`הכנת WhatsApp נכשלה: ${e.message}`);
     } finally {
       setSendingId(null);
     }
@@ -231,22 +236,22 @@ export default function GenerateReport({ sessionId, childName, hasParentForm }: 
                             <Download size={14} />
                             הורדה
                           </a>
-                          {r.status !== 'sent' && r.pdf_storage_path && (
+                          {r.pdf_storage_path && (
                             <button
                               onClick={() => handleSendWhatsApp(r.id)}
                               disabled={sendingId === r.id}
                               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60"
-                              title="שלח PDF להורה דרך WhatsApp"
+                              title="פתח WhatsApp עם קישור הורדה מוכן"
                             >
                               {sendingId === r.id ? (
                                 <>
                                   <Loader2 size={14} className="animate-spin" />
-                                  שולח...
+                                  מכין...
                                 </>
                               ) : (
                                 <>
                                   <Send size={14} />
-                                  שלח בוואטסאפ
+                                  פתח WhatsApp
                                 </>
                               )}
                             </button>

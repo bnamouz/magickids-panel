@@ -6,14 +6,23 @@ export const runtime = 'nodejs';
 
 /**
  * POST /api/admin/reports/[id]/send-whatsapp
- * Sends the report PDF to the parent via WABoxApp.
  *
- * Request body:
- *   { phone?: string, message?: string }  // optional overrides
+ * Prepares a WhatsApp handoff for a report:
+ *  1. Creates a 7-day signed URL for the PDF in Supabase Storage.
+ *  2. Builds a wa.me deep link pre-filled with a Hebrew message + link.
+ *  3. Marks the report as sent (status='sent', sent_at=now, sent_to=phone).
+ *  4. Writes an audit_log entry.
  *
- * Env required:
- *   WABOXAPP_TOKEN     — WABoxApp API token
- *   WABOXAPP_UID       — clinic WhatsApp number (972... no +)
+ * Returns:
+ *   {
+ *     ok: true,
+ *     wa_link:  "https://wa.me/972509955137?text=...",
+ *     download_url: "<signed pdf url>",
+ *     message: "<default Hebrew message>",
+ *     phone: "972509955137"
+ *   }
+ *
+ * The client (browser) opens wa_link in a new tab — user reviews & sends manually.
  */
 export async function POST(
   req: NextRequest,
@@ -25,23 +34,12 @@ export async function POST(
     const phoneOverride: string | undefined = body?.phone;
     const messageOverride: string | undefined = body?.message;
 
-    const token = process.env.WABOXAPP_TOKEN;
-    const uid = process.env.WABOXAPP_UID;
-    if (!token || !uid) {
-      return NextResponse.json(
-        { error: 'WABoxApp אינו מוגדר. חסרים משתני סביבה WABOXAPP_TOKEN/WABOXAPP_UID.' },
-        { status: 500 },
-      );
-    }
-
     const supabase = getSupabaseAdmin();
 
-    // Load report + session + patient + parent
+    // Load report
     const { data: report, error: reportErr } = await supabase
       .from('reports')
-      .select(
-        'id, session_id, status, pdf_storage_path, sent_at, sent_to',
-      )
+      .select('id, session_id, status, pdf_storage_path')
       .eq('id', reportId)
       .single();
 
@@ -53,6 +51,7 @@ export async function POST(
       return NextResponse.json({ error: 'לדוח אין קובץ PDF' }, { status: 400 });
     }
 
+    // Load session with patient + primary parent
     const { data: session, error: sessErr } = await supabase
       .from('intake_sessions')
       .select(
@@ -80,10 +79,12 @@ export async function POST(
       return NextResponse.json({ error: 'אין פרטי ילד' }, { status: 400 });
     }
     if (!parent && !phoneOverride) {
-      return NextResponse.json({ error: 'אין פרטי הורה או מספר טלפון' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'אין פרטי הורה או מספר טלפון' },
+        { status: 400 },
+      );
     }
 
-    // Normalize phone: strip +, spaces, dashes. Israeli 05x → 9725x.
     const rawPhone = (phoneOverride || parent?.phone || '').trim();
     const normalized = normalizePhoneIL(rawPhone);
     if (!normalized) {
@@ -93,75 +94,38 @@ export async function POST(
       );
     }
 
-    // Generate a signed URL (7 days) for the PDF so WABoxApp can download it
+    // Generate signed URL (7 days)
     const { data: signed, error: signErr } = await supabase.storage
       .from('reports')
       .createSignedUrl(report.pdf_storage_path, 60 * 60 * 24 * 7);
 
     if (signErr || !signed?.signedUrl) {
       return NextResponse.json(
-        { error: `נכשל ביצירת קישור להורדה: ${signErr?.message || 'unknown'}` },
+        { error: `נכשל ביצירת קישור הורדה: ${signErr?.message || 'unknown'}` },
         { status: 500 },
       );
     }
 
-    // Default message
-    const childName = [patient.first_name, patient.last_name].filter(Boolean).join(' ') || 'ילד';
-    const parentName = parent?.full_name || 'הורה';
+    // Build default message
+    const childName =
+      [patient.first_name, patient.last_name].filter(Boolean).join(' ') || 'ילד';
+    const parentName = parent?.full_name || 'הורה יקר';
+
     const defaultMessage =
       messageOverride ||
       `שלום ${parentName},\n\n` +
         `מצורף דוח אבחון קשב וריכוז עבור ${childName}.\n\n` +
         `הדוח כולל ניתוח מפורט של השאלונים, התרשמות קלינית והמלצות המשך.\n\n` +
+        `לינק להורדת ה-PDF (בתוקף ל-7 ימים):\n${signed.signedUrl}\n\n` +
         `לכל שאלה, אשמח לעמוד לרשותכם.\n\n` +
         `בברכה,\n` +
         `ד"ר בסים נמוז\n` +
         `מכון ילדי הקסם`;
 
-    const customUid = `magickids-report-${reportId}-${Date.now()}`;
+    // Build wa.me deep link — text is URL-encoded
+    const waLink = `https://wa.me/${normalized}?text=${encodeURIComponent(defaultMessage)}`;
 
-    // Send media (PDF) via WABoxApp
-    const mediaResp = await fetch('https://www.waboxapp.com/api/send/media', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        token,
-        uid,
-        to: normalized,
-        custom_uid: customUid,
-        url: signed.signedUrl,
-        caption: `דוח אבחון - ${childName}`,
-      }).toString(),
-    });
-
-    const mediaResult = await mediaResp.json().catch(() => ({}));
-
-    if (!mediaResp.ok || !mediaResult.success) {
-      return NextResponse.json(
-        {
-          error: `שליחת ה-PDF נכשלה: ${mediaResult?.error || `HTTP ${mediaResp.status}`}`,
-          details: mediaResult,
-        },
-        { status: 502 },
-      );
-    }
-
-    // Follow-up text message with context
-    const textResp = await fetch('https://www.waboxapp.com/api/send/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        token,
-        uid,
-        to: normalized,
-        custom_uid: `${customUid}-text`,
-        text: defaultMessage,
-      }).toString(),
-    });
-
-    const textResult = await textResp.json().catch(() => ({}));
-
-    // Update report status
+    // Update report status to 'sent'
     const nowIso = new Date().toISOString();
     const { error: updateErr } = await supabase
       .from('reports')
@@ -173,69 +137,53 @@ export async function POST(
       .eq('id', reportId);
 
     if (updateErr) {
-      console.error('[send-whatsapp] status update failed:', updateErr);
-      // Not fatal — the message was sent
+      console.error('[whatsapp-link] status update failed:', updateErr);
     }
 
     // Audit log
     await supabase.from('audit_log').insert({
       actor_type: 'system',
-      action: 'report_sent_whatsapp',
+      action: 'report_whatsapp_link_generated',
       entity_type: 'report',
       entity_id: reportId,
       metadata: {
         session_id: report.session_id,
-        to: normalized,
-        custom_uid: customUid,
-        media_response: mediaResult,
-        text_response: textResult,
+        phone: normalized,
+        parent_name: parentName,
+        child_name: childName,
       },
     });
 
     return NextResponse.json({
       ok: true,
-      sent_to: normalized,
-      custom_uid: customUid,
-      media: mediaResult,
-      text: textResult,
+      wa_link: waLink,
+      download_url: signed.signedUrl,
+      message: defaultMessage,
+      phone: normalized,
+      parent_name: parentName,
+      child_name: childName,
     });
   } catch (e: any) {
-    console.error('[send-whatsapp] error:', e);
+    console.error('[whatsapp-link] error:', e);
     return NextResponse.json({ error: e.message || String(e) }, { status: 500 });
   }
 }
 
-/**
- * Normalize Israeli phone numbers to WABoxApp format:
- * - "0509955137" → "972509955137"
- * - "972509955137" → "972509955137"
- * - "+972509955137" → "972509955137"
- * - "050-995-5137" → "972509955137"
- * Returns empty string if invalid.
- */
 function normalizePhoneIL(input: string): string {
   const digits = input.replace(/\D/g, '');
   if (!digits) return '';
 
-  // Already has country code (972 prefix, 12 digits total)
   if (digits.startsWith('972') && digits.length >= 11 && digits.length <= 13) {
     return digits;
   }
-
-  // Israeli local format: 0XXXXXXXXX (10 digits)
   if (digits.startsWith('0') && digits.length === 10) {
     return '972' + digits.slice(1);
   }
-
-  // Israeli without leading 0: 5XXXXXXXX (9 digits)
   if (digits.length === 9 && digits.startsWith('5')) {
     return '972' + digits;
   }
-
-  // Fallback: return as-is if 10-13 digits (international)
   if (digits.length >= 10 && digits.length <= 15) {
     return digits;
   }
-
   return '';
 }
