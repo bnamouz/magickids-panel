@@ -7,6 +7,7 @@ import ClinicalNotes from '@/components/admin/ClinicalNotes';
 import ResponsesTable from '@/components/admin/ResponsesTable';
 import ScoreCard from '@/components/admin/ScoreCard';
 import BookAppointment from './BookAppointment';
+import GenerateReport from './GenerateReport';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +63,14 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               {patient?.grade && ` · כיתה ${patient.grade}`}
             </p>
           </div>
-          <StatusBadge status={session.status} />
+          <div className="flex items-center gap-3">
+            <GenerateReport
+              sessionId={session.id}
+              childName={childName}
+              hasParentForm={!!parentQ?.is_complete}
+            />
+            <StatusBadge status={session.status} />
+          </div>
         </div>
       </div>
 
