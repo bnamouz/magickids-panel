@@ -6,6 +6,7 @@ import { google, calendar_v3 } from 'googleapis';
  * Environment variables required:
  * - GOOGLE_SERVICE_ACCOUNT_JSON: The full JSON key file content as a string
  * - GOOGLE_CALENDAR_ID: The ID of the calendar to write to (e.g. "primary" or full email)
+ * - GOOGLE_IMPERSONATE_USER: Workspace user email to impersonate via Domain-Wide Delegation
  */
 
 const APPOINTMENT_TYPE_HE: Record<string, string> = {
@@ -33,10 +34,13 @@ function getCalendarClient(): calendar_v3.Calendar {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON');
   }
 
+  const impersonate = process.env.GOOGLE_IMPERSONATE_USER;
+
   const auth = new google.auth.JWT({
     email: credentials.client_email,
     key: credentials.private_key,
     scopes: ['https://www.googleapis.com/auth/calendar'],
+    subject: impersonate || undefined,
   });
 
   return google.calendar({ version: 'v3', auth });
