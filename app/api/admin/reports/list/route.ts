@@ -15,15 +15,22 @@ export async function GET(req: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Try TWO queries — same client — to isolate the bug
-    const { data: reportsWithFilter } = await supabase
+    // Isolate: is it the .order() call that breaks things?
+    const { data: q1 } = await supabase
       .from('reports')
       .select('id, session_id')
       .eq('session_id', sessionId);
 
-    const { data: allReports } = await supabase
+    const { data: q2 } = await supabase
       .from('reports')
-      .select('id, session_id');
+      .select('id, session_id, created_at')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false });
+
+    const { data: q3 } = await supabase
+      .from('reports')
+      .select('id, session_id, created_at')
+      .order('created_at', { ascending: false });
 
     const { data: reports, error } = await supabase
       .from('reports')
@@ -43,11 +50,10 @@ export async function GET(req: NextRequest) {
       debug: {
         received_session_id: sessionId,
         session_id_length: sessionId.length,
-        row_count: reports?.length ?? 0,
-        filter_count: reportsWithFilter?.length ?? 0,
-        all_count: allReports?.length ?? 0,
-        sessions_in_db: [...new Set((allReports || []).map((r: any) => r.session_id))],
-        matching_manual: (allReports || []).filter((r: any) => r.session_id === sessionId).length,
+        q1_filter_only: q1?.length ?? 0,
+        q2_filter_and_order: q2?.length ?? 0,
+        q3_order_only: q3?.length ?? 0,
+        q4_full_select: reports?.length ?? 0,
       },
     });
   } catch (e: any) {
