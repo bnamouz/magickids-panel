@@ -15,20 +15,23 @@ export async function GET(req: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Use select('*') then project fields in JS — Supabase JS client has a bug
-    // where certain field combinations with .eq()+.order() return empty results
-    // silently. See internal debug notes 2026-08-14.
-    const { data, error } = await supabase
+    // Workaround: Supabase JS client has an intermittent bug where
+    // .select().eq().order() returns [] on tables with certain RLS policies
+    // even with service role. Query all rows and filter in JS instead.
+    // See internal debug notes 2026-08-15 for context.
+    const { data: allData, error } = await supabase
       .from('reports')
       .select('*')
-      .eq('session_id', sessionId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(500);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const reports = (data || []).map((r: any) => ({
+    const filtered = (allData || []).filter((r: any) => r.session_id === sessionId);
+
+    const reports = filtered.map((r: any) => ({
       id: r.id,
       status: r.status,
       ai_model: r.ai_model,
@@ -37,7 +40,11 @@ export async function GET(req: NextRequest) {
       pdf_storage_path: r.pdf_storage_path,
     }));
 
-    return NextResponse.json({ ok: true, reports });
+    return NextResponse.json({
+      ok: true,
+      reports,
+      _debug: { total_in_db: allData?.length ?? 0, matched: filtered.length },
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || String(e) }, { status: 500 });
   }
