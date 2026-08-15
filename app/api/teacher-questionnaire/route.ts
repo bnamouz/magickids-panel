@@ -65,9 +65,17 @@ export async function POST(req: NextRequest) {
   }
 
   // Must have submitted parent form first
-  if (!['parent_form_done', 'teacher_form_started', 'teacher_form_done', 'profile_ready'].includes(session.status)) {
+  if (
+    ![
+      'parent_form_done',
+      'teacher_link_sent',
+      'teacher_form_started',
+      'teacher_form_done',
+      'profile_ready',
+    ].includes(session.status)
+  ) {
     return NextResponse.json(
-      { error: 'parent form not yet submitted', status: session.status },
+      { error: 'יש למלא קודם את שאלון ההורה.', status: session.status },
       { status: 400 },
     );
   }
