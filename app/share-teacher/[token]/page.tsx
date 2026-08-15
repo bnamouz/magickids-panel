@@ -1,6 +1,17 @@
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import ShareTeacherClient from './ShareTeacherClient';
+
+function getAppUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (envUrl && envUrl.startsWith('http')) return envUrl.replace(/\/$/, '');
+  const h = headers();
+  const proto = h.get('x-forwarded-proto') ?? 'https';
+  const host = h.get('x-forwarded-host') ?? h.get('host');
+  if (host) return `${proto}://${host}`;
+  return 'https://magickids-panel.vercel.app';
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -52,7 +63,7 @@ export default async function ShareTeacherPage({ params }: PageProps) {
   const patient = (session as any).patients;
   const childName = `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || 'הילד';
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+  const appUrl = getAppUrl();
   const existingUrl = session.teacher_token ? `${appUrl}/teacher/${session.teacher_token}` : null;
 
   return (

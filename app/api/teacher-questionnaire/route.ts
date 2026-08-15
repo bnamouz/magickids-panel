@@ -19,6 +19,16 @@ const generateSchema = z.object({
  *
  * Returns the teacher URL + a sharing snippet (Hebrew).
  */
+function getAppUrl(req: NextRequest): string {
+  // Prefer env var, but fall back to the request origin so links never break.
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (envUrl && envUrl.startsWith('http')) return envUrl.replace(/\/$/, '');
+  const proto = req.headers.get('x-forwarded-proto') ?? 'https';
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+  if (host) return `${proto}://${host}`;
+  return 'https://magickids-panel.vercel.app';
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = generateSchema.safeParse(body);
@@ -27,14 +37,17 @@ export async function POST(req: NextRequest) {
   }
 
   const { parent_token, teacher_name, teacher_email, teacher_phone } = parsed.data;
+  const appUrlBase = getAppUrl(req);
 
   if (parent_token === 'demo') {
+    const demoUrl = `${appUrlBase}/teacher/demo`;
     return NextResponse.json({
       ok: true,
       demo: true,
       teacher_token: 'demo',
-      teacher_url: `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/teacher/demo`,
-      share_message: buildShareMessage(`${process.env.NEXT_PUBLIC_APP_URL ?? ''}/teacher/demo`, 'ילד לדוגמא'),
+      teacher_url: demoUrl,
+      share_message: buildShareMessage(demoUrl, 'ילד לדוגמא'),
+      whatsapp_url: buildWhatsAppUrl(demoUrl, 'ילד לדוגמא'),
     });
   }
 
@@ -85,8 +98,7 @@ export async function POST(req: NextRequest) {
       .eq('id', session.id);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
-  const teacherUrl = `${appUrl}/teacher/${teacherToken}`;
+  const teacherUrl = `${appUrlBase}/teacher/${teacherToken}`;
 
   const patient = (session as any).patients;
   const childName = `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim();
