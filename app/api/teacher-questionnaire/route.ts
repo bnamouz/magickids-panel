@@ -21,10 +21,10 @@ const generateSchema = z.object({
  */
 function getAppUrl(req: NextRequest): string {
   // Prefer env var, but fall back to the request origin so links never break.
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const envUrl = (process.env.NEXT_PUBLIC_APP_URL ?? '').trim();
   if (envUrl && envUrl.startsWith('http')) return envUrl.replace(/\/$/, '');
-  const proto = req.headers.get('x-forwarded-proto') ?? 'https';
-  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+  const proto = (req.headers.get('x-forwarded-proto') ?? 'https').trim();
+  const host = (req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? '').trim();
   if (host) return `${proto}://${host}`;
   return 'https://magickids-panel.vercel.app';
 }

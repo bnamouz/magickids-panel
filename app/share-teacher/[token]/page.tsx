@@ -4,11 +4,11 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import ShareTeacherClient from './ShareTeacherClient';
 
 function getAppUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const envUrl = (process.env.NEXT_PUBLIC_APP_URL ?? '').trim();
   if (envUrl && envUrl.startsWith('http')) return envUrl.replace(/\/$/, '');
   const h = headers();
-  const proto = h.get('x-forwarded-proto') ?? 'https';
-  const host = h.get('x-forwarded-host') ?? h.get('host');
+  const proto = (h.get('x-forwarded-proto') ?? 'https').trim();
+  const host = (h.get('x-forwarded-host') ?? h.get('host') ?? '').trim();
   if (host) return `${proto}://${host}`;
   return 'https://magickids-panel.vercel.app';
 }
