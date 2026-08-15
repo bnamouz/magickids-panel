@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { VANDERBILT_PARENT_QUESTIONS, SCALE_A, SCALE_B } from '@/questions/vanderbilt_parent';
+import { VANDERBILT_PARENT_QUESTIONS, VANDERBILT_PARENT_INTRO_FIELDS, SCALE_A, SCALE_B, IntroField } from '@/questions/vanderbilt_parent';
 import { CheckCircle2, ChevronRight, ChevronLeft, AlertCircle } from 'lucide-react';
 
 const SECTIONS = [
+  { id: 0, title: 'פרטים רקע', range: [0, 0], scale: 'INTRO' as const },
   { id: 1, title: 'חוסר קשב', range: [1, 9], scale: 'A' as const },
   { id: 2, title: 'היפראקטיביות / אימפולסיביות', range: [10, 18], scale: 'A' as const },
-  { id: 3, title: 'התנהגות (התנגדות)', range: [19, 26], scale: 'A' as const },
-  { id: 4, title: 'התנהגות (כללי)', range: [27, 40], scale: 'A' as const },
+  { id: 3, title: 'התנהגות מתנגדת', range: [19, 26], scale: 'A' as const },
+  { id: 4, title: 'הפרעות התנהגות', range: [27, 40], scale: 'A' as const },
   { id: 5, title: 'מצב רוח וחרדה', range: [41, 47], scale: 'A' as const },
   { id: 6, title: 'תפקוד אקדמי וחברתי', range: [48, 55], scale: 'B' as const },
 ];
@@ -27,19 +28,32 @@ export default function QuestionnaireForm({
   const [responses, setResponses] = useState<Responses>(initialResponses);
   const [section, setSection] = useState(0);
   const [freeText, setFreeText] = useState('');
+  const [introData, setIntroData] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const currentSection = SECTIONS[section];
-  const sectionQuestions = VANDERBILT_PARENT_QUESTIONS.filter(
-    q => q.id >= currentSection.range[0] && q.id <= currentSection.range[1]
-  );
+  const isIntroSection = currentSection.scale === 'INTRO';
+  const sectionQuestions = isIntroSection
+    ? []
+    : VANDERBILT_PARENT_QUESTIONS.filter(
+        q => q.id >= currentSection.range[0] && q.id <= currentSection.range[1]
+      );
 
   const totalAnswered = Object.keys(responses).length;
   const progress = (totalAnswered / 55) * 100;
 
-  const sectionAnswered = sectionQuestions.every(q => responses[q.id] !== undefined);
+  const introComplete = VANDERBILT_PARENT_INTRO_FIELDS.filter(f => f.required).every(
+    f => (introData[f.id]?.trim() || '').length > 0 &&
+      (f.otherField && introData[f.id] === 'other'
+        ? (introData[f.otherField]?.trim() || '').length > 0
+        : true),
+  );
+
+  const sectionAnswered = isIntroSection
+    ? introComplete
+    : sectionQuestions.every(q => responses[q.id] !== undefined);
 
   // Auto-save every 30 seconds
   useEffect(() => {
@@ -60,7 +74,13 @@ export default function QuestionnaireForm({
       const res = await fetch('/api/questionnaire', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, type: 'vanderbilt_parent', responses, free_text: freeText }),
+        body: JSON.stringify({
+          token,
+          type: 'vanderbilt_parent',
+          responses,
+          free_text: freeText,
+          intro_data: introData,
+        }),
       });
       if (!res.ok) throw new Error('save failed');
       setSaveStatus('saved');
@@ -79,11 +99,22 @@ export default function QuestionnaireForm({
       setError('יש לענות על כל השאלות לפני שליחה');
       return;
     }
+    if (!introComplete) {
+      setError('יש למלא את פרטי הרקע החובה');
+      return;
+    }
     try {
       const res = await fetch('/api/questionnaire', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, type: 'vanderbilt_parent', responses, free_text: freeText, complete: true }),
+        body: JSON.stringify({
+          token,
+          type: 'vanderbilt_parent',
+          responses,
+          free_text: freeText,
+          intro_data: introData,
+          complete: true,
+        }),
       });
       if (!res.ok) throw new Error('submit failed');
       setSubmitted(true);
@@ -124,32 +155,62 @@ export default function QuestionnaireForm({
         </div>
       </div>
 
-      {/* Scale legend */}
-      <div className="card mb-6 bg-[#f0f9fa] border-r-4 border-r-[#01696f]">
-        <div className="font-semibold text-[#01696f] mb-2">סולם הדירוג:</div>
-        <div className="flex flex-wrap gap-2 text-sm">
-          {(currentSection.scale === 'A' ? SCALE_A : SCALE_B).map(s => (
-            <div key={s.value} className="bg-white px-3 py-1 rounded-full border border-slate-200">
-              <span className="font-bold text-[#01696f]">{s.value}</span>
-              <span className="text-slate-600 mr-2">{s.label}</span>
-            </div>
+      {/* Scale legend (only for question sections) */}
+      {!isIntroSection && (
+        <div className="card mb-6 bg-[#f0f9fa] border-r-4 border-r-[#01696f]">
+          <div className="font-semibold text-[#01696f] mb-2">סולם הדירוג:</div>
+          <div className="flex flex-wrap gap-2 text-sm">
+            {(currentSection.scale === 'A' ? SCALE_A : SCALE_B).map(s => (
+              <div key={s.value} className="bg-white px-3 py-1 rounded-full border border-slate-200">
+                <span className="font-bold text-[#01696f]">{s.value}</span>
+                <span className="text-slate-600 mr-2">{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Intro fields */}
+      {isIntroSection && (
+        <div className="space-y-4 mb-6">
+          <div className="card bg-[#fff7ed] border-r-4 border-r-orange-500">
+            <p className="text-slate-700 text-sm leading-relaxed">
+              לפני מילוי השאלון, אנא מלא/י מספר פרטים על המשפחה ועל הילד/ה. הפרטים הללו עוזרים לנו להעניק הערכה מדויקת יותר.
+            </p>
+          </div>
+          {VANDERBILT_PARENT_INTRO_FIELDS.map(field => (
+            <IntroFieldRow
+              key={field.id}
+              field={field}
+              value={introData[field.id]}
+              otherValue={field.otherField ? introData[field.otherField] : undefined}
+              onChange={(v, other) => {
+                setIntroData(prev => {
+                  const next = { ...prev, [field.id]: v };
+                  if (field.otherField) next[field.otherField] = other ?? '';
+                  return next;
+                });
+              }}
+            />
           ))}
         </div>
-      </div>
+      )}
 
       {/* Questions */}
-      <div className="space-y-3 mb-6">
-        {sectionQuestions.map(q => (
-          <QuestionRow
-            key={q.id}
-            id={q.id}
-            text={q.text}
-            scale={currentSection.scale === 'A' ? SCALE_A : SCALE_B}
-            value={responses[q.id]}
-            onChange={(v) => setResponse(q.id, v)}
-          />
-        ))}
-      </div>
+      {!isIntroSection && (
+        <div className="space-y-3 mb-6">
+          {sectionQuestions.map(q => (
+            <QuestionRow
+              key={q.id}
+              id={q.id}
+              text={q.text}
+              scale={currentSection.scale === 'A' ? SCALE_A : SCALE_B}
+              value={responses[q.id]}
+              onChange={(v) => setResponse(q.id, v)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Free text on last section */}
       {section === SECTIONS.length - 1 && (
@@ -198,7 +259,7 @@ export default function QuestionnaireForm({
         ) : (
           <button
             onClick={handleSubmit}
-            disabled={totalAnswered < 55}
+            disabled={totalAnswered < 55 || !introComplete}
             className="btn-accent flex items-center gap-2"
           >
             <CheckCircle2 size={20} /> שלח שאלון
@@ -241,6 +302,78 @@ function QuestionRow({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function IntroFieldRow({
+  field,
+  value,
+  otherValue,
+  onChange,
+}: {
+  field: IntroField;
+  value?: string;
+  otherValue?: string;
+  onChange: (v: string, other?: string) => void;
+}) {
+  return (
+    <div className="card">
+      <label className="block">
+        <div className="font-semibold text-slate-800 mb-3">
+          {field.label}
+          {field.required && <span className="text-red-500 mr-1">*</span>}
+        </div>
+
+        {field.type === 'radio' && field.options && (
+          <div className="flex flex-wrap gap-2">
+            {field.options.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => onChange(opt.value, otherValue)}
+                className={`px-4 py-2 rounded-lg border-2 transition text-sm font-medium ${
+                  value === opt.value
+                    ? 'bg-[#01696f] text-white border-[#01696f] shadow-md'
+                    : 'bg-white text-slate-700 border-slate-300 hover:border-[#01696f]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {field.type === 'radio' && value === 'other' && field.otherField && (
+          <input
+            type="text"
+            className="mt-3 w-full border border-slate-300 rounded-lg p-3 focus:outline-none focus:border-[#01696f] focus:ring-2 focus:ring-teal-100"
+            placeholder="פרט/י..."
+            value={otherValue || ''}
+            onChange={e => onChange(value, e.target.value)}
+          />
+        )}
+
+        {field.type === 'text' && (
+          <input
+            type="text"
+            className="w-full border border-slate-300 rounded-lg p-3 focus:outline-none focus:border-[#01696f] focus:ring-2 focus:ring-teal-100"
+            placeholder={field.placeholder}
+            value={value || ''}
+            onChange={e => onChange(e.target.value)}
+          />
+        )}
+
+        {field.type === 'textarea' && (
+          <textarea
+            rows={3}
+            className="w-full border border-slate-300 rounded-lg p-3 focus:outline-none focus:border-[#01696f] focus:ring-2 focus:ring-teal-100"
+            placeholder={field.placeholder}
+            value={value || ''}
+            onChange={e => onChange(e.target.value)}
+          />
+        )}
+      </label>
     </div>
   );
 }

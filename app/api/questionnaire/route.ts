@@ -8,6 +8,7 @@ const upsertSchema = z.object({
   type: z.enum(['vanderbilt_parent', 'vanderbilt_teacher']),
   responses: z.record(z.string(), z.number().int().min(0).max(5)),
   free_text: z.string().optional(),
+  intro_data: z.record(z.string(), z.any()).optional(),
   complete: z.boolean().optional(),
 });
 
@@ -21,7 +22,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.format() }, { status: 400 });
   }
 
-  const { token, type, responses, free_text } = parsed.data;
+  const { token, type, responses, free_text, intro_data } = parsed.data;
   if (token === 'demo') {
     return NextResponse.json({ ok: true, demo: true });
   }
@@ -49,6 +50,7 @@ export async function PATCH(req: NextRequest) {
       respondent,
       responses: numericResponses,
       free_text: free_text ?? null,
+      intro_data: intro_data ?? null,
       started_at: new Date().toISOString(),
     },
     { onConflict: 'session_id,type,respondent' },
@@ -79,7 +81,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.format() }, { status: 400 });
   }
 
-  const { token, type, responses, free_text } = parsed.data;
+  const { token, type, responses, free_text, intro_data } = parsed.data;
 
   // Demo mode – return scoring locally
   if (token === 'demo') {
@@ -111,6 +113,7 @@ export async function POST(req: NextRequest) {
         respondent,
         responses: numericResponses,
         free_text: free_text ?? null,
+        intro_data: intro_data ?? null,
         is_complete: true,
         submitted_at: new Date().toISOString(),
       },
