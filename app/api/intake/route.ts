@@ -37,6 +37,19 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabaseAdmin();
     const d = parsed.data;
 
+    // Business-rule age check (6–80) before hitting DB
+    const birth = new Date(d.birth_date);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    if (age < 6 || age > 80) {
+      return NextResponse.json(
+        { error: 'גיל המטופל/ת חייב להיות בין 6 ל-80 שנה. בדוק את תאריך הלידה.' },
+        { status: 400 }
+      );
+    }
+
     // Create session via RPC
     const { data: sessionId, error: rpcError } = await supabase.rpc('create_intake_session', {
       p_first_name: d.child_first_name,
@@ -48,7 +61,18 @@ export async function POST(req: NextRequest) {
     });
 
     if (rpcError) {
-      return NextResponse.json({ error: rpcError.message }, { status: 500 });
+      // Translate common DB errors to Hebrew
+      let msg = rpcError.message;
+      if (msg.includes('age_in_range')) {
+        msg = 'גיל המטופל/ת חייב להיות בין 6 ל-80 שנה.';
+      } else if (msg.includes('birth_date_reasonable')) {
+        msg = 'תאריך הלידה לא תקין.';
+      } else if (msg.includes('phone') || msg.includes('valid_phone')) {
+        msg = 'מספר הטלפון לא תקין.';
+      } else if (msg.includes('duplicate') || msg.includes('unique')) {
+        msg = 'ניראה שכבר קיים רישום עם אותם פרטים. צור/י קשר למכון לעדכון.';
+      }
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
 
     // Fetch created session

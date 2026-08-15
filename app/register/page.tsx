@@ -62,11 +62,23 @@ export default function RegisterPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(
-          typeof data.error === 'string'
-            ? data.error
-            : 'שגיאה בשליחת הטופס. נסה שוב או צור קשר.'
-        );
+        let msg = 'שגיאה בשליחת הטופס. נסה שוב או צור קשר.';
+        if (typeof data.error === 'string') {
+          msg = data.error;
+        } else if (data.error && typeof data.error === 'object') {
+          // Zod field errors — pick the first useful message
+          try {
+            const flat: string[] = [];
+            const walk = (o: any) => {
+              if (!o) return;
+              if (Array.isArray(o._errors) && o._errors.length) flat.push(...o._errors);
+              for (const k of Object.keys(o)) if (k !== '_errors') walk(o[k]);
+            };
+            walk(data.error);
+            if (flat.length) msg = flat[0];
+          } catch {}
+        }
+        setError(msg);
       } else {
         setResult({ parent_url: data.parent_url });
       }
@@ -152,7 +164,7 @@ export default function RegisterPage() {
                   className={inputCls}
                 />
               </Field>
-              <Field label="תאריך לידה" required>
+              <Field label="תאריך לידה" required hint="גילאי 6–80">
                 <input
                   type="date"
                   value={form.birth_date}
@@ -322,16 +334,19 @@ const inputCls =
 function Field({
   label,
   required,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <label className="block">
       <span className="block text-sm font-medium text-slate-700 mb-1">
         {label} {required && <span className="text-rose-500">*</span>}
+        {hint && <span className="text-slate-400 font-normal text-xs mr-2">({hint})</span>}
       </span>
       {children}
     </label>
