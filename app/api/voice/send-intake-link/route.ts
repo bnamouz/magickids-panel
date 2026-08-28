@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
 
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_BASE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
     'https://app.magickidsinstitute.com';
   const link = `${baseUrl}/register?utm_source=voice&utm_medium=whatsapp&lang=${body.language}`;
 
