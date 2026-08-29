@@ -52,21 +52,75 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'missing_api_key' }, { status: 500 });
   }
 
-  // Detect if patient name is Hebrew (contains Hebrew chars) to pick language
-  const isHebrew = patientName && /[֐-׿]/.test(patientName);
+  // Nour ALWAYS speaks Arabic. If patient name or purpose contains Hebrew,
+  // we transliterate it to Arabic script so she pronounces it correctly.
+  // (Hebrew letters would be read as Hebrew by the multilingual model.)
+  const hasHebrew = (s: string) => /[֐-׿]/.test(s);
 
-  // Build the opening line that Nour will say IMMEDIATELY when the call connects.
-  // This overrides her default inbound greeting.
-  const displayName = patientName || (isHebrew ? 'מדבר/ת' : 'حضرتك');
+  async function transliterateHebrewToArabic(text: string): Promise<string> {
+    if (!text || !hasHebrew(text)) return text;
+    try {
+      const openaiKey = process.env.OPENAI_API_KEY;
+      if (!openaiKey) return text;
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: [
+                'You are a strict transliteration engine for an Arabic TTS voice.',
+                '',
+                'RULES:',
+                '1. Convert EVERY Hebrew letter to Arabic script based on its SOUND (not meaning).',
+                '2. NO Hebrew characters may remain in the output. Zero. Not one letter.',
+                '3. Preserve Arabic text unchanged.',
+                '4. Keep numbers and punctuation as-is.',
+                '5. Output ONLY the transliterated text, nothing else.',
+                '',
+                'Hebrew-to-Arabic sound mapping:',
+                'א=ا, ב=ب, ג=ج, ד=د, ה=ه, ו=و, ז=ز, ח=ح, ט=ط, י=ي, כ=ك, ך=ك, ל=ل, מ=م, ם=م, נ=ن, ן=ن, ס=س, ע=ع, פ=ف, ף=ف, צ=ص, ץ=ص, ק=ق, ר=ر, ש=ش, ת=ت',
+                '',
+                'Examples:',
+                '"בדיקות הדם תקינות" → "بديقوت هدم تقينوت"',
+                '"בסים נמוז" → "بسيم نموز"',
+                '"שלום" → "شلوم"'
+              ].join('\n'),
+            },
+            {
+              role: 'user',
+              content: text,
+            },
+          ],
+          temperature: 0,
+        }),
+      });
+      const j: any = await resp.json();
+      const out = j?.choices?.[0]?.message?.content?.trim();
+      return out || text;
+    } catch {
+      return text;
+    }
+  }
 
-  const openingLine = isHebrew
-    ? `שלום, מדברת נור מהמרפאה של דוקטור בסים נמוז. אני מדברת עם ${displayName}? דוקטור בסים ביקש ממני להתקשר אלייך בנוגע ל: ${purpose}`
-    : `مرحبا، معك نور من عيادة الدكتور بَسيم نموز. بحكي مع ${displayName}؟ الدكتور بَسيم طلب منّي أتصل فيك بخصوص: ${purpose}`;
+  // Transliterate name + purpose if needed (parallel)
+  const [displayName, purposeArabic] = await Promise.all([
+    transliterateHebrewToArabic(patientName || 'حضرتك'),
+    transliterateHebrewToArabic(purpose),
+  ]);
+
+  // Always Arabic opening — Nour is Arabic-speaking
+  const openingLine = `مرحبا، معك نور من عيادة الدكتور بَسيم نموز. بحكي مع ${displayName}؟ الدكتور بَسيم طلب منّي أتصل فيك بخصوص: ${purposeArabic}`;
 
   // Build dynamic variables to pass into Nour's system prompt for this call
   const dynamicVariables: Record<string, string> = {
-    call_purpose: purpose,
-    patient_name: patientName || '',
+    call_purpose: purposeArabic,
+    patient_name: displayName,
     opening_line: openingLine,
   };
 
