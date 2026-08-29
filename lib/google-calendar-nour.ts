@@ -1,4 +1,4 @@
-import { google, calendar_v3 } from 'googleapis';
+import { google, calendar_v3, tasks_v1 } from 'googleapis';
 
 /**
  * Google Calendar integration for Nour (personal secretary).
@@ -136,4 +136,69 @@ export async function listNourEvents(
       end: e.end?.dateTime || e.end?.date || '',
       location: e.location || undefined,
     }));
+}
+
+// -------- Google Tasks -------- //
+
+function getTasksClient(): tasks_v1.Tasks {
+  const jsonStr = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!jsonStr) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON not configured');
+
+  let credentials;
+  try {
+    credentials = JSON.parse(jsonStr);
+  } catch (e) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON');
+  }
+
+  const impersonate = process.env.NOUR_GOOGLE_IMPERSONATE_USER?.trim();
+  if (!impersonate) throw new Error('NOUR_GOOGLE_IMPERSONATE_USER not configured');
+
+  const auth = new google.auth.JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
+    scopes: ['https://www.googleapis.com/auth/tasks'],
+    subject: impersonate,
+  });
+
+  return google.tasks({ version: 'v1', auth });
+}
+
+export interface NourTaskInput {
+  title: string;
+  notes?: string;
+  dueIso?: string;
+  callerName?: string;
+  callerPhone?: string;
+}
+
+export async function createNourTask(input: NourTaskInput): Promise<{
+  taskId: string;
+  taskTitle: string;
+}> {
+  const tasks = getTasksClient();
+
+  const listsRes = await tasks.tasklists.list();
+  const tasklistId = listsRes.data.items?.[0]?.id;
+  if (!tasklistId) throw new Error('No Google Tasks tasklist found');
+
+  const notesLines: string[] = [];
+  if (input.notes) notesLines.push(input.notes);
+  if (input.callerName) notesLines.push(`📞 מתקשר: ${input.callerName}`);
+  if (input.callerPhone) notesLines.push(`☎️ ${input.callerPhone}`);
+  notesLines.push('', '📝 נוצר על ידי נור (מזכירה AI)');
+
+  const res = await tasks.tasks.insert({
+    tasklist: tasklistId,
+    requestBody: {
+      title: input.title,
+      notes: notesLines.filter(Boolean).join('\n'),
+      due: input.dueIso,
+    },
+  });
+
+  return {
+    taskId: res.data.id!,
+    taskTitle: res.data.title!,
+  };
 }
