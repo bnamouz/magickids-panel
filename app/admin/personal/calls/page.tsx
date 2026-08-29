@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCurrentStaff } from '@/lib/admin/auth';
 import { redirect } from 'next/navigation';
 import { Phone, Calendar, MessageCircle, Star, XCircle, AlertTriangle, CheckCircle2, PhoneOff } from 'lucide-react';
+import OutboundCallButton from './OutboundCallButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,6 +100,7 @@ export default async function NourCallsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <OutboundCallButton />
           <Link
             href="/admin/personal/vip"
             className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-sm flex items-center gap-2"
