@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   const jsonStr = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!jsonStr) return NextResponse.json({ error: 'sa_missing' });
   const credentials = JSON.parse(jsonStr);
-  const impersonate = process.env.NOUR_GOOGLE_IMPERSONATE_USER || 'bnamouz@magickidsinstitute.com';
+  const impersonate = 'bnamouz@magickidsinstitute.com';
 
   const auth = new google.auth.JWT({
     email: credentials.client_email,
