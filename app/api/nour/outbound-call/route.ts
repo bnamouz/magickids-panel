@@ -52,13 +52,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'missing_api_key' }, { status: 500 });
   }
 
+  // Detect if patient name is Hebrew (contains Hebrew chars) to pick language
+  const isHebrew = patientName && /[֐-׿]/.test(patientName);
+
+  // Build the opening line that Nour will say IMMEDIATELY when the call connects.
+  // This overrides her default inbound greeting.
+  const displayName = patientName || (isHebrew ? 'מדבר/ת' : 'حضرتك');
+
+  const openingLine = isHebrew
+    ? `שלום, מדברת נור מהמרפאה של דוקטור בסים נמוז. אני מדברת עם ${displayName}? דוקטור בסים ביקש ממני להתקשר אלייך בנוגע ל: ${purpose}`
+    : `مرحبا، معك نور من عيادة الدكتور بَسيم نموز. بحكي مع ${displayName}؟ الدكتور بَسيم طلب منّي أتصل فيك بخصوص: ${purpose}`;
+
   // Build dynamic variables to pass into Nour's system prompt for this call
   const dynamicVariables: Record<string, string> = {
     call_purpose: purpose,
+    patient_name: patientName || '',
+    opening_line: openingLine,
   };
-  if (patientName) {
-    dynamicVariables.patient_name = patientName;
-  }
 
   const payload = {
     agent_id: NOUR_AGENT_ID,
