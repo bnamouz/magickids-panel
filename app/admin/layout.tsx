@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getCurrentStaff } from '@/lib/admin/auth';
-import { LayoutDashboard, Users, Calendar, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, LogOut, Phone, User } from 'lucide-react';
 import LogoutButton from '@/components/admin/LogoutButton';
 
 export const dynamic = 'force-dynamic';
@@ -51,6 +51,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <NavLink href="/admin/appointments" icon={<Calendar size={18} />}>
               יומן פגישות
             </NavLink>
+            <NavLink href="/admin/calls" icon={<Phone size={18} />}>
+              שיחות שרה
+            </NavLink>
+            <div className="pt-3 mt-3 border-t border-slate-200">
+              <div className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase">
+                אישי
+              </div>
+              <NavLink href="/admin/personal/calls" icon={<User size={18} />}>
+                שיחות נור
+              </NavLink>
+            </div>
           </nav>
         </aside>
 
