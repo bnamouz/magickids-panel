@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireVoiceAuth, normalisePhone } from '@/lib/nour-auth';
+import { assertNourAuth, normalisePhone } from '@/lib/nour-auth';
 
 /**
  * POST /api/nour/escalate
@@ -40,8 +40,8 @@ async function sendUrgentWhatsApp(text: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = requireVoiceAuth(req);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
+  const unauth = assertNourAuth(req);
+  if (unauth) return unauth;
 
   let body: z.infer<typeof Schema>;
   try {
