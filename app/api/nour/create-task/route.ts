@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       success: true,
       task_id: result.taskId,
       task_title: result.taskTitle,
+      created_in: result.createdIn,
       task_link: 'https://tasks.google.com/embed/?fullwidth=1',
     });
   } catch (err: any) {

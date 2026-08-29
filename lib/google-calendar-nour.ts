@@ -140,7 +140,7 @@ export async function listNourEvents(
 
 // -------- Google Tasks -------- //
 
-function getTasksClient(): tasks_v1.Tasks {
+function getTasksClientFor(impersonate: string): tasks_v1.Tasks {
   const jsonStr = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!jsonStr) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON not configured');
 
@@ -150,9 +150,6 @@ function getTasksClient(): tasks_v1.Tasks {
   } catch (e) {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON');
   }
-
-  const impersonate = process.env.NOUR_GOOGLE_IMPERSONATE_USER?.trim();
-  if (!impersonate) throw new Error('NOUR_GOOGLE_IMPERSONATE_USER not configured');
 
   const auth = new google.auth.JWT({
     email: credentials.client_email,
@@ -164,6 +161,21 @@ function getTasksClient(): tasks_v1.Tasks {
   return google.tasks({ version: 'v1', auth });
 }
 
+function getTaskUsers(): string[] {
+  // Personal calendar owner (primary destination)
+  const primary = process.env.NOUR_GOOGLE_IMPERSONATE_USER?.trim();
+  if (!primary) throw new Error('NOUR_GOOGLE_IMPERSONATE_USER not configured');
+
+  // Optional secondary destinations, comma-separated
+  // e.g. NOUR_TASK_MIRROR_USERS="magickids@magickidsinstitute.com"
+  const mirror = process.env.NOUR_TASK_MIRROR_USERS?.trim();
+  const mirrors = mirror
+    ? mirror.split(',').map((u) => u.trim()).filter(Boolean)
+    : [];
+
+  return [primary, ...mirrors];
+}
+
 export interface NourTaskInput {
   title: string;
   notes?: string;
@@ -172,33 +184,76 @@ export interface NourTaskInput {
   callerPhone?: string;
 }
 
-export async function createNourTask(input: NourTaskInput): Promise<{
+export interface CreatedTaskResult {
   taskId: string;
   taskTitle: string;
-}> {
-  const tasks = getTasksClient();
+  createdIn: { user: string; taskId: string; success: boolean; error?: string }[];
+}
 
-  const listsRes = await tasks.tasklists.list();
-  const tasklistId = listsRes.data.items?.[0]?.id;
-  if (!tasklistId) throw new Error('No Google Tasks tasklist found');
+export async function createNourTask(
+  input: NourTaskInput
+): Promise<CreatedTaskResult> {
+  const users = getTaskUsers();
 
   const notesLines: string[] = [];
   if (input.notes) notesLines.push(input.notes);
   if (input.callerName) notesLines.push(`📞 מתקשר: ${input.callerName}`);
   if (input.callerPhone) notesLines.push(`☎️ ${input.callerPhone}`);
   notesLines.push('', '📝 נוצר על ידי נור (מזכירה AI)');
+  const notes = notesLines.filter(Boolean).join('\n');
 
-  const res = await tasks.tasks.insert({
-    tasklist: tasklistId,
-    requestBody: {
-      title: input.title,
-      notes: notesLines.filter(Boolean).join('\n'),
-      due: input.dueIso,
-    },
-  });
+  const createdIn: CreatedTaskResult['createdIn'] = [];
+  let primaryTaskId: string | null = null;
+  let primaryTaskTitle: string | null = null;
+
+  for (const user of users) {
+    try {
+      const tasks = getTasksClientFor(user);
+      const listsRes = await tasks.tasklists.list();
+      const tasklistId = listsRes.data.items?.[0]?.id;
+      if (!tasklistId) {
+        createdIn.push({ user, taskId: '', success: false, error: 'no_tasklist_found' });
+        continue;
+      }
+
+      const res = await tasks.tasks.insert({
+        tasklist: tasklistId,
+        requestBody: {
+          title: input.title,
+          notes,
+          due: input.dueIso,
+        },
+      });
+
+      createdIn.push({
+        user,
+        taskId: res.data.id!,
+        success: true,
+      });
+
+      if (primaryTaskId === null) {
+        primaryTaskId = res.data.id!;
+        primaryTaskTitle = res.data.title!;
+      }
+    } catch (err: any) {
+      createdIn.push({
+        user,
+        taskId: '',
+        success: false,
+        error: err?.message || String(err),
+      });
+    }
+  }
+
+  if (!primaryTaskId) {
+    throw new Error(
+      `Failed to create task in any tasklist: ${JSON.stringify(createdIn)}`
+    );
+  }
 
   return {
-    taskId: res.data.id!,
-    taskTitle: res.data.title!,
+    taskId: primaryTaskId,
+    taskTitle: primaryTaskTitle || input.title,
+    createdIn,
   };
 }
