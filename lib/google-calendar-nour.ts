@@ -109,6 +109,7 @@ export interface NourEventSummary {
   start: string;
   end: string;
   location?: string;
+  calendar?: 'personal' | 'clinic';
 }
 
 export async function listNourEvents(
@@ -135,7 +136,96 @@ export async function listNourEvents(
       start: e.start?.dateTime || e.start?.date || '',
       end: e.end?.dateTime || e.end?.date || '',
       location: e.location || undefined,
+      calendar: 'personal' as const,
     }));
+}
+
+/**
+ * Lists busy events in a time range on the CLINIC calendar (Sarah's calendar,
+ * used for ADHD assessments). Nour uses this to check for cross-calendar
+ * collisions before booking a pediatric visit on the personal calendar,
+ * so e.g. a Wednesday 16:30 ADHD assessment blocks a competing personal-
+ * calendar 16:30 slot even though pediatric hours end at 13:00 on Wednesday.
+ *
+ * Falls back to an empty list if the clinic calendar env is not configured,
+ * so tests / local dev without service-account access don't break.
+ */
+export async function listClinicEvents(
+  timeMin: string,
+  timeMax: string
+): Promise<NourEventSummary[]> {
+  const jsonStr = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const calendarId = process.env.GOOGLE_CALENDAR_ID?.trim();
+  const impersonate = process.env.GOOGLE_IMPERSONATE_USER?.trim();
+  if (!jsonStr || !calendarId) return [];
+
+  let credentials;
+  try {
+    credentials = JSON.parse(jsonStr);
+  } catch {
+    return [];
+  }
+
+  const auth = new google.auth.JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
+    scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+    subject: impersonate || undefined,
+  });
+
+  const cal = google.calendar({ version: 'v3', auth });
+  try {
+    const res = await cal.events.list({
+      calendarId,
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 50,
+    });
+    return (res.data.items || [])
+      .filter((e) => e.status !== 'cancelled')
+      .map((e) => ({
+        id: e.id!,
+        title: e.summary || '(ללא כותרת)',
+        start: e.start?.dateTime || e.start?.date || '',
+        end: e.end?.dateTime || e.end?.date || '',
+        location: e.location || undefined,
+        calendar: 'clinic' as const,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Cross-calendar availability check: is [startIso, endIso) free on BOTH
+ * Dr. Baseem's personal calendar AND the clinic calendar?
+ *
+ * Returns the list of conflicting events (from either calendar) so callers
+ * can log / expose them for debugging.
+ */
+export async function checkCrossCalendarAvailability(
+  startIso: string,
+  endIso: string
+): Promise<{ available: boolean; conflicts: NourEventSummary[] }> {
+  const [personal, clinic] = await Promise.all([
+    listNourEvents(startIso, endIso).catch(() => [] as NourEventSummary[]),
+    listClinicEvents(startIso, endIso).catch(() => [] as NourEventSummary[]),
+  ]);
+
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso).getTime();
+
+  const overlaps = (e: NourEventSummary) => {
+    const es = new Date(e.start).getTime();
+    const ee = new Date(e.end).getTime();
+    if (Number.isNaN(es) || Number.isNaN(ee)) return false;
+    return es < end && ee > start;
+  };
+
+  const conflicts = [...personal, ...clinic].filter(overlaps);
+  return { available: conflicts.length === 0, conflicts };
 }
 
 // -------- Google Tasks -------- //
