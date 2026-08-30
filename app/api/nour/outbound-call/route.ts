@@ -130,6 +130,13 @@ export async function POST(req: NextRequest) {
     to_number: toNumber,
     conversation_initiation_client_data: {
       dynamic_variables: dynamicVariables,
+      // Override the agent's default first_message for outbound calls.
+      // Inbound calls use the agent's default (Arabic greeting).
+      conversation_config_override: {
+        agent: {
+          first_message: openingLine,
+        },
+      },
     },
   };
 
