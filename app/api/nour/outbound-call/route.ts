@@ -114,8 +114,8 @@ export async function POST(req: NextRequest) {
     transliterateHebrewToArabic(purpose),
   ]);
 
-  // Always Arabic opening — Nour is Arabic-speaking
-  const openingLine = `مرحبا، معك نور من عيادة الدكتور بَسيم نموز. بحكي مع ${displayName}؟ الدكتور بَسيم طلب منّي أتصل فيك بخصوص: ${purposeArabic}`;
+  // Always Arabic opening — Palestinian-Israeli spoken dialect, natural secretary tone
+  const openingLine = `أهلين، أنا نور من عيادة الدكتور بَسيم نموز. بحكي مع ${displayName}؟ الدكتور بَسيم طلب منّي أحكي معك بخصوص: ${purposeArabic}`;
 
   // Build dynamic variables to pass into Nour's system prompt for this call
   const dynamicVariables: Record<string, string> = {
