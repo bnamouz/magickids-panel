@@ -132,11 +132,44 @@ curl -X POST https://[your-vercel-domain]/api/marhaba/import-leads \
 
 ---
 
-## Cron אוטומטי
+## Cron אוטומטי — דרך cron-job.org (חינמי)
 
-`vercel.json` מגדיר cron שרץ **כל 30 דקות, א׳-ה׳, בין 06:00-15:59 UTC** (= 09:00-18:59 שעון ישראל בקיץ).
+**Vercel Hobby (חינם) מגביל cron לפעם ביום בלבד** — אז אנחנו משתמשים ב-[cron-job.org](https://cron-job.org) חינם, שמאפשר עד כל דקה.
 
-Vercel יריץ אוטומטית את `POST /api/marhaba/dial-next` — הוא בוחר את ה-lead עם ה-fit_score הגבוה ביותר שמוכן להתקשרות, ומחייג.
+### הגדרה (5 דק')
+
+1. הרשם ב-[cron-job.org](https://cron-job.org) (חינמי, 0 credit card)
+2. **Cronjobs** → **CREATE CRONJOB**:
+   - **Title**: `Marhaba Sales — dial-next`
+   - **URL**: `https://app.magickidsinstitute.com/api/marhaba/dial-next`
+   - **Schedule** → **Advanced** → העתק:
+     - Minutes: `*/30`
+     - Hours: `6-15`
+     - Days of month: `*`
+     - Months: `*`
+     - Days of week: `0-4`
+     (זה = כל 30 דקות, א׳-ה׳, 06-15 UTC = 09-18 ישראל בקיץ)
+   - **Advanced → Request method**: `POST`
+   - **Advanced → Headers**: הוסף:
+     ```
+     Authorization: Bearer YOUR_MARHABA_CRON_SECRET
+     ```
+     (החלף `YOUR_MARHABA_CRON_SECRET` בערך של `MARHABA_CRON_SECRET` שהגדרת ב-Vercel)
+   - **CREATE**
+
+3. בדיקה: לחץ **Run now** — צריך להחזיר 200 עם `{"skipped":"no_leads_ready"}` (או שיחה אמיתית אם יש lead).
+
+### למה זה בטוח
+- כל execution בודק **business hours (Sun-Thu 09-18 Israel time)** בקוד עצמו, אז אפילו אם cron-job רץ בטעות בשבת, ה-endpoint מחזיר `outside_business_hours`.
+- אם רוצה לעצור — מספיק לכבות את ה-job ב-cron-job.org.
+
+### אלטרנטיבה: Vercel Pro ($20/חודש)
+אם משדרג ל-Pro, אפשר להחזיר את בלוק `crons` ל-`vercel.json`:
+```json
+{
+  "crons": [{"path": "/api/marhaba/dial-next", "schedule": "*/30 6-15 * * 0-4"}]
+}
+```
 
 ## Kill Switch — עצירת שיחות מיידית
 
