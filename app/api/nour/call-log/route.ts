@@ -70,6 +70,16 @@ export async function POST(req: NextRequest) {
   const dc = analysis.data_collection_results || {};
   const transcript = conv.transcript || data.transcript || [];
 
+  // Skip Marhaba sales calls — they are handled by /api/marhaba/post-call.
+  // Prevents sales calls from polluting nour_calls and triggering personal-secretary WhatsApp summary.
+  const dynVars =
+    conv?.conversation_initiation_client_data?.dynamic_variables ||
+    data?.conversation_initiation_client_data?.dynamic_variables ||
+    {};
+  if (String(dynVars?.marhaba_sales_mode || '').toLowerCase() === 'true') {
+    return NextResponse.json({ success: true, skipped: 'marhaba_sales_call' });
+  }
+
   const callerPhoneRaw =
     meta.phone_call?.external_number ||
     meta.phone_call?.caller_id ||
