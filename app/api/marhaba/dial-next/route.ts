@@ -108,7 +108,6 @@ async function handle(req: NextRequest): Promise<NextResponse> {
         agent: {
           prompt: { prompt: NOUR_SALES_PROMPT },
           first_message: firstMessage,
-          language: 'he',
         },
       },
     },
