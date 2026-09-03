@@ -8,13 +8,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCurrentStaff } from '@/lib/admin/auth';
-import { NOUR_SALES_PROMPT, NOUR_SALES_FIRST_MESSAGE_TEMPLATE } from '@/lib/marhaba/prompt';
+import { NOUR_SALES_FIRST_MESSAGE_TEMPLATE } from '@/lib/marhaba/prompt';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // Reused from app/api/nour/outbound-call/route.ts
-const NOUR_AGENT_ID = 'agent_7401m15cmgy9e38866m3tq30r3vr';
+// Nour-Sales — dedicated agent with Hebrew prompt (marhaba sales)
+// Uses Nour's phone number (Twilio caller ID) but with the sales agent's config
+const NOUR_AGENT_ID = 'agent_6201m1mp2g7yee7r7jj6ke737gxj';
 const NOUR_PHONE_ID = 'phnum_0801m15ct561fjsvtv8xrnddnkt5';
 
 const CRON_SECRET = process.env.MARHABA_CRON_SECRET || '';
@@ -104,9 +106,10 @@ async function handle(req: NextRequest): Promise<NextResponse> {
         contact_name: lead.contact_name || '',
         lead_id: String(lead.id),
       },
+      // Nour-Sales agent has the sales prompt built-in.
+      // Only override first_message with the clinic-specific greeting.
       conversation_config_override: {
         agent: {
-          prompt: { prompt: NOUR_SALES_PROMPT },
           first_message: firstMessage,
         },
       },
