@@ -71,6 +71,8 @@ export async function POST(req: NextRequest) {
   const transcript = data?.transcript || [];
   const analysis = data?.analysis || {};
   const collectionResults = analysis?.data_collection_results || {};
+  const metadata = data?.metadata || {};
+  const phoneCall = metadata?.phone_call || {};
 
   const outcome =
     collectionResults?.call_outcome?.value ||
@@ -90,6 +92,45 @@ export async function POST(req: NextRequest) {
     null;
 
   const supabase = getSupabaseAdmin();
+
+  // Persist the call itself (transcript + metadata) to marhaba_calls
+  if (leadId && Number.isFinite(leadId) && conversationId) {
+    const cleanTranscript = Array.isArray(transcript)
+      ? transcript
+          .filter((t: any) => t?.message)
+          .map((t: any) => ({
+            role: t.role,
+            message: t.message,
+            time_in_call_secs: t.time_in_call_secs,
+          }))
+      : [];
+
+    const startedUnix = metadata?.start_time_unix_secs;
+    const durationSecs = metadata?.call_duration_secs;
+    const startedAt = startedUnix ? new Date(startedUnix * 1000).toISOString() : null;
+    const endedAt = startedUnix && durationSecs
+      ? new Date((startedUnix + durationSecs) * 1000).toISOString()
+      : null;
+
+    await supabase.from('marhaba_calls').upsert({
+      lead_id: leadId,
+      conversation_id: conversationId,
+      call_sid: phoneCall?.call_sid || null,
+      agent_id: data?.agent_id || null,
+      phone_number_id: phoneCall?.agent_phone_number_id || null,
+      direction: 'outbound',
+      started_at: startedAt,
+      ended_at: endedAt,
+      duration_secs: durationSecs || null,
+      status: data?.status || null,
+      termination_reason: metadata?.termination_reason || null,
+      call_successful: analysis?.call_successful || null,
+      transcript: cleanTranscript,
+      transcript_summary: analysis?.transcript_summary || null,
+      first_message: data?.conversation_initiation_client_data?.conversation_config_override?.agent?.first_message || null,
+      raw_payload: data,
+    }, { onConflict: 'conversation_id' });
+  }
 
   if (leadId && Number.isFinite(leadId)) {
     // Fetch existing call_history
