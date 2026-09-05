@@ -93,7 +93,7 @@ async function handle(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'missing_elevenlabs_key' }, { status: 500 });
   }
 
-  const firstMessage = NOUR_SALES_FIRST_MESSAGE_TEMPLATE(lead.clinic_name);
+  const firstMessage = NOUR_SALES_FIRST_MESSAGE_TEMPLATE(lead.clinic_name, lead.phone);
 
   const payload = {
     agent_id: NOUR_AGENT_ID,

@@ -70,7 +70,11 @@ Marhaba היא מזכירה AI חכמה שעונה ב-100% מהשיחות של �
 - אם הלקוח מתעצבן — סיימי מייד בכבוד: "מצטערת על ההפרעה, יום נעים."
 - שיחה מוצלחת = 3-5 דקות. אל תמשכי שיחה יותר מ-7 דקות.`;
 
-export function NOUR_SALES_FIRST_MESSAGE_TEMPLATE(_clinicName?: string): string {
-  // פתיחה כללית — לא מזכירה שם עסק/מרפאה (נור תשאל אחר כך 'במה אתה עוסק?')
+export function NOUR_SALES_FIRST_MESSAGE_TEMPLATE(_clinicName?: string, phone?: string): string {
+  // זיהוי מספר בינלאומי (אמריקאי/קנדה) → פתיחה באנגלית
+  if (phone && phone.startsWith('+1')) {
+    return `Hi, this is Nour calling from Marhaba. I have a quick minute to share something that could save your business dozens of hours a month. Is this a good time?`;
+  }
+  // פתיחה כללית בעברית — לא מזכירה שם עסק/מרפאה
   return `שלום, אני נור מהצוות של מרחבא. יש לי דקה קצרה לחלוק איתך משהו שיכול לחסוך לעסק שלך עשרות שעות בחודש. זה בסדר עכשיו?`;
 }
