@@ -1,3 +1,5 @@
+import { getCurrentStaff } from '@/lib/admin/auth';
+import { firstRelated, intakeProgress, CLOSED_INTAKE_STATUSES } from '@/lib/intake/progress';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalendarEvent, checkAvailability } from '@/lib/google-calendar';
@@ -12,6 +14,7 @@ const DURATION_BY_TYPE: Record<string, number> = {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!await getCurrentStaff()) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     const body = await req.json();
     const {
       session_id,
@@ -34,7 +37,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'סוג פגישה לא חוקי' }, { status: 400 });
     }
 
+    if (!Number.isFinite(Date.parse(scheduled_at)) || Date.parse(scheduled_at) <= Date.now()) return NextResponse.json({ error: 'יש לבחור מועד עתידי תקין' }, { status: 400 });
     const duration = duration_minutes || DURATION_BY_TYPE[appointment_type] || 60;
+    if (!Number.isInteger(duration) || duration < 15 || duration > 180) return NextResponse.json({ error: 'משך פגישה לא תקין' }, { status: 400 });
     const supabase = getSupabaseAdmin();
 
     // Load session with patient & parent
@@ -52,8 +57,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'תיק לא נמצא' }, { status: 404 });
     }
 
-    const patient = (session as any).patients;
-    const parent = (session as any).parents?.[0];
+    if (CLOSED_INTAKE_STATUSES.includes(session.status)) return NextResponse.json({ error: 'התיק סגור לזימון' }, { status: 409 });
+    if (appointment_type === 'assessment') {
+      const [forms, appointments] = await Promise.all([
+        supabase.from('questionnaires').select('type,is_complete,submitted_at,responses').eq('session_id', session_id),
+        supabase.from('appointments').select('id,status,appointment_type,scheduled_at').eq('session_id', session_id),
+      ]);
+      if (forms.error || appointments.error) return NextResponse.json({ error: 'לא ניתן לאמת כרגע את מצב הקליטה' }, { status: 503 });
+      const progress = intakeProgress(forms.data ?? [], appointments.data ?? [], session.status);
+      if (!progress.bothComplete) return NextResponse.json({ error: 'יש להשלים ולשלוח את שאלוני ההורים והמורה לפני זימון לאבחון' }, { status: 409 });
+      if (progress.hasAppointment) return NextResponse.json({ error: 'כבר נקבעה פגישה לתיק הזה. יש לעדכן את הפגישה הקיימת.' }, { status: 409 });
+    }
+    const patient = firstRelated<any>(session.patients);
+    const parent = firstRelated<any>(session.parents);
     const childName = `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || 'ילד';
 
     // Optional: check availability in Google Calendar

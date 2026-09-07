@@ -12,6 +12,8 @@ const intakeSchema = z.object({
   gender: z.enum(['male', 'female', 'other']).optional(),
   grade: z.string().optional(),
   school: z.string().optional(),
+  teacher_name: z.string().max(120).optional(),
+  teacher_phone: z.string().max(25).optional(),
   parent_name: z.string().min(1),
   parent_phone: z.string().min(7),
   parent_email: z.string().email().optional().or(z.literal('')),
@@ -106,10 +108,10 @@ export async function POST(req: NextRequest) {
       .eq('id', session.patient_id);
 
     // Update session with referral reason
-    if (d.reason_for_referral) {
+    if (d.reason_for_referral || d.teacher_name || d.teacher_phone) {
       await supabase
         .from('intake_sessions')
-        .update({ reason_for_referral: d.reason_for_referral })
+        .update({ ...(d.reason_for_referral ? { reason_for_referral: d.reason_for_referral } : {}), ...(d.teacher_name ? { teacher_name: d.teacher_name.trim() } : {}), ...(d.teacher_phone ? { teacher_phone: d.teacher_phone.trim() } : {}) })
         .eq('id', session.id);
     }
 

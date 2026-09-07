@@ -48,17 +48,19 @@ export default function TeacherQuestionnaireForm({
 
   // Auto-save
   useEffect(() => {
+    if (submitted) return;
     const interval = setInterval(() => {
       if (Object.keys(responses).length > 0) saveProgress();
     }, 30_000);
     return () => clearInterval(interval);
-  }, [responses, freeText]);
+  }, [responses, freeText, submitted]);
 
   useEffect(() => {
-    if (Object.keys(responses).length > 0) saveProgress();
-  }, [section]);
+    if (!submitted && Object.keys(responses).length > 0) saveProgress();
+  }, [section, submitted]);
 
   async function saveProgress() {
+    if (submitted) return;
     setSaveStatus('saving');
     try {
       const res = await fetch('/api/questionnaire', {

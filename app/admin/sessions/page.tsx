@@ -1,3 +1,5 @@
+import { redirect } from 'next/navigation';
+import { firstRelated, intakeProgress, INTAKE_STAGES } from '@/lib/intake/progress';
 import Link from 'next/link';
 import { requireStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -38,11 +40,12 @@ export default async function SessionsPage({
   searchParams: { q?: string; status?: string; filter?: string };
 }) {
   await requireStaff();
+  if (searchParams.status === 'profile_ready') redirect('/admin/intake?stage=ready');
   const supabase = getSupabaseAdmin();
 
   let query = supabase
     .from('intake_sessions')
-    .select('id, status, created_at, updated_at, patients!inner(first_name, last_name, birth_date), parents(full_name, phone)')
+    .select('id, status, created_at, updated_at, patients!inner(first_name, last_name, birth_date), parents(full_name, phone), questionnaires(type,is_complete,submitted_at,responses), appointments(id,status)')
     .order('updated_at', { ascending: false })
     .limit(100);
 
@@ -62,8 +65,8 @@ export default async function SessionsPage({
   const filtered = q
     ? (sessions ?? []).filter((s: any) => {
         const name = `${s.patients?.first_name ?? ''} ${s.patients?.last_name ?? ''}`.toLowerCase();
-        const parentName = (s.parents?.[0]?.full_name ?? '').toLowerCase();
-        const phone = (s.parents?.[0]?.phone ?? '').toLowerCase();
+        const parentName = (firstRelated<any>(s.parents)?.full_name ?? '').toLowerCase();
+        const phone = (firstRelated<any>(s.parents)?.phone ?? '').toLowerCase();
         return name.includes(q) || parentName.includes(q) || phone.includes(q);
       })
     : sessions ?? [];
@@ -109,8 +112,9 @@ export default async function SessionsPage({
             </thead>
             <tbody>
               {filtered.map((s: any) => {
-                const child = s.patients;
-                const parent = s.parents?.[0];
+                const child = firstRelated<any>(s.patients);
+                const parent = firstRelated<any>(s.parents);
+                const progress = intakeProgress(s.questionnaires ?? [], s.appointments ?? [], s.status);
                 const childName = `${child?.first_name ?? ''} ${child?.last_name ?? ''}`.trim() || '—';
                 return (
                   <tr key={s.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
@@ -130,7 +134,7 @@ export default async function SessionsPage({
                     </td>
                     <td className="p-3">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${STATUS_COLORS[s.status] ?? 'bg-slate-100'}`}>
-                        {STATUS_LABELS[s.status] ?? s.status}
+                        {INTAKE_STAGES[progress.stage]}
                       </span>
                     </td>
                     <td className="p-3 text-xs text-slate-500">{relativeTime(s.updated_at)}</td>

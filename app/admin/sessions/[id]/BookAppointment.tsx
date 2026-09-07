@@ -6,6 +6,7 @@ import { CalendarPlus, X, Loader2, Check, AlertCircle } from 'lucide-react';
 interface Props {
   sessionId: string;
   childName: string;
+  assessmentReady: boolean;
 }
 
 const APPOINTMENT_TYPES = [
@@ -13,9 +14,9 @@ const APPOINTMENT_TYPES = [
   { value: 'followup', label: 'מעקב', duration: 30 },
 ];
 
-export default function BookAppointment({ sessionId, childName }: Props) {
+export default function BookAppointment({ sessionId, childName, assessmentReady }: Props) {
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState('assessment');
+  const [type, setType] = useState(assessmentReady ? 'assessment' : 'followup');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
   const [location, setLocation] = useState('מכון Magic Kids, שפרעם');
@@ -147,7 +148,7 @@ export default function BookAppointment({ sessionId, childName }: Props) {
                   onChange={(e) => setType(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 >
-                  {APPOINTMENT_TYPES.map((t) => (
+                  {APPOINTMENT_TYPES.filter(item => assessmentReady || item.value !== 'assessment').map((t) => (
                     <option key={t.value} value={t.value}>
                       {t.label} ({t.duration} דקות)
                     </option>

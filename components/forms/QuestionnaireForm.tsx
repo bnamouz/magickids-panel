@@ -20,15 +20,19 @@ export default function QuestionnaireForm({
   token,
   childName,
   initialResponses = {},
+  initialIntroData = {},
+  initialFreeText = '',
 }: {
   token: string;
   childName: string;
   initialResponses?: Responses;
+  initialIntroData?: Record<string, string>;
+  initialFreeText?: string;
 }) {
   const [responses, setResponses] = useState<Responses>(initialResponses);
   const [section, setSection] = useState(0);
-  const [freeText, setFreeText] = useState('');
-  const [introData, setIntroData] = useState<Record<string, string>>({});
+  const [freeText, setFreeText] = useState(initialFreeText);
+  const [introData, setIntroData] = useState<Record<string, string>>(initialIntroData);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,18 +61,20 @@ export default function QuestionnaireForm({
 
   // Auto-save every 30 seconds
   useEffect(() => {
+    if (submitted) return;
     const interval = setInterval(() => {
       if (Object.keys(responses).length > 0) saveProgress();
     }, 30_000);
     return () => clearInterval(interval);
-  }, [responses, freeText]);
+  }, [responses, freeText, submitted, introData]);
 
   // Save on section change
   useEffect(() => {
-    if (Object.keys(responses).length > 0) saveProgress();
-  }, [section]);
+    if (!submitted && Object.keys(responses).length > 0) saveProgress();
+  }, [section, submitted]);
 
   async function saveProgress() {
+    if (submitted) return;
     setSaveStatus('saving');
     try {
       const res = await fetch('/api/questionnaire', {
@@ -411,9 +417,9 @@ function SubmittedScreen({ token, childName }: { token: string; childName: strin
           לקבלת קישור עבור המורה ←
         </a>
         {token !== 'demo' && <div className="mt-6 border-t pt-6">
-          <p className="text-sm text-slate-600 mb-3">לאחר השלמת שני השאלונים אפשר לבחור תור ביומן מרפאת הקשב.</p>
-          <a className="btn-primary inline-block" href={`/book/adhd?lang=he#token=${encodeURIComponent(token)}`}>
-            קביעת תור למרפאת קשב וריכוז
+          <p className="text-sm text-slate-600 mb-3">לאחר ששני השאלונים נשלחו, התיק יופיע לצוות כ„מוכן לזימון” לצורך תיאום פגישה.</p>
+          <a className="btn-primary inline-block" href={'/onboarding/status/' + encodeURIComponent(token)}>
+            מעקב אחר השאלונים והמשך התהליך
           </a>
         </div>}
       </div>

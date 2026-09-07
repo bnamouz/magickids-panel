@@ -1,3 +1,4 @@
+import { firstRelated, intakeProgress, INTAKE_STAGES } from '@/lib/intake/progress';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { requireStaff } from '@/lib/admin/auth';
@@ -19,7 +20,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
     .from('intake_sessions')
     .select(`
       id, status, created_at, updated_at, reason_for_referral, channel,
-      parent_token, teacher_token,
+      parent_token, teacher_token, teacher_name, teacher_phone,
       patients(id, first_name, last_name, birth_date, school, grade, gender, teacher_name, teacher_phone),
       parents(full_name, phone, email, relation)
     `)
@@ -28,8 +29,8 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
 
   if (!session) notFound();
 
-  const patient = (session as any).patients;
-  const parent = (session as any).parents?.[0];
+  const patient = firstRelated<any>(session.patients);
+  const parent = firstRelated<any>(session.parents);
   const childName = `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || '—';
 
   // Load questionnaires + scores + notes + appointments in parallel
@@ -41,6 +42,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
     supabase.from('audit_log').select('*').eq('session_id', session.id).order('created_at', { ascending: false }).limit(20),
   ]);
 
+  const progress = intakeProgress(questionnaires ?? [], appointments ?? [], session.status);
   const parentQ = questionnaires?.find((q: any) => q.type === 'vanderbilt_parent');
   const teacherQ = questionnaires?.find((q: any) => q.type === 'vanderbilt_teacher');
   const parentScore = scores?.find((s: any) => s.scope === 'parent');
@@ -64,11 +66,12 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <StatusBadge status={session.status} />
+            <span className="px-4 py-2 rounded-full bg-teal-50 text-[#01696f] font-semibold text-sm">{INTAKE_STAGES[progress.stage]}</span>
           </div>
         </div>
       </div>
 
+      <div className="card mb-6"><div className="flex flex-wrap justify-between gap-3"><h2 className="font-bold text-[#01696f]">מצב הקליטה</h2><Link className="text-sm underline" href="/admin/intake">לרשימת הקליטה והזימון</Link></div><div className="grid sm:grid-cols-3 gap-3 mt-4"><div className="rounded-lg bg-slate-50 p-3">שאלון הורים: <strong>{progress.parentComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-slate-50 p-3">שאלון מורה: <strong>{progress.teacherComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-teal-50 text-[#01696f] p-3 font-bold">{INTAKE_STAGES[progress.stage]}</div></div>{!progress.bothComplete && <p className="text-sm text-slate-500 mt-3">ניתן לזמן לפגישת אבחון לאחר השלמת שני השאלונים.</p>}</div>
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Combined profile - top priority */}
@@ -94,7 +97,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           <ReportsList
             sessionId={session.id}
             childName={childName}
-            hasParentForm={!!parentQ?.is_complete}
+            hasParentForm={progress.parentComplete}
           />
 
           {/* Responses tabs */}
@@ -123,8 +126,8 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               <div className="border-t border-slate-100 pt-3">
                 <ContactBlock
                   title="מורה"
-                  name={patient?.teacher_name}
-                  phone={patient?.teacher_phone}
+                  name={session.teacher_name || patient?.teacher_name}
+                  phone={session.teacher_phone || patient?.teacher_phone}
                   email={undefined}
                 />
               </div>
@@ -132,12 +135,12 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           </div>
 
           {/* Appointments */}
-          <div className="card">
+          <div className="card scroll-mt-24" id="appointments">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-bold text-slate-800 flex items-center gap-2">
                 <Calendar size={18} className="text-[#01696f]" /> פגישות
               </h2>
-              <BookAppointment sessionId={session.id} childName={childName} />
+              <BookAppointment sessionId={session.id} childName={childName} assessmentReady={progress.readyToSchedule} />
             </div>
             {!appointments?.length ? (
               <p className="text-sm text-slate-500">טרם נקבעה פגישה</p>

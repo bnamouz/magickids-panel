@@ -1,6 +1,7 @@
 export const bookingCopy = {
   he: {
     institute: 'מכון ילדי הקסם', doctor: 'ד״ר בסים נמוז', home: 'לאתר המכון', language: 'שפה',
+    clinicPhone: 'טלפון מרפאת הילדים', clinicSecretary: 'מזכירה בשעות פעילות המרפאה',
     pediatrics: 'מרפאת ילדים', adhd: 'מרפאת קשב וריכוז', heading: 'קובעים תור, בקלות.',
     intro: 'בחרו יום ושעה שמתאימים לכם. התור יישמר ביומן של המרפאה שבחרתם לאחר קבלת אישור.',
     pedsIntro: 'קביעת תור לרפואת ילדים ולמעקב במרפאה.', adhdIntro: 'קביעת תור לאבחון קשב וריכוז, לאחר השלמת שאלוני ההורים והמורה.',
@@ -23,6 +24,7 @@ export const bookingCopy = {
   },
   ar: {
     institute: 'معهد أطفال السحر', doctor: 'د. بسيم نموز', home: 'موقع المعهد', language: 'اللغة',
+    clinicPhone: 'هاتف عيادة الأطفال', clinicSecretary: 'السكرتيرة خلال ساعات عمل العيادة',
     pediatrics: 'عيادة طب الأطفال', adhd: 'عيادة الانتباه والتركيز', heading: 'احجزوا موعدًا بكل سهولة.',
     intro: 'اختاروا اليوم والساعة المناسبين. يُسجَّل الموعد في تقويم العيادة التي اخترتموها بعد تأكيد الحجز.',
     pedsIntro: 'حجز موعد لطب الأطفال والمتابعة في العيادة.', adhdIntro: 'حجز موعد لتشخيص اضطراب الانتباه والتركيز بعد استكمال استبيانات الأهل والمعلم.',
@@ -45,6 +47,7 @@ export const bookingCopy = {
   },
   en: {
     institute: 'Magic Kids Institute', doctor: 'Dr. Basim Namouz', home: 'Institute website', language: 'Language',
+    clinicPhone: 'Pediatrics clinic phone', clinicSecretary: 'Secretary during clinic opening hours',
     pediatrics: 'Pediatrics clinic', adhd: 'ADHD clinic', heading: 'Your next visit, made simple.',
     intro: 'Choose a day and time. Once confirmed, your appointment is saved in the calendar of the clinic you selected.',
     pedsIntro: 'Book a pediatric consultation or a clinic follow-up.', adhdIntro: 'Book an ADHD assessment after completing the parent and teacher questionnaires.',
