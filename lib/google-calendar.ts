@@ -21,7 +21,7 @@ const APPOINTMENT_DURATION: Record<string, number> = {
   moxo: 30,
 };
 
-function getCalendarClient(): calendar_v3.Calendar {
+export function getCalendarClient(): calendar_v3.Calendar {
   const jsonStr = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!jsonStr) {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON not configured');
@@ -46,7 +46,7 @@ function getCalendarClient(): calendar_v3.Calendar {
   return google.calendar({ version: 'v3', auth });
 }
 
-function getCalendarId(): string {
+export function getCalendarId(): string {
   const id = process.env.GOOGLE_CALENDAR_ID;
   if (!id) throw new Error('GOOGLE_CALENDAR_ID not configured');
   return id;

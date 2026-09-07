@@ -37,7 +37,7 @@ function getCalendarClient(): calendar_v3.Calendar {
   return google.calendar({ version: 'v3', auth });
 }
 
-function getPediatricsCalendarId(): string {
+export function getPediatricsCalendarId(): string {
   return process.env.PEDIATRICS_CALENDAR_ID || PEDIATRICS_CALENDAR_ID;
 }
 
