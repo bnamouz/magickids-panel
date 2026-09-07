@@ -410,6 +410,12 @@ function SubmittedScreen({ token, childName }: { token: string; childName: strin
         >
           לקבלת קישור עבור המורה ←
         </a>
+        {token !== 'demo' && <div className="mt-6 border-t pt-6">
+          <p className="text-sm text-slate-600 mb-3">לאחר השלמת שני השאלונים אפשר לבחור תור ביומן מרפאת הקשב.</p>
+          <a className="btn-primary inline-block" href={`/book/adhd?lang=he#token=${encodeURIComponent(token)}`}>
+            קביעת תור למרפאת קשב וריכוז
+          </a>
+        </div>}
       </div>
     </div>
   );
