@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
 
   // Update status
   if (session.status === 'parent_form_done') {
-    await supabase.from('intake_sessions').update({ status: 'teacher_link_sent' }).eq('id', session.id);
+    await supabase.from('intake_sessions').update({ status: 'teacher_link_sent' }).eq('id', session.id).eq('status', 'parent_form_done');
   }
 
   // Audit
