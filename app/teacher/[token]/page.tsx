@@ -1,3 +1,5 @@
+import { questionnaireSubmitted, firstRelated } from '@/lib/intake/progress';
+export const metadata = { robots: { index: false, follow: false }, referrer: 'no-referrer' as const };
 import { notFound } from 'next/navigation';
 import TeacherQuestionnaireForm from '@/components/forms/TeacherQuestionnaireForm';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -43,8 +45,16 @@ export default async function TeacherQuestionnairePage({ params }: PageProps) {
     );
   }
 
-  // Block teacher access if status indicates teacher already submitted
-  if (session.status === 'teacher_form_done' || session.status === 'profile_ready') {
+  // Load any existing responses for resume
+  const { data: existing } = await supabase
+    .from('questionnaires')
+    .select('type,responses,free_text,is_complete,submitted_at')
+    .eq('session_id', session.id)
+    .eq('type', 'vanderbilt_teacher')
+    .maybeSingle();
+
+  // Canonical completion prevents reopening submitted answers.
+  if (questionnaireSubmitted(existing ?? undefined)) {
     return (
       <div className="max-w-xl mx-auto px-4 py-16" dir="rtl">
         <div className="card text-center">
@@ -55,15 +65,7 @@ export default async function TeacherQuestionnairePage({ params }: PageProps) {
     );
   }
 
-  // Load any existing responses for resume
-  const { data: existing } = await supabase
-    .from('questionnaires')
-    .select('responses, free_text')
-    .eq('session_id', session.id)
-    .eq('type', 'vanderbilt_teacher')
-    .maybeSingle();
-
-  const patient = (session as any).patients;
+  const patient = firstRelated<any>(session.patients);
   const childName = `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || 'התלמיד/ה';
 
   return (

@@ -1,4 +1,6 @@
-import { notFound } from 'next/navigation';
+import { questionnaireSubmitted, firstRelated } from '@/lib/intake/progress';
+export const metadata = { robots: { index: false, follow: false }, referrer: 'no-referrer' as const };
+import { notFound, redirect } from 'next/navigation';
 import QuestionnaireForm from '@/components/forms/QuestionnaireForm';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
@@ -31,7 +33,7 @@ export default async function ParentQuestionnairePage({ params }: PageProps) {
     .maybeSingle();
 
   if (!session) notFound();
-  if (new Date(session.parent_token_expires_at) < new Date()) {
+  if (session.parent_token_expires_at && (!Number.isFinite(Date.parse(session.parent_token_expires_at)) || Date.parse(session.parent_token_expires_at) <= Date.now())) {
     return (
       <div className="max-w-xl mx-auto px-4 py-16">
         <div className="card text-center">
@@ -45,12 +47,13 @@ export default async function ParentQuestionnairePage({ params }: PageProps) {
   // Load any existing responses (resume)
   const { data: existing } = await supabase
     .from('questionnaires')
-    .select('responses, free_text')
+    .select('type,responses,free_text,intro_data,is_complete,submitted_at')
     .eq('session_id', session.id)
     .eq('type', 'vanderbilt_parent')
     .maybeSingle();
 
-  const patient = (session as any).patients;
+  if (questionnaireSubmitted(existing ?? undefined)) redirect('/onboarding/status/' + encodeURIComponent(token));
+  const patient = firstRelated<any>(session.patients);
   const childName = `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim();
 
   return (
@@ -58,6 +61,8 @@ export default async function ParentQuestionnairePage({ params }: PageProps) {
       token={token}
       childName={childName || 'ילדכם'}
       initialResponses={(existing?.responses as any) ?? {}}
+      initialIntroData={(existing?.intro_data as any) ?? {}}
+      initialFreeText={existing?.free_text ?? ''}
     />
   );
 }

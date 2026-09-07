@@ -1,3 +1,4 @@
+import { intakeProgress } from '@/lib/intake/progress';
 import { createHmac, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
@@ -78,11 +79,13 @@ export async function checkIntake(token: string, retryEventId?: string) {
   if (!z.string().uuid().safeParse(token).success) throw new BookingError('invalid_intake', 403);
   const db = getSupabaseAdmin();
   const { data: session, error } = await db.from('intake_sessions')
-    .select('id,patient_id,parent_token_expires_at,parent_completed_at,teacher_completed_at,patients(first_name,last_name)')
+    .select('id,patient_id,parent_token_expires_at,patients(first_name,last_name)')
     .eq('parent_token', token).maybeSingle();
   if (error) throw new BookingError('unavailable');
   if (!session || !session.parent_token_expires_at || Date.parse(session.parent_token_expires_at) <= Date.now() || !Number.isFinite(Date.parse(session.parent_token_expires_at))) throw new BookingError('invalid_intake', 403);
-  if (!session.parent_completed_at || !session.teacher_completed_at) throw new BookingError('intake_incomplete', 409);
+  const { data: forms, error: formError } = await db.from('questionnaires').select('type,is_complete,submitted_at,responses').eq('session_id', session.id);
+  if (formError || !forms) throw new BookingError('unavailable');
+  if (!intakeProgress(forms).bothComplete) throw new BookingError('intake_incomplete', 409);
   const { data: existing, error: appointmentError } = await db.from('appointments').select('id,gcal_event_id')
     .eq('session_id', session.id).eq('status', 'scheduled').gte('scheduled_at', new Date().toISOString()).limit(1);
   if (appointmentError) throw new BookingError('unavailable');

@@ -1,3 +1,4 @@
+import { loadIntakeQueue } from '@/lib/intake/queue';
 import Link from 'next/link';
 import { requireStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -9,22 +10,17 @@ export default async function DashboardPage() {
   const staff = await requireStaff();
   const supabase = getSupabaseAdmin();
 
-  // Aggregate stats
-  const [{ count: totalActive }, { count: awaitingParent }, { count: awaitingTeacher }, { count: readyToSchedule }, stuck, todayAppointments] =
-    await Promise.all([
-      supabase.from('intake_sessions').select('*', { count: 'exact', head: true }).not('status', 'in', '(closed,cancelled,reported)'),
-      supabase.from('intake_sessions').select('*', { count: 'exact', head: true }).eq('status', 'parent_form_started'),
-      supabase.from('intake_sessions').select('*', { count: 'exact', head: true }).in('status', ['teacher_link_sent', 'teacher_form_started']),
-      supabase.from('intake_sessions').select('*', { count: 'exact', head: true }).eq('status', 'profile_ready'),
-      supabase.from('v_stuck_sessions').select('*').limit(5),
-      supabase.from('v_today_appointments').select('*').limit(10),
-    ]);
-
+  const [queue, stuck, todayAppointments] = await Promise.all([
+    loadIntakeQueue().catch(() => null),
+    supabase.from('v_stuck_sessions').select('*').limit(5),
+    supabase.from('v_today_appointments').select('*').limit(10),
+  ]);
+  const ready = queue?.filter(row => row.readyToSchedule) ?? [];
   const stats = [
-    { label: 'תיקים פעילים', value: totalActive ?? 0, icon: Users, color: 'teal' },
-    { label: 'ממתינים להורה', value: awaitingParent ?? 0, icon: Clock, color: 'orange' },
-    { label: 'ממתינים למורה', value: awaitingTeacher ?? 0, icon: Clock, color: 'blue' },
-    { label: 'מוכנים לזימון', value: readyToSchedule ?? 0, icon: CheckCircle2, color: 'green' },
+    { label: 'תיקים פעילים', value: queue?.length, icon: Users, color: 'teal', href: '/admin/intake?stage=all' },
+    { label: 'ממתינים להורה', value: queue?.filter(row => row.stage === 'parent').length, icon: Clock, color: 'orange', href: '/admin/intake?stage=parent' },
+    { label: 'ממתינים למורה', value: queue?.filter(row => row.stage === 'teacher').length, icon: Clock, color: 'blue', href: '/admin/intake?stage=teacher' },
+    { label: 'מוכנים לזימון', value: queue ? ready.length : undefined, icon: CheckCircle2, color: 'green', href: '/admin/intake?stage=ready' },
   ];
 
   return (
@@ -34,6 +30,8 @@ export default async function DashboardPage() {
         <p className="text-slate-500 mt-1">להלן סקירה יומית של הפעילות במכון.</p>
       </div>
 
+      <div className="card mb-6 bg-teal-50 flex flex-wrap items-center justify-between gap-4"><div><h2 className="text-xl font-bold text-[#01696f]">כל תהליך הקשב, במקום אחד</h2><p className="text-sm text-slate-600 mt-1">פתיחת תיק, שאלון הורים, שאלון מורה וזימון לפגישה.</p></div><div className="flex flex-wrap gap-3"><Link href="/admin/intake" className="btn-primary">קליטה וזימון לפגישה</Link><a href="/onboarding/public" target="_blank" rel="noopener noreferrer" className="btn-ghost">טופס פתיחת תיק ↗</a></div></div>
+      {queue === null && <p role="alert" className="text-red-700 mb-4">לא ניתן לטעון כרגע את נתוני הקליטה. נסו לרענן; המספרים אינם זמינים.</p>}
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {stats.map((s) => (
@@ -41,6 +39,9 @@ export default async function DashboardPage() {
         ))}
       </div>
 
+      <div className="mb-6"><Panel title="מוכנים לזימון לפגישה" icon={<CheckCircle2 className="text-emerald-600" size={20} />} href="/admin/intake?stage=ready">
+        {queue === null ? <EmptyRow text="הרשימה אינה זמינה כרגע" /> : ready.length === 0 ? <EmptyRow text="אין כרגע תיקים שממתינים לזימון לאחר השלמת שני השאלונים" /> : <ul className="divide-y divide-slate-100">{ready.slice(0, 8).map(row => <li key={row.id} className="py-3 flex flex-wrap items-center justify-between gap-3"><div><Link href={'/admin/sessions/' + row.id} className="font-bold text-[#01696f] hover:underline">{row.childName}</Link><p className="text-xs text-slate-500">✓ שאלון הורים נשלח · ✓ שאלון מורה נשלח</p></div><Link href={'/admin/sessions/' + row.id + '#appointments'} className="btn-ghost text-sm">תיק, דוחות וזימון ←</Link></li>)}</ul>}
+      </Panel></div>
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Stuck sessions */}
         <Panel title="דורש טיפול" icon={<AlertTriangle className="text-orange-500" size={20} />} href="/admin/sessions?filter=stuck">
@@ -90,7 +91,7 @@ export default async function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, icon: Icon, color }: { label: string; value: number; icon: any; color: string }) {
+function StatCard({ label, value, icon: Icon, color, href }: { label: string; value?: number; icon: any; color: string; href: string }) {
   const colors: Record<string, string> = {
     teal: 'bg-teal-50 text-[#01696f]',
     orange: 'bg-orange-50 text-orange-600',
@@ -98,17 +99,17 @@ function StatCard({ label, value, icon: Icon, color }: { label: string; value: n
     green: 'bg-green-50 text-green-600',
   };
   return (
-    <div className="card">
+    <Link href={href} className="card hover:border-teal-600">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm text-slate-500 mb-1">{label}</div>
-          <div className="text-3xl font-bold text-slate-800">{value}</div>
+          <div className="text-3xl font-bold text-slate-800">{value ?? '—'}</div>
         </div>
         <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colors[color]}`}>
           <Icon size={22} />
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 

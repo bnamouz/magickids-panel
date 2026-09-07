@@ -1,3 +1,4 @@
+import { questionnaireSubmitted } from '@/lib/intake/progress';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
   // Lookup session by parent_token
   const { data: session, error } = await supabase
     .from('intake_sessions')
-    .select('id, status, teacher_token, patients(first_name, last_name)')
+    .select('id, status, parent_token_expires_at, teacher_token, patients(first_name, last_name)')
     .eq('parent_token', parent_token)
     .maybeSingle();
 
@@ -64,16 +65,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid parent token' }, { status: 404 });
   }
 
-  // Must have submitted parent form first
-  if (
-    ![
-      'parent_form_done',
-      'teacher_link_sent',
-      'teacher_form_started',
-      'teacher_form_done',
-      'profile_ready',
-    ].includes(session.status)
-  ) {
+  if (session.parent_token_expires_at && (!Number.isFinite(Date.parse(session.parent_token_expires_at)) || Date.parse(session.parent_token_expires_at) <= Date.now())) return NextResponse.json({ error: 'expired_token' }, { status: 403 });
+  const { data: parentForm, error: formError } = await supabase.from('questionnaires').select('type,is_complete,submitted_at,responses').eq('session_id', session.id).eq('type', 'vanderbilt_parent').maybeSingle();
+  if (formError) return NextResponse.json({ error: 'unavailable' }, { status: 503 });
+  if (!questionnaireSubmitted(parentForm ?? undefined)) {
     return NextResponse.json(
       { error: 'יש למלא קודם את שאלון ההורה.', status: session.status },
       { status: 400 },

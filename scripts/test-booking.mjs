@@ -17,6 +17,10 @@ function compile(relative, overrides = {}) {
   return module.exports;
 }
 const schedule = compile('lib/booking/schedule.ts');
+const parentQuestions = compile('questions/vanderbilt_parent.ts');
+const teacherQuestions = compile('questions/vanderbilt_teacher.ts');
+const progress = compile('lib/intake/progress.ts', { '@/questions/vanderbilt_parent': parentQuestions, '@/questions/vanderbilt_teacher': teacherQuestions });
+const fullForms = () => [parentQuestions.VANDERBILT_PARENT_QUESTIONS,teacherQuestions.VANDERBILT_TEACHER_QUESTIONS].map((questions,index)=>({ type:index===0?'vanderbilt_parent':'vanderbilt_teacher', is_complete:true, submitted_at:new Date().toISOString(), responses:Object.fromEntries(questions.map(q=>[q.id,q.section==='A'?0:1])) }));
 
 test('Israel daylight saving and clinic windows', () => {
   assert.equal(schedule.localToUTC('2026-07-08', 960).toISOString(), '2026-07-08T13:00:00.000Z');
@@ -64,6 +68,7 @@ function adapter(pg, intake) {
         maybeSingle() { single = true; return q; }, single() { single = true; return q; },
         then(resolve,reject) {
           return (async () => {
+            if (table === 'questionnaires') return { data: intake.forms, error: null };
             if (table === 'intake_sessions') return { data: intake && filters.some(([key,,v]) => key === 'parent_token' && v === intake.token) ? intake : null, error: null };
             const params = [];
             const param = value => { params.push(value); return `$${params.length}`; };
@@ -89,7 +94,7 @@ test('Public booking integration with SQL reservations and mocked Google', async
   await pg.exec('create role anon; create role authenticated; create role service_role;');
   await pg.exec(fs.readFileSync(path.join(root, 'db/migrations/20260907_website_bookings.sql'), 'utf8'));
   await pg.exec('create table appointments(id uuid primary key, session_id uuid, patient_id uuid, appointment_type text, scheduled_at timestamptz, duration_minutes int, status text, gcal_event_id text, gcal_calendar_id text, location text, notes text);');
-  const intake = { id: randomUUID(), patient_id: randomUUID(), token: randomUUID(), parent_token_expires_at: '2099-01-01T00:00:00Z', parent_completed_at: new Date().toISOString(), teacher_completed_at: new Date().toISOString(), patients: { first_name: 'Test', last_name: 'Child' } };
+  const intake = { id: randomUUID(), patient_id: randomUUID(), token: randomUUID(), parent_token_expires_at: '2099-01-01T00:00:00Z', forms: fullForms(), patients: { first_name: 'Test', last_name: 'Child' } };
   const envBefore = { ...process.env };
   process.env.PUBLIC_BOOKING_ENABLED = 'true'; process.env.BOOKING_HASH_SECRET = 'local-test-secret-that-is-never-deployed';
   const events = new Map(); let writes = [], busy = [], failWrite = false, missingCalendar = false, accessRole = 'writer';
@@ -108,6 +113,7 @@ test('Public booking integration with SQL reservations and mocked Google', async
     },
   };
   const service = compile('lib/booking/server.ts', {
+    '@/lib/intake/progress': progress,
     '@/lib/google-calendar': { getCalendarClient: () => google, getCalendarId: () => 'adhd' },
     '@/lib/pediatrics-calendar': { getPediatricsCalendarId: () => 'peds' },
     '@/lib/supabase': { getSupabaseAdmin: () => adapter(pg, intake) }, './schedule': schedule,
@@ -130,8 +136,8 @@ test('Public booking integration with SQL reservations and mocked Google', async
     });
     await t.test('missing and incomplete intake cannot create an event', async () => {
       await reset(); await rejects(service.book('adhd', { ...body('adhd'), parentToken: randomUUID() }, 'test-ip'), 'invalid_intake');
-      const previous = intake.teacher_completed_at; intake.teacher_completed_at = null;
-      await rejects(service.book('adhd', body('adhd'), 'test-ip'), 'intake_incomplete'); intake.teacher_completed_at = previous;
+      const previous = intake.forms; intake.forms = [previous[0]];
+      await rejects(service.book('adhd', body('adhd'), 'test-ip'), 'intake_incomplete'); intake.forms = previous;
       const expiry = intake.parent_token_expires_at; intake.parent_token_expires_at = '2020-01-01T00:00:00Z';
       await rejects(service.book('adhd', body('adhd'), 'test-ip'), 'invalid_intake'); intake.parent_token_expires_at = expiry;
       assert.equal(writes.length, 0);

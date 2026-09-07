@@ -33,6 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <div className="font-semibold">{staff.full_name}</div>
               <div className="text-xs text-slate-500">{roleLabel(staff.role)}</div>
             </div>
+<Link href="/admin/intake" className="text-sm font-semibold text-[#01696f] underline">קליטה וזימון</Link>
             <LogoutButton />
           </div>
         </div>
@@ -45,6 +46,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <NavLink href="/admin/dashboard" icon={<LayoutDashboard size={18} />}>
               דשבורד
             </NavLink>
+            <NavLink href="/admin/intake" icon={<Users size={18} />}>קליטה וזימון לקשב</NavLink>
             <NavLink href="/admin/sessions" icon={<Users size={18} />}>
               תיקים פעילים
             </NavLink>

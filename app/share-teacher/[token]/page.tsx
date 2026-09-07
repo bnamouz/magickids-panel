@@ -1,3 +1,5 @@
+import { questionnaireSubmitted, firstRelated } from '@/lib/intake/progress';
+export const metadata = { robots: { index: false, follow: false }, referrer: 'no-referrer' as const };
 import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -37,14 +39,17 @@ export default async function ShareTeacherPage({ params }: PageProps) {
   const { data: session } = await supabase
     .from('intake_sessions')
     .select(
-      'id, status, teacher_token, teacher_name, teacher_phone, teacher_email, patients(first_name, last_name)',
+      'id, status, parent_token_expires_at, teacher_token, teacher_name, teacher_phone, teacher_email, patients(first_name, last_name)',
     )
     .eq('parent_token', token)
     .maybeSingle();
 
   if (!session) notFound();
 
-  if (!['parent_form_done', 'teacher_link_sent', 'teacher_form_started', 'teacher_form_done', 'profile_ready'].includes(session.status)) {
+  if (session.parent_token_expires_at && (!Number.isFinite(Date.parse(session.parent_token_expires_at)) || Date.parse(session.parent_token_expires_at) <= Date.now())) return <div className="card max-w-xl mx-auto my-12" dir="rtl">הקישור פג תוקף. צרו קשר עם המכון לקבלת קישור חדש.</div>;
+  const { data: parentForm, error: formError } = await supabase.from('questionnaires').select('type,is_complete,submitted_at,responses').eq('session_id', session.id).eq('type', 'vanderbilt_parent').maybeSingle();
+  if (formError) return <div className="card max-w-xl mx-auto my-12" dir="rtl">לא ניתן לאמת כרגע את מצב השאלון. נסו שוב בהמשך.</div>;
+  if (!questionnaireSubmitted(parentForm ?? undefined)) {
     return (
       <div className="max-w-xl mx-auto px-4 py-16" dir="rtl">
         <div className="card text-center">
@@ -60,7 +65,7 @@ export default async function ShareTeacherPage({ params }: PageProps) {
     );
   }
 
-  const patient = (session as any).patients;
+  const patient = firstRelated<any>(session.patients);
   const childName = `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || 'הילד';
 
   const appUrl = getAppUrl();
