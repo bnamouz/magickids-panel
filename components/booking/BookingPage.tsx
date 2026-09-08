@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { bookingCopy, type BookingLanguage } from '@/lib/booking/copy';
 import { localParts, TIME_ZONE, type Clinic } from '@/lib/booking/schedule';
 import styles from './booking.module.css';
+import WorkdayRequest from './WorkdayRequest';
 
 type Confirmation = { confirmed: true; clinic: Clinic; start: string; durationMinutes: number; reference: string };
 const origin = 'https://magickidsinstitute.com';
@@ -72,9 +73,9 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
   const displayDate = (iso: string) => new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso));
   const errorText = t.errors[error as keyof typeof t.errors] ?? t.errors.unavailable;
   const phoneContacts = clinic === 'pediatrics' ? [
-    { href: 'tel:+972543496656', number: '054-349-6656', label: t.clinicPhone },
+    { href: 'https://wa.me/972543496656', number: '054-349-6656', label: t.clinicPhone },
     { href: 'tel:+97248717911', number: '04-871-7911', label: t.clinicSecretary },
-  ] : [{ href: 'tel:+972544020043', number: '054-402-0043', label: t.contact }];
+  ] : [{ href: 'https://wa.me/972544020043', number: '054-402-0043', label: t.contact }];
   const phoneLinks = (className?: string) => phoneContacts.map(contact => <a key={contact.href} href={contact.href} className={className}><span>{contact.label}</span><b dir="ltr">{contact.number}</b></a>);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -122,7 +123,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
       </aside>
       <section className={styles.panel} aria-label={t.available}>
         {!confirmation && <><nav className={styles.clinics} aria-label={t.available}>{(['pediatrics', 'adhd'] as const).map(value => <a key={value} aria-current={value === clinic ? 'page' : undefined} href={`/book/${value}?lang=${language}`}>{t[value]}</a>)}</nav><h2>{t[clinic]}</h2><p className={styles.muted}>{clinic === 'adhd' ? t.adhdIntro : t.pedsIntro}</p></>}
-        {confirmation ? <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{t.confirmed}</h2><p>{t.saved}</p><div className={styles.receipt}><h3>{t[confirmation.clinic]}</h3><strong>{displayDate(confirmation.start)}</strong><b>{displayTime(confirmation.start)}</b><p>{t.address}</p><small>{t.reference}</small><code dir="ltr">{confirmation.reference}</code></div><p>{t.change}</p><a className={styles.primary} href={`${origin}/index.html?lang=${language}`}>{t.another}</a></div> : loading ? <p role="status" className={styles.notice}>{t.loading}</p> : unavailable || !slots.length ? <div className={styles.notice} role="status"><p>{unavailable ? t.unavailable : t.empty}</p><button type="button" onClick={() => void load()}>{t.retry}</button><div className={styles.phoneContacts}>{phoneLinks(styles.phone)}</div></div> : <>
+        {confirmation ? <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{t.confirmed}</h2><p>{t.saved}</p><div className={styles.receipt}><h3>{t[confirmation.clinic]}</h3><strong>{displayDate(confirmation.start)}</strong><b>{displayTime(confirmation.start)}</b><p>{t.address}</p><small>{t.reference}</small><code dir="ltr">{confirmation.reference}</code></div><p>{t.change}</p><a className={styles.primary} href={`${origin}/index.html?lang=${language}`}>{t.another}</a></div> : loading ? <p role="status" className={styles.notice}>{t.loading}</p> : unavailable || !slots.length ? <div className={styles.notice}><p role="status">{unavailable ? t.unavailable : t.empty}</p>{unavailable && clinic === 'pediatrics' && <WorkdayRequest language={language} />}<button type="button" onClick={() => void load()}>{t.retry}</button><div className={styles.phoneContacts}>{phoneLinks(styles.phone)}</div></div> : <>
           <h3 className={styles.step}><span>1</span>{t.step1}</h3>
           <div className={styles.calendar}>
             <div className={styles.month}><button type="button" aria-label={t.previous} disabled={monthIndex <= 0 || uncertain || sending} onClick={() => setMonth(months[monthIndex - 1])}>‹</button><strong>{new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(monthStart)}</strong><button type="button" aria-label={t.next} disabled={monthIndex < 0 || monthIndex >= months.length - 1 || uncertain || sending} onClick={() => setMonth(months[monthIndex + 1])}>›</button></div>
