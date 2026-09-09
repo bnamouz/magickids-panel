@@ -47,13 +47,13 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_APP_BASE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
     'https://app.magickidsinstitute.com';
-  const link = `${baseUrl}/register?utm_source=voice&utm_medium=whatsapp&lang=${body.language}`;
+  const link = `${baseUrl}/onboarding/public?utm_source=voice&utm_medium=whatsapp&lang=${body.language}`;
 
   const greetingName = body.parent_name ? ` ${body.parent_name}` : '';
   const childRef = body.child_name;
 
   const heMsg = [
-    `שלום${greetingName}, זו רנא ממכון Magic Kids.`,
+    `שלום${greetingName}, זו שרה ממכון Magic Kids.`,
     childRef
       ? `בהמשך לשיחה שלנו לגבי ${childRef}, שולחת לך את הקישור להרשמה ולשאלונים:`
       : `בהמשך לשיחה שלנו, שולחת לך את הקישור להרשמה ולשאלונים:`,
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   ].join('\n');
 
   const arMsg = [
-    `مرحبًا${greetingName}, هاي رنا من معهد ماجيك كيدز.`,
+    `مرحبًا${greetingName}, هاي سارة من معهد ماجيك كيدز.`,
     childRef
       ? `بعد الحكي عن ${childRef}، هاد الرابط للتسجيل والاستمارات:`
       : `متابعة لحكينا، هاد الرابط للتسجيل والاستمارات:`,

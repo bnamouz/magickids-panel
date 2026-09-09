@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test:booking": "node --test scripts/test-booking.mjs",
-    "test:intake": "node --test scripts/test-intake.mjs"
+    "test:intake": "node --test scripts/test-intake.mjs",
+    "test:sarah-moxo": "node --test scripts/test-sarah-moxo.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.6.1",

@@ -19,3 +19,4 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run test:intake
       - run: npm run test:booking
+      - run: npm run test:sarah-moxo

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { candidateSlots, localParts, isAssessmentSlot } from '@/lib/booking/schedule';
 import { CalendarPlus, X, Loader2, Check, AlertCircle } from 'lucide-react';
 
 interface Props {
@@ -18,7 +19,7 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
   const [open, setOpen] = useState(false);
   const [type, setType] = useState(assessmentReady ? 'assessment' : 'followup');
   const [date, setDate] = useState('');
-  const [time, setTime] = useState('10:00');
+  const [time, setTime] = useState(assessmentReady ? '16:00' : '10:00');
   const [location, setLocation] = useState('מכון Magic Kids, שפרעם');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -60,6 +61,7 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
     const israelOffset = getIsraelOffset(date);
     const scheduledAt = `${date}T${time}:00${israelOffset}`;
 
+    if(type === 'assessment' && !isAssessmentSlot(scheduledAt)) { setError('יש לבחור יום רביעי בשעה 16:00, 17:00, 18:00 או 19:00. משך האבחון שעה.'); return; }
     setLoading(true);
     try {
       const res = await fetch('/api/admin/appointments/create', {
@@ -145,7 +147,7 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
                 </label>
                 <select
                   value={type}
-                  onChange={(e) => setType(e.target.value)}
+                  onChange={(e) => { setType(e.target.value); setDate(''); setTime(e.target.value === 'assessment' ? '16:00' : '10:00'); }}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 >
                   {APPOINTMENT_TYPES.filter(item => assessmentReady || item.value !== 'assessment').map((t) => (
@@ -161,24 +163,24 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     תאריך
                   </label>
-                  <input
+                  {type === 'assessment' ? <select aria-label="יום רביעי לאבחון" value={date} onChange={e=>setDate(e.target.value)} className="w-full border rounded-lg p-2"><option value="">בחירת יום רביעי</option>{[...new Set(candidateSlots('adhd').map(iso=>localParts(new Date(iso)).date))].map(day=><option key={day} value={day}>{day}</option>)}</select> : <input
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={localParts(new Date()).date}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  />
+                  />}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     שעה
                   </label>
-                  <input
+                  {type === 'assessment' ? <select aria-label="שעת אבחון" value={time} onChange={e=>setTime(e.target.value)} className="w-full border rounded-lg p-2">{['16:00','17:00','18:00','19:00'].map(hour=><option key={hour}>{hour}</option>)}</select> : <input
                     type="time"
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  />
+                  />}
                 </div>
               </div>
 

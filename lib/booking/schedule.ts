@@ -63,3 +63,10 @@ export function parseFreeBusy(calendars: Record<string, { busy?: Array<{ start?:
     });
   });
 }
+
+export function isAssessmentSlot(iso: string, now = new Date()) {
+ const value = new Date(iso);
+ if (!Number.isFinite(value.getTime()) || value <= now) return false;
+ const local = localParts(value);
+ return new Date(`${local.date}T12:00:00Z`).getUTCDay() === 3 && [960,1020,1080,1140].includes(local.minutes) && local.seconds === 0 && value.getUTCMilliseconds() === 0;
+}
