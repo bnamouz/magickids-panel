@@ -115,7 +115,7 @@ test('staff booking API enforces two submitted questionnaires and denies unauthe
     '@/lib/supabase':{getSupabaseAdmin:()=>db},
     '@/lib/google-calendar':{checkAvailability:async()=>{throw new Error('unexpected calendar call');},createCalendarEvent:async()=>{throw new Error('unexpected calendar write');}}
   });
-  const req={json:async()=>({session_id:'case',appointment_type:'assessment',scheduled_at:'2099-01-01T09:00:00Z'})};
+  const req={json:async()=>({session_id:'case',appointment_type:'assessment',scheduled_at:'2099-01-07T14:00:00Z'})};
   assert.equal((await route.POST(req)).status,403);authorized=true;
   assert.equal((await route.POST(req)).status,409);
   forms.push(form('vanderbilt_teacher'));appointments=[{status:'scheduled'}];assert.equal((await route.POST(req)).status,409);

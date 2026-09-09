@@ -1,3 +1,4 @@
+import { isAssessmentSlot } from '@/lib/booking/schedule';
 import { getCurrentStaff } from '@/lib/admin/auth';
 import { firstRelated, intakeProgress, CLOSED_INTAKE_STATUSES } from '@/lib/intake/progress';
 import { NextRequest, NextResponse } from 'next/server';
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
     if (!Number.isFinite(Date.parse(scheduled_at)) || Date.parse(scheduled_at) <= Date.now()) return NextResponse.json({ error: 'יש לבחור מועד עתידי תקין' }, { status: 400 });
     const duration = duration_minutes || DURATION_BY_TYPE[appointment_type] || 60;
     if (!Number.isInteger(duration) || duration < 15 || duration > 180) return NextResponse.json({ error: 'משך פגישה לא תקין' }, { status: 400 });
+    if (appointment_type === 'assessment' && (duration !== 60 || !isAssessmentSlot(scheduled_at))) return NextResponse.json({ error: 'אבחון מתקיים ביום רביעי בלבד בשעות 16:00, 17:00, 18:00 או 19:00, למשך שעה.' }, { status: 400 });
     const supabase = getSupabaseAdmin();
 
     // Load session with patient & parent

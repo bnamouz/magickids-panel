@@ -32,9 +32,10 @@ export async function sendWhatsAppText(args: {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: params.toString(),
+      signal: AbortSignal.timeout(15000),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || (data && data.error)) {
+    if (!res.ok || (data && data.error) || !data?.id) {
       return { ok: false, error: data?.error || `HTTP ${res.status}` };
     }
     return { ok: true, id: data?.id ? String(data.id) : undefined };
