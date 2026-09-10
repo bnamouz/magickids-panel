@@ -10,11 +10,11 @@ type Confirmation = { confirmed: true; clinic: Clinic; start: string; durationMi
 const origin = 'https://magickidsinstitute.com';
 function extractToken(value: string) {
   const trimmed = value.trim();
-  if (/^[0-9a-f-]{36}$/i.test(trimmed)) return trimmed;
+  if (/^(?:[0-9a-f-]{36}|[0-9a-f]{48})$/i.test(trimmed)) return trimmed;
   try {
     const url = new URL(trimmed);
     if (url.protocol !== 'https:' || url.hostname !== 'app.magickidsinstitute.com') return '';
-    return url.pathname.match(/^\/questionnaire\/parent\/([0-9a-f-]{36})\/?$/i)?.[1] ?? '';
+    return url.pathname.match(/^\/questionnaire\/parent\/([0-9a-f-]{36}|[0-9a-f]{48})\/?$/i)?.[1] ?? '';
   } catch { return ''; }
 }
 export default function BookingPage({ clinic, initialLanguage }: { clinic: Clinic; initialLanguage: BookingLanguage }) {

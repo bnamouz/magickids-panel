@@ -99,3 +99,10 @@ test('Sarah booking route cannot bypass missing forms and confirms only after th
  body.slot_iso='2099-01-07T14:00:00Z';failBooking=true;assert.equal((await route.POST(req)).status,503);assert.equal(notified,0);
  failBooking=false;assert.equal((await route.POST(req)).status,200);assert.equal((await route.POST(req)).status,200);assert.equal(new Set(ids).size,1);
 });
+
+test('booking accepts real 48-hex intake tokens and legacy UUIDs without accepting malformed tokens',()=>{
+ const server=compile('lib/booking/server.ts');
+ assert.equal(server.intakeTokenSchema.safeParse('a'.repeat(48)).success,true);
+ assert.equal(server.intakeTokenSchema.safeParse(randomUUID()).success,true);
+ for(const token of ['a'.repeat(47),'z'.repeat(48),'','not-a-token'])assert.equal(server.intakeTokenSchema.safeParse(token).success,false);
+});

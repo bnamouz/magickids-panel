@@ -8,7 +8,7 @@ export async function loadIntakeQueue() {
   for (let offset = 0; ; offset += 200) {
     const { data, error } = await db.from('intake_sessions')
       .select('id,status,created_at,patients(first_name,last_name),parents(full_name,phone),questionnaires(type,is_complete,submitted_at,responses),appointments(id,status,scheduled_at,appointment_type)')
-      .not('status', 'in', '(closed,cancelled,reported,completed)').order('created_at', { ascending: true }).order('id', { ascending: true }).range(offset, offset + 199);
+      .not('status', 'in', '(closed,cancelled,reported)').order('created_at', { ascending: true }).order('id', { ascending: true }).range(offset, offset + 199);
     if (error || !data) throw new Error('intake_queue_unavailable');
     sessions.push(...data as unknown as Session[]);
     if (data.length < 200) break;
