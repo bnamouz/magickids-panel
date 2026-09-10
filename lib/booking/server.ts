@@ -10,13 +10,14 @@ export class BookingError extends Error {
   constructor(public code: string, public status = 503) { super(code); }
 }
 const name = z.string().trim().min(2).max(100).refine(value => !/[\r\n\x00-\x1f]/.test(value));
+export const intakeTokenSchema = z.union([z.string().uuid(), z.string().regex(/^[0-9a-f]{48}$/i)]);
 export const bookingSchema = z.object({
   requestId: z.string().uuid(),
   start: z.string().datetime(),
   childName: name,
   parentName: name,
   phone: z.string().trim().regex(/^[+\d() .-]{7,25}$/),
-  parentToken: z.string().uuid().optional(),
+  parentToken: intakeTokenSchema.optional(),
   consent: z.literal(true),
   website: z.literal('').default(''),
 }).strict();
@@ -76,7 +77,7 @@ export async function getSlots(clinic: Clinic) {
 }
 
 export async function checkIntake(token: string, retryEventId?: string) {
-  if (!z.string().uuid().safeParse(token).success) throw new BookingError('invalid_intake', 403);
+  if (!intakeTokenSchema.safeParse(token).success) throw new BookingError('invalid_intake', 403);
   const db = getSupabaseAdmin();
   const { data: session, error } = await db.from('intake_sessions')
     .select('id,patient_id,parent_token_expires_at,patients(first_name,last_name)')

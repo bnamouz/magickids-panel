@@ -15,7 +15,7 @@ export async function GET(req:NextRequest){
    const parents=await db.from('parents').select('id').in('phone',variants);
    if(parents.error)throw new BookingError('unavailable');
    if(!parents.data?.length)return NextResponse.json({found:false,intake_completed:false});
-   const sessions=await db.from('intake_sessions').select('id').in('primary_parent_id',parents.data.map(row=>row.id)).not('status','in','(closed,cancelled,reported,completed)').limit(2);
+   const sessions=await db.from('intake_sessions').select('id').in('primary_parent_id',parents.data.map(row=>row.id)).not('status','in','(closed,cancelled,reported)').limit(2);
    if(sessions.error)throw new BookingError('unavailable');
    if(!sessions.data?.length)return NextResponse.json({found:false,intake_completed:false});
    if(sessions.data.length!==1)return NextResponse.json({found:true,intake_completed:false,requires_case_id:true,message:'Multiple cases. Verify the child and case with staff before scheduling.'});
