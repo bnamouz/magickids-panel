@@ -1,7 +1,8 @@
 import { requireStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
-import { Calendar, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Calendar } from 'lucide-react';
+import BookingConnectionStatus from '@/components/admin/BookingConnectionStatus';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,9 +25,6 @@ export default async function AppointmentsPage() {
   await requireStaff();
   const supabase = getSupabaseAdmin();
 
-  const gcalConfigured = !!(
-    process.env.GOOGLE_SERVICE_ACCOUNT_JSON && process.env.GOOGLE_CALENDAR_ID
-  );
 
   const { data: upcoming } = await supabase
     .from('appointments')
@@ -40,22 +38,12 @@ export default async function AppointmentsPage() {
     <div>
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">יומן פגישות</h1>
+          <h1 className="text-2xl font-bold text-slate-800">פגישות המכון</h1>
           <p className="text-slate-500 mt-1">
-            {upcoming?.length ?? 0} פגישות עתידיות
+            {upcoming?.length ?? 0} פגישות עתידיות המקושרות לתיקי המכון
           </p>
         </div>
-        <div>
-          {gcalConfigured ? (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm">
-              <CheckCircle2 size={16} /> Google Calendar מחובר
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 text-sm">
-              <AlertCircle size={16} /> Google Calendar לא מוגדר
-            </div>
-          )}
-        </div>
+        <BookingConnectionStatus />
       </div>
 
       <div className="card p-0 overflow-hidden">
