@@ -13,7 +13,7 @@ function failure(error: unknown) {
 }
 export async function GET(_req: NextRequest, { params }: { params: { clinic: string } }) {
   if (!isClinic(params.clinic)) return reply({ error: 'unknown_clinic' }, 404);
-  try { return reply({ clinic: params.clinic, timeZone: TIME_ZONE, durationMinutes: durationFor(params.clinic), slots: await getSlots(params.clinic) }); }
+  try { return reply({ clinic: params.clinic, timeZone: TIME_ZONE, durationMinutes: durationFor(params.clinic), slots: await getSlots(params.clinic), remindersEnabled: process.env.BOOKING_REMINDERS_ENABLED === 'true' && !!process.env.ULTRAMSG_INSTANCE_ID && !!process.env.ULTRAMSG_TOKEN }); }
   catch (error) { return failure(error); }
 }
 export async function POST(req: NextRequest, { params }: { params: { clinic: string } }) {

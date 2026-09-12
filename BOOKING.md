@@ -107,3 +107,48 @@ SQL, rather than claiming a load test of production PostgreSQL concurrency.
 
 Public-site validation lives in `bnamouz/dr-baseem-namouz-site`:
 `node scripts/build-website.mjs` and `python scripts/verify-website.py`.
+
+## Self-service extension (September 2026)
+
+Pediatrics bookings require no staff approval: the existing reservation/Google
+confirmation path is unchanged. The success screen now provides a personal
+cancellation link. The signed token lives in the URL fragment and is sent only
+in a same-origin POST; opening the link previews the visit, and the patient must
+press Cancel. Cancellation deletes only the matching pediatric Google event,
+then releases its hold. Keep BOOKING_HASH_SECRET stable: rotating it invalidates
+previous cancellation links. No patient name or phone is embedded in the link.
+
+WhatsApp reminders use private Google event metadata for the opted-in recipient
+and language. They apply to new, confirmed website pediatric appointments only.
+They do not backfill old bookings or reminders missed during an outage. A worker
+checks the current Google event and reservation before sending in the 29–30
+minute window. Delivery is claimed once in clinic_notifications; ambiguous
+provider responses are not automatically retried. Provider acceptance is not a
+WhatsApp delivery receipt. A cancellation concurrent with an already-dispatched
+message cannot recall that message. Staff moving an appointment in Google must
+also reconcile its reservation; mismatched times are skipped, never guessed.
+
+Activation (not enabled by this commit):
+- Verify PUBLIC_BOOKING_ENABLED, both distinct writable Google calendars and
+  BOOKING_HASH_SECRET using the existing admin booking-status endpoint.
+- Configure ULTRAMSG_INSTANCE_ID / ULTRAMSG_TOKEN and CRON_SECRET (32+ chars).
+- Schedule an authenticated GET /api/cron/booking-reminders every minute with
+  Authorization: Bearer <CRON_SECRET>. Use the hosting account's supported
+  scheduler. No cron is added to vercel.json because the connected account's
+  scheduler plan/access has not been verified.
+- Set BOOKING_REMINDERS_ENABLED=true only after that scheduler is running.
+  Until enabled and provider credentials are present, the public form does not
+  advertise reminders or request reminder consent. Do not send real test messages
+  to patients. Staff can inspect configuration flags at /api/admin/booking-status.
+
+Other treatments: /treatments?lang=he|ar|en submits an actual request to Supabase,
+not a messaging draft. /admin/treatments lists oldest requests first and filters
+by type and status. Staff verifies parent agreement, therapist and room
+availability, then schedules in the institute's treatment queue. This schedule
+is NOT automatically copied to either medical Google calendar. It prevents
+same-name therapist overlaps within this queue; use a consistent therapist name.
+ADHD and MOXO retain their separate intake/approval flows.
+Apply supabase/migrations/20260912062810_clinic_self_service.sql once; the public
+and authenticated client roles have no direct table/RPC access. Staff routes
+require an active staff_users record. Test with npm run test:booking and
+node scripts/test-treatments.mjs; all messages and Google operations are mocked.

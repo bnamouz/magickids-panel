@@ -61,6 +61,7 @@ function adapter(pg, intake) {
       const q = {
         select(v = '*') { columns = v; return q; },
         eq(key,v) { filters.push([key,'=',v]); return q; }, neq(key,v) { filters.push([key,'<>',v]); return q; },
+        lte(key,v) { filters.push([key,'<=',v]); return q; },
         gt(key,v) { filters.push([key,'>',v]); return q; }, gte(key,v) { filters.push([key,'>=',v]); return q; }, lt(key,v) { filters.push([key,'<',v]); return q; },
         limit(v) { limit = v; return q; },
         insert(v) { action = 'insert'; values = v; return q; }, update(v) { action = 'update'; values = v; return q; },
@@ -102,6 +103,7 @@ test('Public booking integration with SQL reservations and mocked Google', async
     calendarList: { async get() { return { data: { accessRole } }; } },
     freebusy: { async query() { return { data: { calendars: { peds: { busy }, adhd: missingCalendar ? { errors: [{ reason: 'forbidden' }] } : { busy } } } }; } },
     events: {
+      async delete({calendarId,eventId}) { if(failWrite)throw new Error('timeout'); events.delete(`${calendarId}/${eventId}`); return {}; },
       async get({ calendarId, eventId }) { const event = events.get(`${calendarId}/${eventId}`); if (!event) throw Object.assign(new Error('not found'), { code: 404 }); return { data: event }; },
       async insert({ calendarId, requestBody, sendUpdates }) {
         writes.push({ calendarId, requestBody, sendUpdates });
@@ -182,6 +184,50 @@ test('Public booking integration with SQL reservations and mocked Google', async
       await reset(); const request = body('pediatrics'); await service.book('pediatrics', request, 'test-ip');
       events.clear(); const slots = await service.getSlots('pediatrics'); assert.ok(slots.includes(request.start));
       assert.equal((await pg.query('select status from website_bookings')).rows[0].status, 'released');
+    });
+    await t.test('personal cancellation requires a capability; preview does not delete; retries release exactly one slot', async () => {
+      await reset(); const request = body('pediatrics'); const result = await service.book('pediatrics', request, 'test-ip');
+      assert.match(result.cancellationToken, /^[a-f0-9]{64}$/);
+      await rejects(service.cancelPediatrics(request.requestId, '0'.repeat(64)), 'invalid_link');
+      assert.equal(events.size, 1);
+      const preview = await service.cancelPediatrics(request.requestId, result.cancellationToken, true);
+      assert.equal(preview.cancelled, false); assert.equal(events.size, 1);
+      failWrite = true;
+      await rejects(service.cancelPediatrics(request.requestId, result.cancellationToken), 'processing');
+      assert.equal((await pg.query('select status from website_bookings')).rows[0].status, 'confirmed');
+      failWrite = false;
+      assert.equal((await service.cancelPediatrics(request.requestId, result.cancellationToken)).cancelled, true);
+      assert.equal(events.size, 0);
+      assert.equal((await service.cancelPediatrics(request.requestId, result.cancellationToken)).cancelled, true);
+      assert.ok((await service.getSlots('pediatrics')).includes(request.start));
+    });
+    await t.test('cancellation cannot touch another clinic or an unrelated Google event', async () => {
+      await reset(); const request = body('adhd'); const result = await service.book('adhd', request, 'test-ip');
+      assert.equal(result.cancellationToken, undefined);
+      await rejects(service.cancelPediatrics(request.requestId, service.cancellationToken(request.requestId)), 'invalid_link');
+      await reset(); const peds = body('pediatrics'); const receipt = await service.book('pediatrics', peds, 'test-ip');
+      [...events.values()][0].extendedProperties.private.websiteBooking = randomUUID();
+      await rejects(service.cancelPediatrics(peds.requestId, receipt.cancellationToken), 'unavailable');
+      assert.equal(events.size, 1);
+    });
+    await t.test('reminders observe consent, 30-minute window, cancellation and once-only delivery', async () => {
+      await reset();
+      await pg.exec("create table clinic_notifications(id text primary key,state text default 'pending',provider_id text,updated_at timestamptz default now());");
+      const sent = [];
+      const notifications = compile('lib/moxo/notification.ts', { '@/lib/supabase': { getSupabaseAdmin: () => adapter(pg, intake) }, '@/lib/whatsapp-ultramsg': { sendWhatsAppText: async message => { sent.push(message); return {ok:true,id:'mock'}; } } });
+      const reminders = compile('lib/booking/reminders.ts', { '@/lib/supabase': {getSupabaseAdmin: () => adapter(pg,intake)}, '@/lib/google-calendar': {getCalendarClient:()=>google}, '@/lib/moxo/notification':notifications, './server':service,'./schedule':schedule });
+      process.env.BOOKING_REMINDERS_ENABLED='true';process.env.ULTRAMSG_INSTANCE_ID='test';process.env.ULTRAMSG_TOKEN='test';
+      const request={...body('pediatrics'),reminderConsent:true,language:'ar'};
+      const receipt=await service.book('pediatrics',request,'test-ip');
+      const due=new Date(Date.parse(request.start)-30*60000);
+      await reminders.sendDueReminders(new Date(due.getTime()-60000));assert.equal(sent.length,0);
+      await Promise.all([reminders.sendDueReminders(due),reminders.sendDueReminders(due)]);assert.equal(sent.length,1);assert.match(sent[0].body,/تذكير/);assert.match(sent[0].body,/book\/cancel/);
+      await reminders.sendDueReminders(due);assert.equal(sent.length,1);
+      await reset(); await pg.exec('delete from clinic_notifications');
+      const noConsent=body('pediatrics');await service.book('pediatrics',noConsent,'test-ip');
+      await reminders.sendDueReminders(new Date(Date.parse(noConsent.start)-30*60000));assert.equal(sent.length,1);
+      await reset();const cancel={...body('pediatrics'),reminderConsent:true};const c=await service.book('pediatrics',cancel,'test-ip');await service.cancelPediatrics(cancel.requestId,c.cancellationToken);
+      await reminders.sendDueReminders(new Date(Date.parse(cancel.start)-30*60000));assert.equal(sent.length,1);
     });
     await t.test('booking limits are enforced in the database', async () => {
       await reset(); const starts = schedule.candidateSlots('pediatrics');
