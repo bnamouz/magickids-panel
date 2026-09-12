@@ -36,6 +36,13 @@ test('Israel daylight saving and clinic windows', () => {
   const peds = schedule.candidateSlots('pediatrics', new Date('2026-09-07T06:00:00Z'));
   assert.ok(peds.every(slot => Date.parse(slot) >= Date.parse('2026-09-07T08:00:00Z')));
   assert.ok(!peds.some(slot => schedule.localParts(new Date(slot)).date === '2026-09-13'));
+  const friday = peds.filter(slot => schedule.localParts(new Date(slot)).date === '2026-09-11');
+  assert.equal(friday.length, 18);
+  assert.deepEqual(friday.map(slot => schedule.localParts(new Date(slot)).minutes), Array.from({length:18}, (_,i) => 570+i*10));
+  assert.equal(schedule.durationFor('pediatrics'), 10);
+  assert.equal(schedule.durationFor('adhd'), 60);
+  // Existing half-hour visits must still block all three new ten-minute slots.
+  assert.deepEqual(schedule.freeSlots('pediatrics', friday, [{start:friday[0],end:friday[3]}]), friday.slice(3));
 });
 test('Busy boundaries, all-day events and calendar errors fail closed', () => {
   const candidates = ['2026-09-09T13:00:00.000Z', '2026-09-09T13:30:00.000Z'];

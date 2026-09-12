@@ -2,7 +2,7 @@ export type Clinic = 'pediatrics' | 'adhd';
 export const TIME_ZONE = 'Asia/Jerusalem';
 export const HORIZON_DAYS = 28;
 export const LEAD_MINUTES = 120;
-export const durationFor = (clinic: Clinic) => clinic === 'adhd' ? 60 : 30;
+export const durationFor = (clinic: Clinic) => clinic === 'adhd' ? 60 : 10;
 export const isClinic = (value: string): value is Clinic => value === 'pediatrics' || value === 'adhd';
 
 // Existing published clinic hours; ADHD assessments follow the existing

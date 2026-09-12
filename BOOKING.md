@@ -45,7 +45,8 @@ Time zone: `Asia/Jerusalem`, including daylight saving changes. Booking window:
 
 Pediatrics uses the hours already published by the institute: Monday 09:00–16:00,
 Tuesday and Wednesday 16:00–20:00, Thursday 17:00–20:00, Friday and Saturday
-09:30–12:30; Sunday closed. Slots are 30 minutes.
+09:30–12:30; Sunday closed. New pediatric slots are 10 minutes, with consecutive
+start times and no added gap. Existing Google events retain their original duration.
 
 ADHD assessments use the existing Wednesday 16:00–20:00, 60-minute workflow.
 Booking requires a valid unexpired personal parent token and completed parent
