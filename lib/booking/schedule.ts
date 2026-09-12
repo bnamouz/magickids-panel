@@ -8,7 +8,7 @@ export const isClinic = (value: string): value is Clinic => value === 'pediatric
 // Existing published clinic hours; ADHD assessments follow the existing
 // Wednesday 16:00–20:00 intake workflow. All times are Israeli local time.
 const HOURS: Record<Clinic, Record<number, [number, number]>> = {
-  pediatrics: { 1: [540, 960], 2: [960, 1200], 3: [960, 1200], 4: [1020, 1200], 5: [570, 750], 6: [570, 750] },
+  pediatrics: { 1: [540, 960], 2: [1020, 1200], 3: [960, 1200], 4: [1020, 1200], 5: [570, 750], 6: [570, 750] },
   adhd: { 3: [960, 1200] },
 };
 const formatter = new Intl.DateTimeFormat('en-CA', {

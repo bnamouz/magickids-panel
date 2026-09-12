@@ -44,7 +44,8 @@ Time zone: `Asia/Jerusalem`, including daylight saving changes. Booking window:
 28 days, with a two-hour lead time.
 
 Pediatrics uses the hours already published by the institute: Monday 09:00–16:00,
-Tuesday and Wednesday 16:00–20:00, Thursday 17:00–20:00, Friday and Saturday
+Tuesday 17:00–20:00 (16:00–17:00 blocked weekly), Wednesday 16:00–20:00,
+Thursday 17:00–20:00, Friday and Saturday
 09:30–12:30; Sunday closed. New pediatric slots are 10 minutes, with consecutive
 start times and no added gap. Existing Google events retain their original duration.
 
