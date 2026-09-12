@@ -13,12 +13,17 @@ export async function GET() {
     hashSecret: (process.env.BOOKING_HASH_SECRET?.length ?? 0) >= 32,
     credentials: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
     database: false,
+    remindersEnabled: process.env.BOOKING_REMINDERS_ENABLED === 'true',
+    whatsappConfigured: !!process.env.ULTRAMSG_INSTANCE_ID && !!process.env.ULTRAMSG_TOKEN,
+    cronSecretConfigured: (process.env.CRON_SECRET?.length ?? 0) >= 32,
+    treatmentQueue: false,
     distinctCalendars: false,
     calendars: {} as Record<string, { calendarId: string; name?: string; writable: boolean; accessible: boolean }>,
   };
   try {
     const db = await getSupabaseAdmin().from('website_bookings').select('id').limit(1);
     checks.database = !db.error;
+    checks.treatmentQueue = !(await getSupabaseAdmin().from('treatment_requests').select('id').limit(1)).error;
     const ids = { pediatrics: getPediatricsCalendarId(), adhd: getCalendarId() };
     checks.distinctCalendars = ids.pediatrics !== ids.adhd && !Object.values(ids).includes('primary');
     const client = getCalendarClient();

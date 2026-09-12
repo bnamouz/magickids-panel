@@ -1,5 +1,5 @@
 import { intakeProgress } from '@/lib/intake/progress';
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import { getPediatricsCalendarId } from '@/lib/pediatrics-calendar';
@@ -19,6 +19,8 @@ export const bookingSchema = z.object({
   phone: z.string().trim().regex(/^[+\d() .-]{7,25}$/),
   parentToken: intakeTokenSchema.optional(),
   consent: z.literal(true),
+  reminderConsent: z.boolean().optional(),
+  language: z.enum(['he', 'ar', 'en']).optional(),
   website: z.literal('').default(''),
 }).strict();
 type BookingBody = z.infer<typeof bookingSchema>;
@@ -98,7 +100,7 @@ function isMissing(error: unknown) {
   return [404, 410].includes(Number((error as { code?: number })?.code));
 }
 function confirmed(clinic: Clinic, start: string, reference: string) {
-  return { confirmed: true, clinic, start, durationMinutes: durationFor(clinic), reference };
+  return { confirmed: true, clinic, start, durationMinutes: durationFor(clinic), reference, ...(clinic === 'pediatrics' ? { cancellationToken: cancellationToken(reference) } : {}) };
 }
 
 export async function book(clinic: Clinic, body: BookingBody, clientIp: string) {
@@ -158,7 +160,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string) 
         location: 'תופיק זיאד 21, שפרעם',
         start: { dateTime: start, timeZone: TIME_ZONE }, end: { dateTime: end, timeZone: TIME_ZONE },
         visibility: 'private', transparency: 'opaque',
-        extendedProperties: { private: { websiteBooking: body.requestId, clinic } },
+        extendedProperties: { private: { websiteBooking: body.requestId, clinic, reminderConsent: body.reminderConsent === true ? 'true' : 'false', reminderPhone: phone, language: body.language ?? 'ar' } },
       } })).data;
     } catch {
       // Timeout/409 may mean the insert already succeeded. Never release the
@@ -180,4 +182,35 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string) 
   const saved = await db.from('website_bookings').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', body.requestId).eq('attempt_id', attemptId).neq('status', 'released').select('id').single();
   if (saved.error || !saved.data) throw new BookingError('processing', 503);
   return confirmed(clinic, start, body.requestId);
+}
+
+// The booking UUID is a reference, never authorization to cancel a patient's visit.
+export function cancellationToken(id: string) {
+  if ((process.env.BOOKING_HASH_SECRET?.length ?? 0) < 32) throw new BookingError('unavailable');
+  return digest(`cancel-pediatrics:v1:${id}`);
+}
+export async function cancelPediatrics(id: string, token: string, preview = false) {
+  if (!z.string().uuid().safeParse(id).success || !/^[a-f0-9]{64}$/.test(token)) throw new BookingError('invalid_link', 403);
+  if (!timingSafeEqual(Buffer.from(token, 'hex'), Buffer.from(cancellationToken(id), 'hex'))) throw new BookingError('invalid_link', 403);
+  const db = getSupabaseAdmin();
+  const { data: row, error } = await db.from('website_bookings').select('*').eq('id', id).eq('clinic', 'pediatrics').maybeSingle();
+  if (error) throw new BookingError('unavailable');
+  if (!row) throw new BookingError('invalid_link', 403);
+  if (row.status === 'released') return { cancelled: true };
+  if (row.status !== 'confirmed') throw new BookingError('processing');
+  if (Date.parse(row.starts_at) <= Date.now()) throw new BookingError('past_appointment', 409);
+  const calendar = getCalendarClient();
+  let event;
+  try { event = (await calendar.events.get({ calendarId: row.calendar_id, eventId: row.event_id })).data; }
+  catch (error) { if (!isMissing(error)) throw new BookingError('unavailable'); }
+  if (event && event.status !== 'cancelled') {
+    if (event.extendedProperties?.private?.websiteBooking !== id || event.extendedProperties?.private?.clinic !== 'pediatrics') throw new BookingError('unavailable');
+    if (Date.parse(event.start?.dateTime ?? '') <= Date.now()) throw new BookingError('past_appointment', 409);
+    if (preview) return { cancelled: false, start: event.start?.dateTime };
+    try { await calendar.events.delete({ calendarId: row.calendar_id, eventId: row.event_id, sendUpdates: 'none' }); }
+    catch (error) { if (!isMissing(error)) throw new BookingError('processing'); }
+  }
+  const released = await db.from('website_bookings').update({ status: 'released', updated_at: new Date().toISOString() }).eq('id', id).eq('status', 'confirmed');
+  if (released.error) throw new BookingError('processing');
+  return { cancelled: true };
 }
