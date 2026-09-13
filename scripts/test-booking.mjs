@@ -42,9 +42,10 @@ test('Israel daylight saving and clinic windows', () => {
   assert.equal(schedule.durationFor('pediatrics'), 10);
   assert.equal(schedule.durationFor('adhd'), 60);
   const tuesday = peds.filter(slot => schedule.localParts(new Date(slot)).date === '2026-09-08');
-  assert.equal(tuesday.length, 18);
-  assert.equal(schedule.localParts(new Date(tuesday[0])).minutes, 1020);
-  assert.ok(tuesday.every(slot => schedule.localParts(new Date(slot)).minutes >= 1020));
+  assert.equal(tuesday.length, 24);
+  assert.equal(schedule.localParts(new Date(tuesday[0])).minutes, 960);
+  const wednesday = peds.filter(slot => schedule.localParts(new Date(slot)).date === '2026-09-09');
+  assert.deepEqual(wednesday.map(slot => schedule.localParts(new Date(slot)).minutes), Array.from({length:21}, (_,i) => 600+i*10));
   // Existing half-hour visits must still block all three new ten-minute slots.
   assert.deepEqual(schedule.freeSlots('pediatrics', friday, [{start:friday[0],end:friday[3]}]), friday.slice(3));
 });
