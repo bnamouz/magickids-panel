@@ -1,0 +1,11 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import ts from 'typescript';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url);
+function load(file,mocks){const code=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;const m={exports:{}};new Function('require','module','exports',code)(n=>mocks[n]??require(n),m,m.exports);return m.exports;}
+const mime=load('lib/development/mime.ts',{'./schema':{DESTINATION:'zfn_shraam_child@mac.org.il'}});
+const id='12345678-1234-1234-1234-123456789abc';
+test('MIME encodes Hebrew, fixed destination, PDFs and safe headers',()=>{const data=Buffer.from('%PDF-1.4 test').toString('base64');const raw=mime.buildMessage(id,[{filename:'summary.pdf',content:data}]);const decoded=Buffer.from(raw,'base64url').toString();assert.match(decoded,/From: Magic Kids <magickids@magickidsinstitute.com>/);assert.match(decoded,/To: zfn_shraam_child@mac.org.il/);assert.ok(decoded.includes(data));assert.match(decoded,/Content-Type: multipart\/mixed/);assert.throws(()=>mime.buildMessage(id,[{filename:'x\r\nBcc: evil.pdf',content:data}]));assert.throws(()=>mime.buildMessage('injected\r\n',[]));});
+test('delegated Gmail uses only send scope, fixed subject, and no retry',async()=>{let options,request,transport;const mail=load('lib/development/mail.ts',{'./mime':mime,googleapis:{google:{auth:{JWT:class{constructor(o){options=o;}}},gmail:()=>({users:{messages:{send:async(r,t)=>{request=r;transport=t;return {data:{id:'fake-id'}};}}}})}}});const old=process.env.DEVELOPMENT_GOOGLE_SERVICE_ACCOUNT_JSON;try{delete process.env.DEVELOPMENT_GOOGLE_SERVICE_ACCOUNT_JSON;assert.equal(mail.mailReady(),false);process.env.DEVELOPMENT_GOOGLE_SERVICE_ACCOUNT_JSON=JSON.stringify({type:'service_account',client_email:'fake@example.test',private_key:'BEGIN PRIVATE KEY fake'});assert.equal(await mail.sendPacket(id,[]),'fake-id');assert.deepEqual(options.scopes,['https://www.googleapis.com/auth/gmail.send']);assert.equal(options.subject,mime.SENDER);assert.equal(request.userId,'me');assert.equal(transport.retry,false);}finally{if(old===undefined)delete process.env.DEVELOPMENT_GOOGLE_SERVICE_ACCOUNT_JSON;else process.env.DEVELOPMENT_GOOGLE_SERVICE_ACCOUNT_JSON=old;}});

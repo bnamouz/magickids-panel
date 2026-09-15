@@ -1,7 +1,28 @@
-import { DESTINATION } from './schema';
-export function mailReady(){return !!process.env.RESEND_API_KEY && !!process.env.DEVELOPMENT_EMAIL_FROM;}
-export async function sendPacket(id:string,attachments:{filename:string;content:string}[]) {
- if(!mailReady())throw new Error('MAIL_NOT_CONFIGURED');
- const r=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':`development-${id}`},body:JSON.stringify({from:process.env.DEVELOPMENT_EMAIL_FROM,to:[DESTINATION],subject:'פנייה להתפתחות הילד — מסמכים לעיון',text:'שלום, מצורפים שאלוני ההורים והמסגרת, הפניית רופא, הסכמה וסיכום שנבדק במכון ילדי הקסם. נא לאשר קבלה. תודה.',attachments}),signal:AbortSignal.timeout(20000)});
- if(!r.ok)throw new Error('MAIL_REJECTED'); const data=await r.json();if(!data.id)throw new Error('MAIL_UNKNOWN');return String(data.id);
+import { google } from 'googleapis';
+import { buildMessage, SENDER } from './mime';
+
+const SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+function credentials() {
+ const raw = process.env.DEVELOPMENT_GOOGLE_SERVICE_ACCOUNT_JSON;
+ if (!raw) throw new Error('MAIL_NOT_CONFIGURED');
+ const value = JSON.parse(raw);
+ if (value.type !== 'service_account' || typeof value.client_email !== 'string' ||
+     typeof value.private_key !== 'string' || !value.private_key.includes('BEGIN PRIVATE KEY')) {
+  throw new Error('MAIL_NOT_CONFIGURED');
+ }
+ return value;
+}
+// Configuration presence is not proof of delegated authorization or delivery.
+export function mailReady() { try { credentials(); return true; } catch { return false; } }
+export async function sendPacket(id:string, attachments:{filename:string;content:string}[]) {
+ const value = credentials();
+ const auth = new google.auth.JWT({email:value.client_email, key:value.private_key,
+  scopes:[SCOPE], subject:SENDER});
+ const gmail = google.gmail({version:'v1', auth});
+ // Gmail has no idempotency key. The database's single dispatch claim remains mandatory.
+ // Never retry an ambiguous send; inspect Sent mail by Message-ID before recovery.
+ const response = await gmail.users.messages.send({userId:'me',
+  requestBody:{raw:buildMessage(id,attachments)}}, {retry:false,timeout:20000});
+ if (!response.data.id) throw new Error('MAIL_UNKNOWN');
+ return response.data.id;
 }
