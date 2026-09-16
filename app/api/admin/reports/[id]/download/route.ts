@@ -3,6 +3,8 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 export async function GET(
   req: NextRequest,
@@ -14,16 +16,42 @@ export async function GET(
       return NextResponse.json({ error: 'report_id חובה' }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceKey) {
+      return NextResponse.json({ error: 'server misconfigured' }, { status: 500 });
+    }
 
-    // Load report
-    const { data: report, error } = await supabase
-      .from('reports')
-      .select('id, session_id, pdf_storage_path, download_url, download_expires_at, status')
-      .eq('id', reportId)
-      .maybeSingle();
+    // Load report via REST directly (bypasses SDK caching that has caused
+    // stale rows for recently updated records).
+    const restUrl =
+      `${supabaseUrl}/rest/v1/reports` +
+      `?id=eq.${encodeURIComponent(reportId)}` +
+      `&select=id,session_id,pdf_storage_path,download_url,download_expires_at,status`;
 
-    if (error || !report) {
+    const res = await fetch(restUrl, {
+      method: 'GET',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache',
+      },
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return NextResponse.json(
+        { error: `PostgREST ${res.status}: ${text}` },
+        { status: 500 }
+      );
+    }
+
+    const rows = (await res.json()) as any[];
+    const report = rows && rows.length > 0 ? rows[0] : null;
+
+    if (!report) {
       return NextResponse.json({ error: 'דוח לא נמצא' }, { status: 404 });
     }
 
@@ -40,6 +68,7 @@ export async function GET(
     let signedUrl = report.download_url;
     // Regenerate if expired or missing (with 5 min buffer)
     if (!signedUrl || !expiresAt || expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
+      const supabase = getSupabaseAdmin();
       const { data: signedData, error: signErr } = await supabase.storage
         .from('reports')
         .createSignedUrl(report.pdf_storage_path, 3600);
@@ -68,11 +97,9 @@ export async function GET(
     const inline = url.searchParams.get('inline') === '1';
 
     if (inline) {
-      // Return JSON with URL (for iframe/preview)
       return NextResponse.json({ ok: true, url: signedUrl });
     }
 
-    // Redirect to signed URL
     return NextResponse.redirect(signedUrl);
   } catch (e: any) {
     console.error('Report download error:', e);
