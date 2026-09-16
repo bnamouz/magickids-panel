@@ -118,7 +118,7 @@ export default function LoginForm({
       </button>
 
       <p className="text-xs text-slate-500 text-center pt-2">
-        נשכחה הסיסמה? צרו קשר עם מנהל המערכת.
+        <a href="/auth/forgot-password" className="underline">נשכחה הסיסמה? שחזור באמצעות אימייל</a>
       </p>
     </form>
   );
