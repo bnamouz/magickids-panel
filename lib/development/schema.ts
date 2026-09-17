@@ -1,6 +1,5 @@
 import { z } from 'zod';
-// TEMPORARY: test destination — MUST be reverted to 'zfn_shraam_child@mac.org.il' before real use
-export const DESTINATION = 'bnamouz@gmail.com';
+export const DESTINATION = 'zfn_shraam_child@mac.org.il';
 export const VERSION = 'development-intake-2026-09-v1';
 export const SOURCE = 'https://www.maccabi4u.co.il/maccabi_circles/child_development/questionnaire/child_development_questionnaire/';
 // These are an institute intake supplement, not a certified replica of Maccabi forms.
