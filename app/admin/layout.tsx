@@ -33,6 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <div className="font-semibold">{staff.full_name}</div>
               <div className="text-xs text-slate-500">{roleLabel(staff.role)}</div>
             </div>
+<Link href="/admin/development" className="text-sm font-semibold text-[#01696f] underline">התפתחות הילד</Link>
 <Link href="/admin/treatments" className="text-sm font-semibold text-[#01696f] underline">פניות לטיפול</Link>
 <Link href="/admin/moxo" className="text-sm font-semibold text-[#01696f] underline">MOXO</Link>
 <Link href="/admin/intake" className="text-sm font-semibold text-[#01696f] underline">קליטה וזימון</Link>
@@ -48,6 +49,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <NavLink href="/admin/dashboard" icon={<LayoutDashboard size={18} />}>
               דשבורד
             </NavLink>
+            <NavLink href="/admin/development" icon={<Users size={18} />}>התפתחות הילד</NavLink>
             <NavLink href="/admin/intake" icon={<Users size={18} />}>קליטה וזימון לקשב</NavLink>
             <NavLink href="/admin/sessions" icon={<Users size={18} />}>
               תיקים פעילים

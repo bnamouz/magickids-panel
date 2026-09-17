@@ -1,0 +1,14 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import ts from 'typescript';
+import {createRequire} from 'node:module';
+import {PGlite} from '@electric-sql/pglite';
+const require=createRequire(import.meta.url);
+const source=fs.readFileSync('lib/development/schema.ts','utf8');
+const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const module={exports:{}};new Function('require','module','exports',compiled)(require,module,module.exports);
+const {ageEligible,validateAnswers,domains,RATINGS,summary}=module.exports;
+test('age eligibility excludes invalid dates and seventh birthday',()=>{const now=new Date('2026-09-15T12:00:00Z');assert.equal(ageEligible('2019-09-15',now),false);assert.equal(ageEligible('2025-09-15',now),true);assert.equal(ageEligible('2024-02-30',now),false);assert.equal(ageEligible('2026-09-15',now),false);});
+test('each role needs its own completed answers; sources remain attributed',()=>{for(const role of Object.keys(domains)){assert.equal(validateAnswers(role,{}),false);const a={reason:'סיבה',history:'רקע',family:'משפחה',respondent:'שם',strengths:'חוזקות',signature:'חתימה',setting:'מסגרת',support:'סיוע'};domains[role].forEach((_,i)=>a['d'+i]=RATINGS[0]);assert.equal(validateAnswers(role,a),true);delete a.d0;assert.equal(validateAnswers(role,a),false);}const s=summary({reason:'דיווח הורה'},{notes:'דיווח מסגרת'},'teacher');assert.ok(s.includes('דיווח ההורים'));assert.ok(s.includes('דיווח המורה'));assert.ok(s.includes('אינה אבחנה'));});
+test('database prevents anonymous reads and concurrent dispatch claims',async()=>{const db=new PGlite();try{await db.exec("create role anon; create role authenticated; create role service_role; create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);");await db.exec(fs.readFileSync('db/migrations/20260915_development_referrals.sql','utf8'));await db.exec("insert into development_referrals(child_name,birth_date,parent_name,phone,education_role,parent_hash,education_hash,consent_version,status) values('TEST','2022-01-01','TEST','0500000000','teacher','a','b','v1','approved');");let r=await db.query("update development_referrals set status='sending' where status='approved' returning id");assert.equal(r.rows.length,1);r=await db.query("update development_referrals set status='sending' where status='approved' returning id");assert.equal(r.rows.length,0);await db.exec('set role anon');await assert.rejects(db.query('select * from development_referrals'),/permission denied/);await db.exec('reset role');}finally{await db.close();}});
