@@ -72,8 +72,9 @@ function adapter(pg, failures) {
   }};
 }
 test('submission lifecycle persists both orders, ignores late drafts, and refuses failed saves',async t=>{
-  const pg=new PGlite(),id=randomUUID(),parentToken=randomUUID(),teacherToken=randomUUID(),failures={write:false};
-  await pg.exec('create table intake_sessions(id uuid primary key,status text,parent_token uuid,teacher_token uuid,parent_token_expires_at timestamptz,teacher_token_expires_at timestamptz);create table questionnaires(id uuid primary key default gen_random_uuid(),session_id uuid,type text,respondent text,responses jsonb,free_text text,intro_data jsonb,is_complete boolean,started_at timestamptz,submitted_at timestamptz,unique(session_id,type,respondent));create table scores(id uuid default gen_random_uuid(),session_id uuid,questionnaire_id uuid,scope text,raw_scores jsonb,flags jsonb,engine_version text,presentation text,confidence text,alerts jsonb);');
+  const pg=new PGlite(),id=randomUUID(),failures={write:false};
+  let parentToken=randomUUID(),teacherToken=randomUUID();
+  await pg.exec('create table intake_sessions(id uuid primary key,status text,parent_token text,teacher_token text,parent_token_expires_at timestamptz,teacher_token_expires_at timestamptz);create table questionnaires(id uuid primary key default gen_random_uuid(),session_id uuid,type text,respondent text,responses jsonb,free_text text,intro_data jsonb,is_complete boolean,started_at timestamptz,submitted_at timestamptz,unique(session_id,type,respondent));create table scores(id uuid default gen_random_uuid(),session_id uuid,questionnaire_id uuid,scope text,raw_scores jsonb,flags jsonb,engine_version text,presentation text,confidence text,alerts jsonb);');
   const route=compile('app/api/questionnaire/route.ts',{'@/lib/supabase':{getSupabaseAdmin:()=>adapter(pg,failures)}});
   const send=(type,method='POST',responses=answers(type))=>route[method]({json:async()=>({token:type==='vanderbilt_parent'?parentToken:teacherToken,type,responses,complete:method==='POST'})});
   const reset=async()=>{failures.write=false;await pg.exec('truncate intake_sessions,questionnaires,scores;');await pg.query('insert into intake_sessions values($1,$2,$3,$4,$5,$5)',[id,'created',parentToken,teacherToken,'2099-01-01T00:00:00Z']);};
@@ -103,6 +104,36 @@ test('submission lifecycle persists both orders, ignores late drafts, and refuse
       await reset();const results=await Promise.all([send('vanderbilt_parent'),send('vanderbilt_teacher'),send('vanderbilt_parent','PATCH',{1:2})]);assert.ok(results.every(r=>r.status===200));
       const rows=(await pg.query('select * from questionnaires')).rows;assert.equal(progress.intakeProgress(rows).readyToSchedule,true);assert.deepEqual(rows.find(q=>q.type==='vanderbilt_parent').responses,answers('vanderbilt_parent'));
       assert.equal((await pg.query('select status from intake_sessions')).rows[0].status,'profile_ready');
+    });
+    await t.test('production-format text links save drafts and final answers for both respondents',async()=>{
+      for(const [p,tok] of [
+        ['p_'+'Ab9_-'.repeat(6)+'Xy','t_'+'Zy8_-'.repeat(6)+'Ab'],
+        ['a'.repeat(48),'b'.repeat(48)],
+      ]){
+        parentToken=p;teacherToken=tok;await reset();
+        for(const type of ['vanderbilt_parent','vanderbilt_teacher']){
+          assert.equal((await send(type,'PATCH',{1:2})).status,200);
+          assert.equal((await send(type)).status,200);
+        }
+        const rows=(await pg.query('select * from questionnaires')).rows;
+        assert.equal(progress.intakeProgress(rows).readyToSchedule,true);
+        assert.deepEqual(rows.find(q=>q.type==='vanderbilt_parent').responses,answers('vanderbilt_parent'));
+        const before=JSON.stringify(rows);
+        assert.equal((await (await send('vanderbilt_parent','PATCH',{1:3})).json()).already_submitted,true);
+        assert.equal(JSON.stringify((await pg.query('select * from questionnaires')).rows),before);
+      }
+    });
+    await t.test('text-link compatibility never bypasses lookup, expiry or respondent separation',async()=>{
+      parentToken='p_'+'a'.repeat(32);teacherToken='t_'+'b'.repeat(32);await reset();
+      const request=token=>route.PATCH({json:async()=>({token,type:'vanderbilt_parent',responses:{1:0}})});
+      for(const token of ['p_'+'c'.repeat(32),teacherToken,'not-a-token','p_'+'a'.repeat(31),'p_'+'a'.repeat(32)+'?', 'a'.repeat(1000)]){
+        assert.equal((await request(token)).status,403);
+      }
+      assert.equal((await pg.query('select count(*)::int as n from questionnaires')).rows[0].n,0);
+      await pg.exec("update intake_sessions set parent_token_expires_at='2020-01-01'");
+      const expired=await request(parentToken);
+      assert.equal(expired.status,403);assert.equal((await expired.json()).error,'expired_token');
+      assert.equal((await pg.query('select count(*)::int as n from questionnaires')).rows[0].n,0);
     });
   }finally{await pg.close();}
 });

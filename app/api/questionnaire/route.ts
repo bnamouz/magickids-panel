@@ -6,6 +6,15 @@ import { completeResponses, intakeProgress } from '@/lib/intake/progress';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' };
 const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers });
+// SQL-generated personal links use p_/t_ + 24 random bytes in base64url.
+// Staff-created links use 24 random bytes in hex. Preserve UUID links too.
+// Format validation is not authorization: the exact respondent token must
+// still match a database row and pass the expiry check below.
+const questionnaireTokenSchema = z.union([
+  z.string().uuid(),
+  z.string().regex(/^[0-9a-f]{48}$/i),
+  z.string().regex(/^[pt]_[A-Za-z0-9_-]{32}$/),
+]);
 const schema = z.object({
   token: z.string().min(1), type: z.enum(['vanderbilt_parent', 'vanderbilt_teacher']),
   responses: z.record(z.string(), z.number().int().min(0).max(5)),
@@ -20,7 +29,7 @@ async function save(req: NextRequest, final: boolean) {
   if (final && !completeResponses(type, responses)) return reply({ error: 'יש להשלים את כל השאלות לפני שליחה.' }, 400);
   const score = final ? (type === 'vanderbilt_parent' ? scoreParent(responses) : scoreTeacher(responses)) : null;
   if (token === 'demo') return reply({ ok: true, demo: true, ...(score ? { score } : {}) });
-  if (!z.string().uuid().safeParse(token).success) return reply({ error: 'invalid_token' }, 403);
+  if (!questionnaireTokenSchema.safeParse(token).success) return reply({ error: 'invalid_token' }, 403);
   try {
     const db = getSupabaseAdmin(), respondent = type === 'vanderbilt_parent' ? 'parent' : 'teacher';
     const { data: session, error: sessionError } = await db.from('intake_sessions')
