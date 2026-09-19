@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { candidateSlots, localParts, TIME_ZONE } from '@/lib/booking/schedule';
 import type { BookingLanguage } from '@/lib/booking/copy';
+import { bookingLocale } from '@/lib/booking/format';
 import styles from './booking.module.css';
 const copy = {
  he: { title: 'בקשת תור בשעות העבודה', note: 'בחרו יום ושעה מועדפים מתוך שעות העבודה הרגילות. אלו אינם תורים פנויים מאומתים. הבקשה תישלח רק לאחר שתשלחו את ההודעה ב־WhatsApp; התור נקבע רק לאחר אישור המרפאה. ייתכנו שינויים בחגים.', day: 'יום מועדף', time: 'שעה מועדפת — שעון ישראל', choose: 'בחירה', send: 'פתיחת בקשת תור ב־WhatsApp', message: 'שלום, אשמח לבקש תור למרפאת הילדים במועד הבא (שעון ישראל):', pending: 'אבקש אישור זמינות ותיאום. ידוע לי שעדיין לא נקבע תור.' },
@@ -15,7 +16,7 @@ export default function WorkdayRequest({ language }: { language: BookingLanguage
  const candidates = candidateSlots('pediatrics');
  const days = [...new Set(candidates.map(value => localParts(new Date(value)).date))];
  const times = candidates.filter(value => localParts(new Date(value)).date === day);
- const locale = language === 'en' ? 'en-GB' : `${language}-IL`;
+ const locale = bookingLocale(language);
  const dateLabel = (value: string) => new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(value));
  const timeLabel = (value: string) => new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value));
  const valid = times.includes(time);

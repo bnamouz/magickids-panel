@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { bookingLocale } from '@/lib/booking/format';
 import styles from './booking.module.css';
 const copy = {
  he: { title: 'ביטול תור במרפאת הילדים', intro: 'ביטול עצמי ללא אישור המזכירות. הפעולה תתבצע רק לאחר לחיצה על כפתור הביטול.', cancel: 'כן, לבטל את התור', done: 'התור בוטל והשעה שוחררה.', error: 'לא ניתן להשלים את הפעולה. נסו שוב או פנו למרפאה עם מספר ההזמנה.', loading: 'בודקים את התור…', save: 'לשמור את התור', retry: 'בדיקה מחדש' },
@@ -16,5 +17,5 @@ export default function CancelBooking({ language }: { language: keyof typeof cop
   try { const response = await fetch('/api/booking/cancel', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...value, preview}) }); const data = await response.json(); if (!response.ok) throw new Error(); setStart(data.start ?? ''); setState(data.cancelled ? 'done' : 'ready'); }
   catch { setState('error'); }
  }
- return <main className={styles.page} dir={language === 'en' ? 'ltr' : 'rtl'} lang={language}><section className={styles.panel} style={{maxWidth: 640, margin: '40px auto'}}><h1>{t.title}</h1><p>{t.intro}</p>{state === 'loading' ? <p role="status">{t.loading}</p> : state === 'done' ? <p role="status">{t.done}</p> : state === 'error' ? <><p role="alert">{t.error}</p><button onClick={() => link && run(link, true)}>{t.retry}</button><a href="tel:+972543496656" dir="ltr">054-349-6656</a></> : <><p>{start && new Intl.DateTimeFormat(language === 'en' ? 'en-GB' : `${language}-IL`, {timeZone:'Asia/Jerusalem',dateStyle:'full',timeStyle:'short'}).format(new Date(start))}</p><button className={styles.primary} onClick={() => link && run(link, false)}>{t.cancel}</button></>}<p><a href={`https://magickidsinstitute.com/index.html?lang=${language}`}>{t.save}</a></p></section></main>;
+ return <main className={styles.page} dir={language === 'en' ? 'ltr' : 'rtl'} lang={language}><section className={styles.panel} style={{maxWidth: 640, margin: '40px auto'}}><h1>{t.title}</h1><p>{t.intro}</p>{state === 'loading' ? <p role="status">{t.loading}</p> : state === 'done' ? <p role="status">{t.done}</p> : state === 'error' ? <><p role="alert">{t.error}</p><button onClick={() => link && run(link, true)}>{t.retry}</button><a href="tel:+972543496656" dir="ltr">054-349-6656</a></> : <><p>{start && new Intl.DateTimeFormat(bookingLocale(language), {timeZone:'Asia/Jerusalem',dateStyle:'full',timeStyle:'short'}).format(new Date(start))}</p><button className={styles.primary} onClick={() => link && run(link, false)}>{t.cancel}</button></>}<p><a href={`https://magickidsinstitute.com/index.html?lang=${language}`}>{t.save}</a></p></section></main>;
 }

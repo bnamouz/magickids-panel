@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { bookingCopy, type BookingLanguage } from '@/lib/booking/copy';
+import { bookingLocale } from '@/lib/booking/format';
 import { localParts, TIME_ZONE, type Clinic } from '@/lib/booking/schedule';
 import styles from './booking.module.css';
 import WorkdayRequest from './WorkdayRequest';
@@ -20,7 +21,7 @@ function extractToken(value: string) {
 export default function BookingPage({ clinic, initialLanguage }: { clinic: Clinic; initialLanguage: BookingLanguage }) {
   const [language, setLanguage] = useState(initialLanguage);
   const t = bookingCopy[language];
-  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-IL' : 'en-GB';
+  const locale = bookingLocale(language);
   const [slots, setSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [remindersEnabled, setRemindersEnabled] = useState(false);
