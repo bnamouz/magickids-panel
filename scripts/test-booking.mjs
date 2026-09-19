@@ -42,12 +42,36 @@ test('Israel daylight saving and clinic windows', () => {
   assert.equal(schedule.durationFor('pediatrics'), 10);
   assert.equal(schedule.durationFor('adhd'), 60);
   const tuesday = peds.filter(slot => schedule.localParts(new Date(slot)).date === '2026-09-08');
-  assert.equal(tuesday.length, 24);
+  assert.equal(tuesday.length, 18);
   assert.equal(schedule.localParts(new Date(tuesday[0])).minutes, 960);
+  assert.equal(schedule.localParts(new Date(tuesday.at(-1))).minutes, 1130);
   const wednesday = peds.filter(slot => schedule.localParts(new Date(slot)).date === '2026-09-09');
   assert.deepEqual(wednesday.map(slot => schedule.localParts(new Date(slot)).minutes), Array.from({length:21}, (_,i) => 600+i*10));
   // Existing half-hour visits must still block all three new ten-minute slots.
   assert.deepEqual(schedule.freeSlots('pediatrics', friday, [{start:friday[0],end:friday[3]}]), friday.slice(3));
+});
+test('pediatrics Monday/Tuesday hours in summer and winter, with all other clinic windows preserved', () => {
+  const expected = {1:[900,1140],2:[960,1140],3:[600,810],4:[1020,1200],5:[570,750],6:[570,750]};
+  for(const now of ['2026-09-20T00:00:00Z','2026-12-06T00:00:00Z']){
+    const days = new Map();
+    for(const slot of schedule.candidateSlots('pediatrics',new Date(now))){
+      const local=schedule.localParts(new Date(slot));
+      if(!days.has(local.date))days.set(local.date,[]);
+      days.get(local.date).push(local.minutes);
+    }
+    for(const [date,minutes] of days){
+      const weekday=new Date(`${date}T12:00:00Z`).getUTCDay();
+      assert.notEqual(weekday,0);
+      const [start,end]=expected[weekday];
+      assert.deepEqual(minutes,Array.from({length:(end-start)/10},(_,i)=>start+i*10));
+    }
+    for(const weekday of [1,2])assert.ok([...days.keys()].some(date=>new Date(`${date}T12:00:00Z`).getUTCDay()===weekday));
+    for(const slot of schedule.candidateSlots('adhd',new Date(now))){
+      const local=schedule.localParts(new Date(slot));
+      assert.equal(new Date(`${local.date}T12:00:00Z`).getUTCDay(),3);
+      assert.ok([960,1020,1080,1140].includes(local.minutes));
+    }
+  }
 });
 test('Busy boundaries, all-day events and calendar errors fail closed', () => {
   const candidates = ['2026-09-09T13:00:00.000Z', '2026-09-09T13:30:00.000Z'];
@@ -158,7 +182,16 @@ test('Public booking integration with SQL reservations and mocked Google', async
     });
     await t.test('two clinics cannot reserve the same doctor at the same time', async () => {
       await reset(); const start = schedule.candidateSlots('adhd')[0];
-      const results = await Promise.allSettled([service.book('pediatrics', body('pediatrics', start), 'one'), service.book('adhd', body('adhd', start), 'two')]);
+      // The published windows no longer overlap. Inject one shared synthetic
+      // candidate to exercise the SQL concurrency guard, not hours validation.
+      const overlappingService = compile('lib/booking/server.ts', {
+        '@/lib/intake/progress': progress,
+        '@/lib/google-calendar': { getCalendarClient: () => google, getCalendarId: () => 'adhd' },
+        '@/lib/pediatrics-calendar': { getPediatricsCalendarId: () => 'peds' },
+        '@/lib/supabase': { getSupabaseAdmin: () => adapter(pg, intake) },
+        './schedule': { ...schedule, candidateSlots: () => [start] },
+      });
+      const results = await Promise.allSettled([overlappingService.book('pediatrics', body('pediatrics', start), 'one'), overlappingService.book('adhd', body('adhd', start), 'two')]);
       assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
       assert.equal(results.find(result => result.status === 'rejected').reason.code, 'slot_taken'); assert.equal(writes.length, 1);
     });

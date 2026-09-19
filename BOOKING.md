@@ -43,8 +43,8 @@ actual deployment; a GitHub or Vercel connection alone does not activate it.
 Time zone: `Asia/Jerusalem`, including daylight saving changes. Booking window:
 28 days, with a two-hour lead time.
 
-Pediatrics uses the hours already published by the institute: Monday 09:00–16:00,
-Tuesday 16:00–20:00, Wednesday 10:00–13:30,
+Pediatrics booking hours (Monday/Tuesday updated on 2026-09-19): Monday 15:00–19:00,
+Tuesday 16:00–19:00, Wednesday 10:00–13:30,
 Thursday 17:00–20:00, Friday and Saturday
 09:30–12:30; Sunday closed. New pediatric slots are 10 minutes, with consecutive
 start times and no added gap. Existing Google events retain their original duration.
