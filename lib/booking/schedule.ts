@@ -5,10 +5,12 @@ export const LEAD_MINUTES = 120;
 export const durationFor = (clinic: Clinic) => clinic === 'adhd' ? 60 : 10;
 export const isClinic = (value: string): value is Clinic => value === 'pediatrics' || value === 'adhd';
 
-// Existing published clinic hours; ADHD assessments follow the existing
-// Wednesday 16:00–20:00 intake workflow. All times are Israeli local time.
+// Published clinic hours. All times are Israeli local time, in minutes from 00:00.
+// End is exclusive: last slot starts at (end - durationFor(clinic)).
+// Effective 2026-09-21: Monday 15:00-19:00, Tuesday 16:00-19:00 (per DrBaseem update).
+// ADHD assessments follow the existing Wednesday 16:00–20:00 intake workflow.
 const HOURS: Record<Clinic, Record<number, [number, number]>> = {
-  pediatrics: { 1: [540, 960], 2: [960, 1200], 3: [600, 810], 4: [1020, 1200], 5: [570, 750], 6: [570, 750] },
+  pediatrics: { 1: [900, 1140], 2: [960, 1140], 3: [600, 810], 4: [1020, 1200], 5: [570, 750], 6: [570, 750] },
   adhd: { 3: [960, 1200] },
 };
 const formatter = new Intl.DateTimeFormat('en-CA', {
