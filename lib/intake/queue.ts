@@ -3,12 +3,14 @@ import { firstRelated, intakeProgress, type QuestionnaireProgress, type IntakeAp
 type Person = { full_name?: string; phone?: string };
 type Patient = { first_name?: string; last_name?: string };
 type Session = { id: string; status: string; created_at: string; patients: Patient | Patient[]; parents: Person | Person[]; questionnaires: QuestionnaireProgress[]; appointments: IntakeAppointment[] };
-export async function loadIntakeQueue() {
+export async function loadIntakeQueue({ includeArchived = false }: { includeArchived?: boolean } = {}) {
   const db = getSupabaseAdmin(), sessions: Session[] = [];
   for (let offset = 0; ; offset += 200) {
-    const { data, error } = await db.from('intake_sessions')
+    let query = db.from('intake_sessions')
       .select('id,status,created_at,patients(first_name,last_name),parents(full_name,phone),questionnaires(type,is_complete,submitted_at,responses),appointments(id,status,scheduled_at,appointment_type)')
-      .not('status', 'in', '(closed,cancelled,reported)').order('created_at', { ascending: true }).order('id', { ascending: true }).range(offset, offset + 199);
+      .order('created_at', { ascending: true }).order('id', { ascending: true }).range(offset, offset + 199);
+    if (!includeArchived) query = query.not('status', 'in', '(closed,cancelled,reported)');
+    const { data, error } = await query;
     if (error || !data) throw new Error('intake_queue_unavailable');
     sessions.push(...data as unknown as Session[]);
     if (data.length < 200) break;

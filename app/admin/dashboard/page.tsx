@@ -1,4 +1,6 @@
 import { loadIntakeQueue } from '@/lib/intake/queue';
+import { caseDirectory } from '@/lib/intake/directory';
+import CaseDirectory from '@/components/admin/CaseDirectory';
 import Link from 'next/link';
 import { requireStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -6,15 +8,19 @@ import { Users, Clock, AlertTriangle, CheckCircle2, ArrowLeft } from 'lucide-rea
 
 export const dynamic = 'force-dynamic';
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams = {} }: { searchParams?: { q?: string; page?: string } }) {
   const staff = await requireStaff();
   const supabase = getSupabaseAdmin();
 
-  const [queue, stuck, todayAppointments] = await Promise.all([
-    loadIntakeQueue().catch(() => null),
+  const [allCases, stuck, todayAppointments] = await Promise.all([
+    loadIntakeQueue({ includeArchived: true }).catch(() => null),
     supabase.from('v_stuck_sessions').select('*').limit(5),
     supabase.from('v_today_appointments').select('*').limit(10),
   ]);
+  // Preserve the operational queue and counts; archived records are read-only
+  // directory entries, not candidates for a new appointment.
+  const queue = allCases?.filter(row => !['closed', 'cancelled', 'reported'].includes(row.status)) ?? null;
+  const directory = allCases ? caseDirectory(allCases, searchParams.q, searchParams.page) : null;
   const ready = queue?.filter(row => row.readyToSchedule) ?? [];
   const stats = [
     { label: 'תיקים פעילים', value: queue?.length, icon: Users, color: 'teal', href: '/admin/intake?stage=all' },
@@ -39,6 +45,7 @@ export default async function DashboardPage() {
         ))}
       </div>
 
+      <CaseDirectory result={directory} />
       <div className="mb-6"><Panel title="מוכנים לזימון לפגישה" icon={<CheckCircle2 className="text-emerald-600" size={20} />} href="/admin/intake?stage=ready">
         {queue === null ? <EmptyRow text="הרשימה אינה זמינה כרגע" /> : ready.length === 0 ? <EmptyRow text="אין כרגע תיקים שממתינים לזימון לאחר השלמת שני השאלונים" /> : <ul className="divide-y divide-slate-100">{ready.slice(0, 8).map(row => <li key={row.id} className="py-3 flex flex-wrap items-center justify-between gap-3"><div><Link href={'/admin/sessions/' + row.id} className="font-bold text-[#01696f] hover:underline">{row.childName}</Link><p className="text-xs text-slate-500">✓ שאלון הורים נשלח · ✓ שאלון מורה נשלח</p></div><Link href={'/admin/sessions/' + row.id + '#appointments'} className="btn-ghost text-sm">תיק, דוחות וזימון ←</Link></li>)}</ul>}
       </Panel></div>

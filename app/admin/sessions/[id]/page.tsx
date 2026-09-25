@@ -102,7 +102,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
 
           {/* Responses tabs */}
           {(parentQ || teacherQ) && (
-            <div className="card">
+            <div id="questionnaires" className="card scroll-mt-6">
               <h2 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                 <Brain size={18} className="text-[#01696f]" /> תשובות שאלונים
               </h2>
