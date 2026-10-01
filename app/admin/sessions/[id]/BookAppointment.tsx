@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { candidateSlots, localParts, isAssessmentSlot } from '@/lib/booking/schedule';
+import { useState, useEffect } from 'react';
+import { candidateSlots, localParts, isAssessmentSlot, FOLLOWUP_QUARTERS } from '@/lib/booking/schedule';
 import { CalendarPlus, X, Loader2, Check, AlertCircle } from 'lucide-react';
 
 interface Props {
@@ -10,16 +10,24 @@ interface Props {
   assessmentReady: boolean;
 }
 
+// Follow-ups (מעקב) are quarter-hour slots inside the same Wednesday
+// 16:00–20:00 ADHD window as assessments, so up to four can share one hour.
+const FOLLOWUP_HOURS = ['16:00', '17:00', '18:00', '19:00'];
 const APPOINTMENT_TYPES = [
   { value: 'assessment', label: 'אבחון ADHD', duration: 60 },
-  { value: 'followup', label: 'מעקב', duration: 30 },
+  { value: 'followup', label: 'מעקב', duration: 15 },
 ];
+
+type QuarterSlot = { minute: number; time: string; available: boolean; takenBy: string | null };
 
 export default function BookAppointment({ sessionId, childName, assessmentReady }: Props) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState(assessmentReady ? 'assessment' : 'followup');
   const [date, setDate] = useState('');
-  const [time, setTime] = useState(assessmentReady ? '16:00' : '10:00');
+  const [time, setTime] = useState('16:00');
+  const [quarter, setQuarter] = useState<number | null>(null);
+  const [quarters, setQuarters] = useState<QuarterSlot[] | null>(null);
+  const [quartersLoading, setQuartersLoading] = useState(false);
   const [location, setLocation] = useState('מכון Magic Kids, שפרעם');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,6 +35,31 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
   const [success, setSuccess] = useState<string | null>(null);
 
   const duration = APPOINTMENT_TYPES.find((t) => t.value === type)?.duration ?? 60;
+  const wednesdayDates = [...new Set(candidateSlots('adhd').map((iso) => localParts(new Date(iso)).date))];
+
+  // Load quarter-hour availability for the chosen follow-up date+hour.
+  useEffect(() => {
+    if (type !== 'followup' || !date || !time) { setQuarters(null); return; }
+    const hour = Number(time.split(':')[0]);
+    let cancelled = false;
+    setQuartersLoading(true);
+    setQuarter(null);
+    fetch(`/api/admin/appointments/followup-slots?date=${date}&hour=${hour}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data.quarters)) {
+          setQuarters(data.quarters);
+          const firstFree = data.quarters.find((q: QuarterSlot) => q.available);
+          setQuarter(firstFree ? firstFree.minute : null);
+        } else {
+          setQuarters(null);
+        }
+      })
+      .catch(() => { if (!cancelled) setQuarters(null); })
+      .finally(() => { if (!cancelled) setQuartersLoading(false); });
+    return () => { cancelled = true; };
+  }, [type, date, time]);
 
   // Returns "+03:00" for IDT (summer) or "+02:00" for IST (winter)
   function getIsraelOffset(dateStr: string): string {
@@ -55,13 +88,20 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
       setError('חובה לבחור תאריך ושעה');
       return;
     }
+    if (type === 'followup' && quarter === null) {
+      setError('חובה לבחור רבע שעה פנוי בתוך השעה שנבחרה');
+      return;
+    }
 
     // Build ISO with explicit Asia/Jerusalem intent (avoid browser timezone drift)
     // Israel is UTC+3 in summer (IDT) and UTC+2 in winter (IST)
     const israelOffset = getIsraelOffset(date);
-    const scheduledAt = `${date}T${time}:00${israelOffset}`;
+    const effectiveTime = type === 'followup'
+      ? `${time.split(':')[0]}:${String(quarter).padStart(2, '0')}`
+      : time;
+    const scheduledAt = `${date}T${effectiveTime}:00${israelOffset}`;
 
-    if(type === 'assessment' && !isAssessmentSlot(scheduledAt)) { setError('יש לבחור יום רביעי בשעה 16:00, 17:00, 18:00 או 19:00. משך האבחון שעה.'); return; }
+    if (type === 'assessment' && !isAssessmentSlot(scheduledAt)) { setError('יש לבחור יום רביעי בשעה 16:00, 17:00, 18:00 או 19:00. משך האבחון שעה.'); return; }
     setLoading(true);
     try {
       const res = await fetch('/api/admin/appointments/create', {
@@ -86,6 +126,8 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
               .map((c: any) => c.summary)
               .join(', ')}`
           );
+        } else if (res.status === 409 && type === 'followup') {
+          setError((data.error || 'הרבע תפוס') + ' נסה/י לבחור רבע שעה אחר בתוך השעה, או שעה אחרת.');
         } else {
           setError(data.error || 'שגיאה ביצירת פגישה');
         }
@@ -147,7 +189,7 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
                 </label>
                 <select
                   value={type}
-                  onChange={(e) => { setType(e.target.value); setDate(''); setTime(e.target.value === 'assessment' ? '16:00' : '10:00'); }}
+                  onChange={(e) => { setType(e.target.value); setDate(''); setTime('16:00'); setQuarter(null); }}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 >
                   {APPOINTMENT_TYPES.filter(item => assessmentReady || item.value !== 'assessment').map((t) => (
@@ -158,31 +200,52 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
                 </select>
               </div>
 
+              {type === 'followup' && (
+                <p className="text-xs text-slate-500 -mt-2">מעקב מתקיים בימי רביעי בין 16:00–20:00. כל שעה מתחלקת לארבעה רבעי שעה, כך שעד 4 מטופלים יכולים להירשם לאותה שעה.</p>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     תאריך
                   </label>
-                  {type === 'assessment' ? <select aria-label="יום רביעי לאבחון" value={date} onChange={e=>setDate(e.target.value)} className="w-full border rounded-lg p-2"><option value="">בחירת יום רביעי</option>{[...new Set(candidateSlots('adhd').map(iso=>localParts(new Date(iso)).date))].map(day=><option key={day} value={day}>{day}</option>)}</select> : <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    min={localParts(new Date()).date}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  />}
+                  <select aria-label="יום רביעי" value={date} onChange={e=>setDate(e.target.value)} className="w-full border rounded-lg p-2"><option value="">בחירת יום רביעי</option>{wednesdayDates.map(day=><option key={day} value={day}>{day}</option>)}</select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     שעה
                   </label>
-                  {type === 'assessment' ? <select aria-label="שעת אבחון" value={time} onChange={e=>setTime(e.target.value)} className="w-full border rounded-lg p-2">{['16:00','17:00','18:00','19:00'].map(hour=><option key={hour}>{hour}</option>)}</select> : <input
-                    type="time"
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  />}
+                  <select aria-label="שעה" value={time} onChange={e=>setTime(e.target.value)} className="w-full border rounded-lg p-2">{(type === 'assessment' ? ['16:00','17:00','18:00','19:00'] : FOLLOWUP_HOURS).map(hour=><option key={hour}>{hour}</option>)}</select>
                 </div>
               </div>
+
+              {type === 'followup' && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    רבע שעה
+                  </label>
+                  {quartersLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-500 py-2"><Loader2 size={14} className="animate-spin" /> בודק זמינות...</div>
+                  ) : quarters && quarters.every(q => !q.available) ? (
+                    <p className="text-sm text-red-700">כל ארבעת רבעי השעה תפוסים. בחר/י שעה או יום אחר.</p>
+                  ) : (
+                    <div className="grid grid-cols-4 gap-2">
+                      {(quarters ?? FOLLOWUP_QUARTERS.map(minute => ({ minute, time: `${time.split(':')[0]}:${String(minute).padStart(2,'0')}`, available: true, takenBy: null }))).map((q) => (
+                        <button
+                          key={q.minute}
+                          type="button"
+                          disabled={!q.available}
+                          title={q.takenBy ? `תפוס על ידי ${q.takenBy}` : undefined}
+                          onClick={() => setQuarter(q.minute)}
+                          className={`px-2 py-2 rounded-lg text-sm border transition ${quarter === q.minute ? 'bg-[#01696f] text-white border-[#01696f]' : q.available ? 'border-slate-300 hover:bg-slate-50' : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                        >
+                          {q.time}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">

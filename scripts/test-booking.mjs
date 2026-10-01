@@ -297,3 +297,17 @@ test('Public booking integration with SQL reservations and mocked Google', async
     });
   } finally { process.env = envBefore; await pg.close(); }
 });
+
+test('follow-up quarter-hour slots share the Wednesday ADHD hour window', () => {
+  const epoch = new Date(0); // treat every fixture date as "future" regardless of when this test runs
+  // Valid quarter inside the 16:00-20:00 window, on a Wednesday.
+  assert.equal(schedule.isFollowupSlot('2026-10-21T13:15:00.000Z', epoch), true); // 2026-10-21 is a Wednesday, 16:15 IDT
+  assert.equal(schedule.isFollowupSlot('2026-10-21T13:00:00.000Z', epoch), true); // 16:00 IDT, top of hour
+  assert.equal(schedule.isFollowupSlot('2026-10-21T16:45:00.000Z', epoch), true); // 19:45 IDT, last quarter before close
+  // Rejects: not a quarter boundary, outside the clinic hours, or not Wednesday.
+  assert.equal(schedule.isFollowupSlot('2026-10-21T13:05:00.000Z', epoch), false); // not on a 15-minute boundary
+  assert.equal(schedule.isFollowupSlot('2026-10-21T17:00:00.000Z', epoch), false); // 20:00 IDT, after close
+  assert.equal(schedule.isFollowupSlot('2026-10-22T13:00:00.000Z', epoch), false); // Thursday
+  assert.equal(schedule.isFollowupSlot('2026-10-21T13:15:00.000Z', new Date('2026-10-21T13:15:00.000Z')), false); // not strictly in the future
+  assert.deepEqual(schedule.FOLLOWUP_QUARTERS, [0, 15, 30, 45]);
+});
