@@ -172,6 +172,31 @@ test('Public booking integration with SQL reservations and mocked Google', async
       assert.equal(rows.length, 1); assert.equal(rows[0].session_id, intake.id); assert.equal(rows[0].gcal_calendar_id, 'adhd');
       assert.equal(Date.parse(writes[0].requestBody.end.dateTime) - Date.parse(request.start), 3600000);
     });
+    await t.test('public follow-ups need no intake and reserve only one quarter-hour', async () => {
+      await reset();
+      const slots = schedule.candidateSlots('adhd', new Date(), 'followup');
+      const first = slots.find(s => schedule.localParts(new Date(s)).minutes === 960);
+      const request = { ...body('adhd', first), visitType: 'followup' };
+      delete request.parentToken;
+      const result = await service.book('adhd', request, 'followup-one');
+      assert.equal(result.durationMinutes, 15);
+      assert.equal(writes[0].calendarId, 'adhd');
+      assert.match(writes[0].requestBody.summary, /מעקב/);
+      assert.equal(Date.parse(writes[0].requestBody.end.dateTime) - Date.parse(first), 15 * 60000);
+      // Google busy and SQL holds both respect precise intervals.
+      busy = [{ start: first, end: new Date(Date.parse(first) + 15 * 60000).toISOString() }];
+      const available = await service.getSlots('adhd', 'followup');
+      assert.ok(!available.includes(first));
+      for (const minutes of [15,30,45]) assert.ok(available.includes(new Date(Date.parse(first) + minutes * 60000).toISOString()));
+      assert.ok(!(await service.getSlots('adhd')).includes(first));
+      const second = { ...request, requestId: randomUUID(), start: busy[0].end, phone: '0501234568' };
+      await service.book('adhd', second, 'followup-two');
+      await rejects(service.book('adhd', { ...request, requestId: randomUUID() }, 'followup-three'), 'slot_taken');
+      await rejects(service.book('adhd', { ...request, visitType: 'assessment' }, 'followup-one'), 'invalid_retry');
+      assert.equal((await service.book('adhd', request, 'followup-one')).durationMinutes, 15);
+      assert.equal((await pg.query('select * from appointments')).rows.length, 0);
+      await rejects(service.book('pediatrics', { ...body('pediatrics'), visitType: 'followup' }, 'bad-kind'), 'invalid_body');
+    });
     await t.test('missing and incomplete intake cannot create an event', async () => {
       await reset(); await rejects(service.book('adhd', { ...body('adhd'), parentToken: randomUUID() }, 'test-ip'), 'invalid_intake');
       const previous = intake.forms; intake.forms = [previous[0]];

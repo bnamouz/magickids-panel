@@ -2,7 +2,8 @@ export type Clinic = 'pediatrics' | 'adhd';
 export const TIME_ZONE = 'Asia/Jerusalem';
 export const HORIZON_DAYS = 28;
 export const LEAD_MINUTES = 120;
-export const durationFor = (clinic: Clinic) => clinic === 'adhd' ? 60 : 10;
+export type VisitType = 'assessment' | 'followup';
+export const durationFor = (clinic: Clinic, visitType: VisitType = 'assessment') => clinic === 'adhd' ? (visitType === 'followup' ? 15 : 60) : 10;
 export const isClinic = (value: string): value is Clinic => value === 'pediatrics' || value === 'adhd';
 
 // Existing published clinic hours; ADHD assessments follow the existing
@@ -29,14 +30,14 @@ export function localToUTC(day: string, minutes: number): Date {
   }
   return new Date(value);
 }
-export function candidateSlots(clinic: Clinic, now = new Date()): string[] {
+export function candidateSlots(clinic: Clinic, now = new Date(), visitType: VisitType = 'assessment'): string[] {
   const today = Date.parse(`${localParts(now).date}T00:00:00Z`);
   const slots: string[] = [];
   for (let offset = 0; offset < HORIZON_DAYS; offset++) {
     const day = new Date(today + offset * 86400000);
     const hours = HOURS[clinic][day.getUTCDay()];
     if (!hours) continue;
-    for (let minute = hours[0]; minute + durationFor(clinic) <= hours[1]; minute += durationFor(clinic)) {
+    for (let minute = hours[0]; minute + durationFor(clinic, visitType) <= hours[1]; minute += durationFor(clinic, visitType)) {
       const at = localToUTC(day.toISOString().slice(0, 10), minute);
       if (at.getTime() >= now.getTime() + LEAD_MINUTES * 60000) slots.push(at.toISOString());
     }
@@ -47,9 +48,9 @@ export type Busy = { start: string; end: string };
 export function overlaps(start: string, end: string, busy: Busy) {
   return Date.parse(start) < Date.parse(busy.end) && Date.parse(end) > Date.parse(busy.start);
 }
-export function freeSlots(clinic: Clinic, candidates: string[], busy: Busy[]) {
+export function freeSlots(clinic: Clinic, candidates: string[], busy: Busy[], visitType: VisitType = 'assessment') {
   return candidates.filter(start => {
-    const end = new Date(Date.parse(start) + durationFor(clinic) * 60000).toISOString();
+    const end = new Date(Date.parse(start) + durationFor(clinic, visitType) * 60000).toISOString();
     return !busy.some(interval => overlaps(start, end, interval));
   });
 }
