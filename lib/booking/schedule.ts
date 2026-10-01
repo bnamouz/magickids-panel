@@ -70,3 +70,14 @@ export function isAssessmentSlot(iso: string, now = new Date()) {
  const local = localParts(value);
  return new Date(`${local.date}T12:00:00Z`).getUTCDay() === 3 && [960,1020,1080,1140].includes(local.minutes) && local.seconds === 0 && value.getUTCMilliseconds() === 0;
 }
+
+// Follow-up (מעקב) visits: same Wednesday 16:00–20:00 ADHD window as
+// assessments, but split into quarter-hour slots so up to four follow-ups
+// can share one hour. FOLLOWUP_QUARTERS lists the four in-hour offsets.
+export const FOLLOWUP_QUARTERS = [0, 15, 30, 45] as const;
+export function isFollowupSlot(iso: string, now = new Date()) {
+ const value = new Date(iso);
+ if (!Number.isFinite(value.getTime()) || value <= now) return false;
+ const local = localParts(value);
+ return new Date(`${local.date}T12:00:00Z`).getUTCDay() === 3 && local.minutes >= 960 && local.minutes < 1200 && local.minutes % 15 === 0 && local.seconds === 0 && value.getUTCMilliseconds() === 0;
+}
