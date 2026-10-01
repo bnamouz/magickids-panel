@@ -54,8 +54,14 @@ Booking requires a valid unexpired personal parent token and completed parent
 and teacher questionnaires. The existing parent questionnaire completion screen
 links to booking with the token in the fragment, which is removed on load.
 The form also accepts the personal questionnaire link. New cases use the
-existing `/register` intake. Follow-ups and Moxo remain with the existing staff
-workflow; this change does not silently bypass assessment prerequisites.
+existing `/register` intake. Public follow-ups use a separate “Follow-up” choice: Wednesday 16:00–20:00,
+15 minutes, no intake token or new registration. Names and phone are required for
+scheduling; this self-declared returning-patient booking does not expose or link
+clinical records. The private Google event is labelled as a follow-up and the
+existing website reservation stores its exact interval. No new patient or intake
+session is created. Staff can reconcile the visit with the existing patient file.
+Assessments retain questionnaire prerequisites and a full 60-minute duration.
+MOXO retains the existing staff workflow.
 
 Both calendars are checked for conflicts because the doctor is shared. Website
 reservations across both clinics are serialized in PostgreSQL. Existing voice,

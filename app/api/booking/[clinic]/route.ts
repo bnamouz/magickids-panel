@@ -11,9 +11,12 @@ function failure(error: unknown) {
   // Google errors and clinical data must never appear in a public response/log.
   return error instanceof BookingError ? reply({ error: error.code }, error.status) : reply({ error: 'unavailable' }, 503);
 }
-export async function GET(_req: NextRequest, { params }: { params: { clinic: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { clinic: string } }) {
   if (!isClinic(params.clinic)) return reply({ error: 'unknown_clinic' }, 404);
-  try { return reply({ clinic: params.clinic, timeZone: TIME_ZONE, durationMinutes: durationFor(params.clinic), slots: await getSlots(params.clinic), remindersEnabled: process.env.BOOKING_REMINDERS_ENABLED === 'true' && !!process.env.ULTRAMSG_INSTANCE_ID && !!process.env.ULTRAMSG_TOKEN }); }
+  const visitType = req.nextUrl.searchParams.get('visitType') ?? 'assessment';
+  if (!['assessment', 'followup'].includes(visitType) || (params.clinic !== 'adhd' && visitType === 'followup')) return reply({ error: 'invalid_body' }, 400);
+  const kind = visitType as 'assessment' | 'followup';
+  try { return reply({ clinic: params.clinic, timeZone: TIME_ZONE, durationMinutes: durationFor(params.clinic, kind), slots: await getSlots(params.clinic, kind), remindersEnabled: process.env.BOOKING_REMINDERS_ENABLED === 'true' && !!process.env.ULTRAMSG_INSTANCE_ID && !!process.env.ULTRAMSG_TOKEN }); }
   catch (error) { return failure(error); }
 }
 export async function POST(req: NextRequest, { params }: { params: { clinic: string } }) {

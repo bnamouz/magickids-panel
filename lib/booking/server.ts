@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import { getPediatricsCalendarId } from '@/lib/pediatrics-calendar';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { candidateSlots, durationFor, freeSlots, overlaps, parseFreeBusy, TIME_ZONE, type Clinic } from './schedule';
+import { candidateSlots, durationFor, freeSlots, overlaps, parseFreeBusy, TIME_ZONE, type Clinic, type VisitType } from './schedule';
 
 export class BookingError extends Error {
   constructor(public code: string, public status = 503) { super(code); }
@@ -12,6 +12,7 @@ export class BookingError extends Error {
 const name = z.string().trim().min(2).max(100).refine(value => !/[\r\n\x00-\x1f]/.test(value));
 export const intakeTokenSchema = z.union([z.string().uuid(), z.string().regex(/^[0-9a-f]{48}$/i)]);
 export const bookingSchema = z.object({
+  visitType: z.enum(['assessment', 'followup']).optional(),
   requestId: z.string().uuid(),
   start: z.string().datetime(),
   childName: name,
@@ -46,13 +47,13 @@ async function busyFromGoogle(start: string, end: string, ids: string[]) {
   const response = await getCalendarClient().freebusy.query({ requestBody: { timeMin: start, timeMax: end, timeZone: TIME_ZONE, items: ids.map(id => ({ id })) } });
   return parseFreeBusy(response.data.calendars, ids);
 }
-export async function getSlots(clinic: Clinic) {
+export async function getSlots(clinic: Clinic, visitType: VisitType = 'assessment') {
   const ids = bookingSettings();
   await ensureWritable(Object.values(ids));
-  const candidates = candidateSlots(clinic);
+  const candidates = candidateSlots(clinic, new Date(), visitType);
   if (!candidates.length) return [];
   const from = candidates[0];
-  const to = new Date(Date.parse(candidates[candidates.length - 1]) + durationFor(clinic) * 60000).toISOString();
+  const to = new Date(Date.parse(candidates[candidates.length - 1]) + durationFor(clinic, visitType) * 60000).toISOString();
   const [busy, held] = await Promise.all([
     busyFromGoogle(from, to, Object.values(ids)),
     getSupabaseAdmin().from('website_bookings').select('id,status,calendar_id,event_id,starts_at,ends_at').neq('status', 'released').lt('starts_at', to).gt('ends_at', from).limit(1000),
@@ -75,7 +76,7 @@ export async function getSlots(clinic: Clinic) {
       }
     }
   }
-  return freeSlots(clinic, candidates, [...busy, ...(held.data ?? []).filter(row => !released.has(row.id)).map(row => ({ start: row.starts_at, end: row.ends_at }))]);
+  return freeSlots(clinic, candidates, [...busy, ...(held.data ?? []).filter(row => !released.has(row.id)).map(row => ({ start: row.starts_at, end: row.ends_at }))], visitType);
 }
 
 export async function checkIntake(token: string, retryEventId?: string) {
@@ -99,28 +100,30 @@ export async function checkIntake(token: string, retryEventId?: string) {
 function isMissing(error: unknown) {
   return [404, 410].includes(Number((error as { code?: number })?.code));
 }
-function confirmed(clinic: Clinic, start: string, reference: string) {
-  return { confirmed: true, clinic, start, durationMinutes: durationFor(clinic), reference, ...(clinic === 'pediatrics' ? { cancellationToken: cancellationToken(reference) } : {}) };
+function confirmed(clinic: Clinic, start: string, reference: string, visitType: VisitType = 'assessment') {
+  return { confirmed: true, clinic, start, durationMinutes: durationFor(clinic, visitType), reference, ...(clinic === 'pediatrics' ? { cancellationToken: cancellationToken(reference) } : {}) };
 }
 
 export async function book(clinic: Clinic, body: BookingBody, clientIp: string) {
+  const visitType = body.visitType ?? 'assessment';
+  if (clinic !== 'adhd' && visitType === 'followup') throw new BookingError('invalid_body', 400);
   const ids = bookingSettings();
   const phoneDigits = body.phone.replace(/\D/g, '');
   let phone = body.phone.startsWith('+') ? `+${phoneDigits}` : phoneDigits.startsWith('0') ? `+972${phoneDigits.slice(1)}` : `+${phoneDigits}`;
   if (!/^\+[1-9]\d{6,14}$/.test(phone)) throw new BookingError('invalid_body', 400);
   const start = new Date(body.start).toISOString();
-  const end = new Date(Date.parse(start) + durationFor(clinic) * 60000).toISOString();
-  const fingerprint = digest(JSON.stringify([clinic, start, body.childName, body.parentName, phone, body.parentToken ?? '']));
+  const end = new Date(Date.parse(start) + durationFor(clinic, visitType) * 60000).toISOString();
+  const fingerprint = digest(JSON.stringify([clinic, start, body.childName, body.parentName, phone, body.parentToken ?? '', ...(visitType === 'followup' ? ['followup'] : [])]));
   const db = getSupabaseAdmin();
   const { data: prior, error: priorError } = await db.from('website_bookings').select('*').eq('id', body.requestId).maybeSingle();
   if (priorError) throw new BookingError('unavailable');
   if (prior && prior.fingerprint !== fingerprint) throw new BookingError('invalid_retry', 409);
-  if (prior?.status === 'confirmed') return confirmed(clinic, prior.starts_at, prior.id);
+  if (prior?.status === 'confirmed') return confirmed(clinic, prior.starts_at, prior.id, visitType);
   if (prior?.status === 'released') throw new BookingError('slot_taken', 409);
   await ensureWritable(Object.values(ids));
-  if (!prior && !candidateSlots(clinic).includes(start)) throw new BookingError('invalid_slot', 400);
+  if (!prior && !candidateSlots(clinic, new Date(), visitType).includes(start)) throw new BookingError('invalid_slot', 400);
   const eventId = `mk${body.requestId.replaceAll('-', '')}`; // Calendar-compatible, stable across retries.
-  const intake = clinic === 'adhd' ? await checkIntake(body.parentToken ?? '', prior ? eventId : undefined) : null;
+  const intake = clinic === 'adhd' && visitType === 'assessment' ? await checkIntake(body.parentToken ?? '', prior ? eventId : undefined) : null;
   const attemptId = randomUUID();
   const { data: reservation, error: reservationError } = await db.rpc('reserve_website_booking', {
     p_id: body.requestId, p_clinic: clinic, p_start: start, p_end: end,
@@ -128,7 +131,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string) 
     p_session_id: intake?.id ?? null, p_calendar_id: ids[clinic], p_event_id: eventId, p_attempt_id: attemptId,
   });
   if (reservationError) throw new BookingError('unavailable');
-  if (reservation === 'confirmed') return confirmed(clinic, start, body.requestId);
+  if (reservation === 'confirmed') return confirmed(clinic, start, body.requestId, visitType);
   if (reservation === 'processing') throw new BookingError('processing', 503);
   if (reservation !== 'pending') throw new BookingError(reservation === 'released' ? 'slot_taken' : String(reservation), reservation === 'rate_limited' ? 429 : 409);
 
@@ -146,7 +149,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string) 
     let available;
     try {
       const busy = await busyFromGoogle(start, end, Object.values(ids));
-      available = freeSlots(clinic, [start], busy).length === 1;
+      available = freeSlots(clinic, [start], busy, visitType).length === 1;
     } catch { throw new BookingError('processing', 503); }
     if (!available) {
       await db.from('website_bookings').update({ status: 'released', updated_at: new Date().toISOString() }).eq('id', body.requestId).eq('attempt_id', attemptId);
@@ -155,12 +158,12 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string) 
     try {
       event = (await calendar.events.insert({ calendarId, sendUpdates: 'none', requestBody: {
         id: eventId,
-        summary: `${clinic === 'adhd' ? 'אבחון קשב וריכוז' : 'מרפאת ילדים'} — ${intake?.childName || body.childName}`,
+        summary: `${clinic === 'adhd' ? (visitType === 'followup' ? 'מעקב קשב וריכוז' : 'אבחון קשב וריכוז') : 'מרפאת ילדים'} — ${intake?.childName || body.childName}`,
         description: `הורה: ${body.parentName}\nטלפון: ${phone}\nנקבע באתר המכון\nאסמכתא: ${body.requestId}`,
         location: 'תופיק זיאד 21, שפרעם',
         start: { dateTime: start, timeZone: TIME_ZONE }, end: { dateTime: end, timeZone: TIME_ZONE },
         visibility: 'private', transparency: 'opaque',
-        extendedProperties: { private: { websiteBooking: body.requestId, clinic, reminderConsent: body.reminderConsent === true ? 'true' : 'false', reminderPhone: phone, language: body.language ?? 'ar' } },
+        extendedProperties: { private: { websiteBooking: body.requestId, clinic, visitType, reminderConsent: body.reminderConsent === true ? 'true' : 'false', reminderPhone: phone, language: body.language ?? 'ar' } },
       } })).data;
     } catch {
       // Timeout/409 may mean the insert already succeeded. Never release the
@@ -175,13 +178,13 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string) 
     const existing = await db.from('appointments').select('id').eq('gcal_event_id', eventId).maybeSingle();
     if (existing.error) throw new BookingError('processing', 503);
     if (!existing.data) {
-      const saved = await db.from('appointments').upsert({ id: body.requestId, session_id: intake.id, patient_id: intake.patientId, appointment_type: 'assessment', scheduled_at: start, duration_minutes: durationFor(clinic), status: 'scheduled', gcal_event_id: eventId, gcal_calendar_id: calendarId, location: 'תופיק זיאד 21, שפרעם', notes: 'נקבע באתר המכון' }, { onConflict: 'id', ignoreDuplicates: true });
+      const saved = await db.from('appointments').upsert({ id: body.requestId, session_id: intake.id, patient_id: intake.patientId, appointment_type: 'assessment', scheduled_at: start, duration_minutes: durationFor(clinic, visitType), status: 'scheduled', gcal_event_id: eventId, gcal_calendar_id: calendarId, location: 'תופיק זיאד 21, שפרעם', notes: 'נקבע באתר המכון' }, { onConflict: 'id', ignoreDuplicates: true });
       if (saved.error) throw new BookingError('processing', 503);
     }
   }
   const saved = await db.from('website_bookings').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', body.requestId).eq('attempt_id', attemptId).neq('status', 'released').select('id').single();
   if (saved.error || !saved.data) throw new BookingError('processing', 503);
-  return confirmed(clinic, start, body.requestId);
+  return confirmed(clinic, start, body.requestId, visitType);
 }
 
 // The booking UUID is a reference, never authorization to cancel a patient's visit.
