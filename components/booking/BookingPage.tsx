@@ -30,6 +30,9 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
   const [day, setDay] = useState('');
   const [month, setMonth] = useState(() => localParts(new Date()).date.slice(0, 7));
   const [start, setStart] = useState('');
+  const [checkedToken, setCheckedToken] = useState('');
+  const [intakeReady, setIntakeReady] = useState(false);
+  const [intakeAttempt, setIntakeAttempt] = useState(0);
   const [intakeLink, setIntakeLink] = useState('');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
@@ -37,11 +40,17 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const retryBody = useRef<Record<string, unknown> | null>(null);
   const load = useCallback(async (signal?: AbortSignal) => {
+    if (clinic === 'adhd' && visitType === 'assessment' && !checkedToken) { setSlots([]); setLoading(false); return; }
     setLoading(true); setUnavailable(false);
     try {
-      const response = await fetch(`/api/booking/${clinic}?visitType=${visitType}`, { cache: 'no-store', signal });
+      const response = clinic === 'adhd' && visitType === 'assessment'
+        ? await fetch('/api/booking/adhd/availability', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parentToken: checkedToken }), cache: 'no-store', signal })
+        : await fetch(`/api/booking/${clinic}?visitType=${visitType}`, { cache: 'no-store', signal });
       const data = await response.json();
+      if (signal?.aborted) return;
+      if (!response.ok && clinic === 'adhd' && visitType === 'assessment') { setIntakeReady(false); setSlots([]); setError(data.error || 'unavailable'); return; }
       if (!response.ok || data.clinic !== clinic || !Array.isArray(data.slots)) throw new Error();
+      if (clinic === 'adhd' && visitType === 'assessment') setIntakeReady(true);
       setSlots(data.slots);
       setRemindersEnabled(data.remindersEnabled === true);
       setStart('');
@@ -50,13 +59,13 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
       if ((e as Error).name === 'AbortError') return;
       setSlots([]); setUnavailable(true);
     } finally { if (!signal?.aborted) setLoading(false); }
-  }, [clinic, visitType]);
+  }, [clinic, visitType, checkedToken, intakeAttempt]);
   useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [load]);
   useEffect(() => {
     if (clinic === 'adhd' && new URLSearchParams(window.location.search).get('visitType') === 'followup') setVisitType('followup');
     const token = new URLSearchParams(window.location.hash.slice(1)).get('token');
     if (token && clinic === 'adhd') {
-      setIntakeLink(token);
+      setIntakeLink(token); setCheckedToken(extractToken(token));
       history.replaceState(null, '', window.location.pathname + window.location.search);
     }
   }, [clinic]);
@@ -88,7 +97,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
     const form = event.currentTarget;
     if (!uncertain && (!form.reportValidity() || !start)) return;
     const fields = new FormData(form);
-    const token = extractToken(intakeLink);
+    const token = checkedToken;
     if (clinic === 'adhd' && visitType === 'assessment' && !token) { setError('invalid_intake'); return; }
     const body = retryBody.current ?? {
       requestId: crypto.randomUUID(), start, visitType,
@@ -130,9 +139,13 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
       <section className={styles.panel} aria-label={t.available}>
         {!confirmation && <><nav className={styles.clinics} aria-label={t.available}>{(['pediatrics', 'adhd'] as const).map(value => <a key={value} aria-current={value === clinic ? 'page' : undefined} href={`/book/${value}?lang=${language}`}>{t[value]}</a>)}</nav><h2>{t[clinic]}</h2><p className={styles.muted}>{clinic === 'adhd' ? (visitType === 'followup' ? t.followupIntro : t.adhdIntro) : t.pedsIntro}</p></>}
         {!confirmation && clinic === 'adhd' && <div className={styles.times} role="group" aria-label={t.visitType}>
-          {(['assessment', 'followup'] as const).map(kind => <button key={kind} type="button" disabled={sending || uncertain} aria-pressed={visitType === kind} onClick={() => { if (kind === visitType) return; setVisitType(kind); setSlots([]); setStart(''); setError(''); setLoading(true); }}>{t[kind]}</button>)}
+          {(['assessment', 'followup'] as const).map(kind => <button key={kind} type="button" disabled={sending || uncertain} aria-pressed={visitType === kind} onClick={() => { if (kind === visitType) return; setVisitType(kind); setIntakeReady(false); setCheckedToken(''); setSlots([]); setStart(''); setError(''); setLoading(true); }}>{t[kind]}</button>)}
         </div>}
-        {confirmation ? <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{t.confirmed}</h2><p>{t.saved}</p><div className={styles.receipt}><h3>{t[confirmation.clinic]}</h3><strong>{displayDate(confirmation.start)}</strong><b>{displayTime(confirmation.start)}</b><p>{t.address}</p><small>{t.reference}</small><code dir="ltr">{confirmation.reference}</code></div>{confirmation.cancellationToken ? <><p>{t.keepCancel}</p><a className={styles.primary} href={`/book/cancel?lang=${language}#id=${confirmation.reference}&token=${confirmation.cancellationToken}`}>{t.cancelLink}</a></> : <p>{t.change}</p>}<a className={styles.primary} href={`${origin}/index.html?lang=${language}`}>{t.another}</a></div> : loading ? <p role="status" className={styles.notice}>{t.loading}</p> : unavailable || !slots.length ? <div className={styles.notice}><p role="status">{unavailable ? t.unavailable : t.empty}</p>{unavailable && clinic === 'pediatrics' && <WorkdayRequest language={language} />}<button type="button" onClick={() => void load()}>{t.retry}</button><div className={styles.phoneContacts}>{phoneLinks(styles.phone)}</div></div> : <>
+        {confirmation ? <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{t.confirmed}</h2><p>{t.saved}</p><div className={styles.receipt}><h3>{t[confirmation.clinic]}</h3><strong>{displayDate(confirmation.start)}</strong><b>{displayTime(confirmation.start)}</b><p>{t.address}</p><small>{t.reference}</small><code dir="ltr">{confirmation.reference}</code></div>{confirmation.cancellationToken ? <><p>{t.keepCancel}</p><a className={styles.primary} href={`/book/cancel?lang=${language}#id=${confirmation.reference}&token=${confirmation.cancellationToken}`}>{t.cancelLink}</a></> : <p>{t.change}</p>}<a className={styles.primary} href={`${origin}/index.html?lang=${language}`}>{t.another}</a></div> : clinic === 'adhd' && visitType === 'assessment' && !intakeReady ? <form onSubmit={event => { event.preventDefault(); const token = extractToken(intakeLink); if (!token) { setError('invalid_intake'); return; } setError(''); setCheckedToken(token); setIntakeAttempt(value => value + 1); }}>
+          <div className={styles.intake}><p>{t.intakeHint}</p><p>{t.newFamily} <a href="/register">{t.register}</a></p><label>{t.intake}<input value={intakeLink} onChange={event => setIntakeLink(event.target.value)} required maxLength={300} autoComplete="off" dir="ltr" /></label></div>
+          {error && <p role="alert" className={styles.error}>{errorText}</p>}
+          <button type="submit" disabled={loading} className={styles.primary}>{loading ? t.loading : t.checkIntake}</button>
+        </form> : loading ? <p role="status" className={styles.notice}>{t.loading}</p> : unavailable || !slots.length ? <div className={styles.notice}><p role="status">{unavailable ? t.unavailable : t.empty}</p>{unavailable && clinic === 'pediatrics' && <WorkdayRequest language={language} />}<button type="button" onClick={() => void load()}>{t.retry}</button><div className={styles.phoneContacts}>{phoneLinks(styles.phone)}</div></div> : <>
           <h3 className={styles.step}><span>1</span>{t.step1}</h3>
           <div className={styles.calendar}>
             <div className={styles.month}><button type="button" aria-label={t.previous} disabled={monthIndex <= 0 || uncertain || sending} onClick={() => setMonth(months[monthIndex - 1])}>‹</button><strong>{new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(monthStart)}</strong><button type="button" aria-label={t.next} disabled={monthIndex < 0 || monthIndex >= months.length - 1 || uncertain || sending} onClick={() => setMonth(months[monthIndex + 1])}>›</button></div>
@@ -147,7 +160,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
           <form onSubmit={submit}>
             <h3 className={styles.step}><span>3</span>{t.step3}</h3>
             <fieldset disabled={sending || uncertain} className={styles.fields}>
-              {clinic === 'adhd' && visitType === 'assessment' && <div className={styles.intake}><label>{t.intake}<input type="text" autoComplete="off" dir="ltr" value={intakeLink} onChange={event => setIntakeLink(event.target.value)} required maxLength={300} /></label><p>{t.intakeHint}</p><p>{t.newFamily} <a href="/register">{t.register}</a></p></div>}
+
               <label>{t.child}<input name="childName" required minLength={2} maxLength={100} autoComplete="off" /></label><label>{t.parent}<input name="parentName" required minLength={2} maxLength={100} autoComplete="name" /></label><label>{t.phone}<input name="phone" type="tel" dir="ltr" autoComplete="tel" required minLength={7} maxLength={25} /></label>
               <div className={styles.honeypot} aria-hidden="true"><label>Website<input name="website" tabIndex={-1} autoComplete="off" /></label></div>
               <label className={styles.consent}><input type="checkbox" name="consent" required /><span>{t.consent}</span></label><p className={styles.muted}>{t.noMedical}</p>{clinic === 'pediatrics' && remindersEnabled && <label className={styles.consent}><input type="checkbox" name="reminderConsent" /><span>{t.reminderConsent}</span></label>}

@@ -308,6 +308,25 @@ test('Public booking integration with SQL reservations and mocked Google', async
       const permissions = (await pg.query("select has_table_privilege('anon','public.website_bookings','SELECT') as readable, has_function_privilege('anon','public.reserve_website_booking(uuid,text,timestamptz,timestamptz,text,text,text,uuid,text,text,uuid)','EXECUTE') as executable")).rows[0];
       assert.equal(permissions.readable, false); assert.equal(permissions.executable, false);
     });
+    await t.test('assessment availability is gated before showing slots', async () => {
+      await reset();
+      const { NextRequest } = require('next/server');
+      const route = compile('app/api/booking/[clinic]/route.ts', { '@/lib/booking/server': service, '@/lib/booking/schedule': schedule });
+      const blocked = await route.GET(new NextRequest('https://app.magickidsinstitute.com/api/booking/adhd'), { params: { clinic: 'adhd' } });
+      assert.equal(blocked.status, 403);
+      assert.equal((await blocked.json()).slots, undefined);
+      const availability = compile('app/api/booking/adhd/availability/route.ts', { '@/lib/booking/server': service });
+      const request = token => new NextRequest('https://app.magickidsinstitute.com/api/booking/adhd/availability', { method: 'POST', headers: { origin: 'https://app.magickidsinstitute.com', 'content-type': 'application/json' }, body: JSON.stringify({ parentToken: token }) });
+      assert.equal((await availability.POST(request(''))).status, 403);
+      const previous = intake.forms; intake.forms = [previous[0]];
+      const incomplete = await availability.POST(request(intake.token));
+      assert.equal(incomplete.status, 409); assert.equal((await incomplete.json()).slots, undefined);
+      intake.forms = previous;
+      const ready = await availability.POST(request(intake.token));
+      assert.equal(ready.status, 200);
+      const payload = await ready.json(); assert.ok(payload.slots.length); assert.equal(payload.childName, undefined);
+      assert.equal(writes.length, 0);
+    });
     await t.test('public APIs reject wrong clinic, cross-origin POST and disabled configuration', async () => {
       const route = compile('app/api/booking/[clinic]/route.ts', { '@/lib/booking/server': service, '@/lib/booking/schedule': schedule });
       const { NextRequest } = require('next/server');
