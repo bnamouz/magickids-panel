@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { treatmentSchema } from '@/lib/treatments/schema';
+import {autoAssign} from '@/lib/therapists/workflow';
 const reply = (data: unknown, status = 200) => NextResponse.json(data, {status, headers:{'Cache-Control':'no-store'}});
 export async function POST(req: NextRequest) {
  if(req.headers.get('origin') !== req.nextUrl.origin) return reply({error:'forbidden'},403);
@@ -14,6 +15,9 @@ export async function POST(req: NextRequest) {
   const result=await getSupabaseAdmin().rpc('submit_treatment_request',{p_id:b.id,p_patient:b.patient,p_contact:b.contact,p_phone:b.phone,p_ip:createHmac('sha256',secret).update(`treatment-ip:${req.ip||'unknown'}`).digest('hex'),p_treatment:b.treatment,p_language:b.language,p_availability:b.availability});
   if(result.error)return reply({error:'unavailable'},503);
   if(result.data!=='received')return reply({error:result.data},result.data==='rate_limited'?429:409);
+  const consent=await getSupabaseAdmin().from('treatment_requests').update({reminder_consent:b.reminderConsent===true}).eq('id',b.id);
+  if(consent.error)return reply({error:'unavailable'},503);
+  await autoAssign(b.id).catch(()=>null);
   return reply({received:true,reference:b.id});
  }catch{return reply({error:'unavailable'},503);}
 }

@@ -46,6 +46,7 @@ export default async function DashboardPage({ searchParams = {} }: { searchParam
         ))}
       </div>
 
+      <div className="mb-4"><Link href="/admin/therapists" className="btn-primary">ניהול מטפלים, תחומים ושעות עבודה</Link></div>
       <div className="mb-6"><Panel title="פניות לטיפול — ממתינות לתיאום" icon={<Users size={20}/>} href="/admin/treatments">
         {treatmentRequests.error ? <p role="alert">לא ניתן לטעון את הפניות לטיפול. נסו לרענן.</p> : <><p className="font-bold my-3">{treatmentRequests.count ?? 0} פניות ממתינות</p>{treatmentRequests.data?.map(row => <Link key={row.id} href="/admin/treatments" className="block border-t py-3"><strong>{row.patient_name}</strong> · {row.contact_name} · {row.status === 'pending' ? 'פנייה חדשה' : 'נוצר קשר'}</Link>)}</>}
         <Link href="/admin/treatments?status=closed" className="inline-block mt-3 underline">הצגת פניות שנסגרו</Link>

@@ -10,5 +10,6 @@ export const treatmentSchema = z.object({
  id: z.string().uuid(), patient: name, contact: name,
  phone: z.string().trim().transform(v => v.replace(/[٠-٩]/g, d => String(d.charCodeAt(0)-0x660)).replace(/[۰-۹]/g, d => String(d.charCodeAt(0)-0x6f0)).replace(/[\s()\-\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/^00972/, '+972').replace(/^05/, '+9725').replace(/^972/, '+972')).pipe(z.string().regex(/^\+9725\d{8}$/)),
  treatment: z.enum(treatments), language: z.enum(['he','ar','en']),
+ reminderConsent: z.boolean().optional(),
  availability: z.string().trim().max(300), consent: z.literal(true), website: z.literal(''),
 }).strict();
