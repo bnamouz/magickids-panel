@@ -3,7 +3,6 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { getCurrentStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { intakeProgress, CLOSED_INTAKE_STATUSES } from '@/lib/intake/progress';
 
 export const dynamic = 'force-dynamic';
 const schema = z.object({ sessionId: z.string().uuid(), kind: z.enum(['parent', 'teacher']) });
@@ -20,12 +19,6 @@ export async function POST(req: NextRequest) {
   const { data: session, error } = await db.from('intake_sessions').select('id,status,parent_token,teacher_token,parent_token_expires_at,teacher_token_expires_at').eq('id', sessionId).maybeSingle();
   if (error) return json({ error: 'לא ניתן לטעון את התיק' }, 500);
   if (!session) return json({ error: 'התיק לא נמצא' }, 404);
-  if (CLOSED_INTAKE_STATUSES.includes(session.status)) return json({ error: 'התיק סגור' }, 409);
-  if (kind === 'teacher') {
-    const { data, error: formsError } = await db.from('questionnaires').select('type,is_complete,submitted_at,responses').eq('session_id', sessionId);
-    if (formsError) return json({ error: 'לא ניתן לבדוק את מצב השאלונים' }, 500);
-    if (!intakeProgress(data ?? []).parentComplete) return json({ error: 'יש להשלים קודם את שאלון ההורה' }, 409);
-  }
   const field = kind === 'parent' ? 'parent_token' : 'teacher_token';
   const expiry = kind === 'parent' ? 'parent_token_expires_at' : 'teacher_token_expires_at';
   let token = session[field];

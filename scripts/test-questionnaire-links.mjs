@@ -18,7 +18,8 @@ session.parent_token_expires_at='2020-01-01';
 assert.equal((await (await module.exports.POST(request())).json()).token,'existing');
 assert.ok(writes.some(w=>w.patch?.parent_token_expires_at));
 assert.ok(writes.every(w=>['intake_sessions','audit_log'].includes(w.table)));
-complete=false; assert.equal((await module.exports.POST(request('teacher'))).status,409);
+complete=false; assert.equal((await module.exports.POST(request('teacher'))).status,200);
 complete=true; const teacher = await (await module.exports.POST(request('teacher'))).json(); assert.match(teacher.token,/^[0-9a-f-]{36}$/);
-session.status='closed'; assert.equal((await module.exports.POST(request())).status,409);
-console.log('Passed: staff/origin guards, stable links, expiry renewal, parent prerequisite, teacher generation, closed case guard.');
+for (const status of ['closed','completed','reported','cancelled']) { session.status=status; assert.equal((await module.exports.POST(request())).status,200); assert.equal((await module.exports.POST(request('teacher'))).status,200); }
+assert.ok(writes.filter(w => w.patch).every(w => !('status' in w.patch))); 
+console.log('Passed: staff/origin guards, stable links, expiry renewal, staff teacher generation before parent completion, closed case renewal without changing case status.');
