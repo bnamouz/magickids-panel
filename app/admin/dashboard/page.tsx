@@ -12,10 +12,11 @@ export default async function DashboardPage({ searchParams = {} }: { searchParam
   const staff = await requireStaff();
   const supabase = getSupabaseAdmin();
 
-  const [allCases, stuck, todayAppointments] = await Promise.all([
+  const [allCases, stuck, todayAppointments, treatmentRequests] = await Promise.all([
     loadIntakeQueue({ includeArchived: true }).catch(() => null),
     supabase.from('v_stuck_sessions').select('*').limit(5),
     supabase.from('v_today_appointments').select('*').limit(10),
+    supabase.from('treatment_requests').select('id,patient_name,contact_name,status,created_at', {count:'exact'}).in('status',['pending','contacted']).order('created_at',{ascending:false}).limit(5),
   ]);
   // Preserve the operational queue and counts; archived records are read-only
   // directory entries, not candidates for a new appointment.
@@ -45,6 +46,10 @@ export default async function DashboardPage({ searchParams = {} }: { searchParam
         ))}
       </div>
 
+      <div className="mb-6"><Panel title="פניות לטיפול — ממתינות לתיאום" icon={<Users size={20}/>} href="/admin/treatments">
+        {treatmentRequests.error ? <p role="alert">לא ניתן לטעון את הפניות לטיפול. נסו לרענן.</p> : <><p className="font-bold my-3">{treatmentRequests.count ?? 0} פניות ממתינות</p>{treatmentRequests.data?.map(row => <Link key={row.id} href="/admin/treatments" className="block border-t py-3"><strong>{row.patient_name}</strong> · {row.contact_name} · {row.status === 'pending' ? 'פנייה חדשה' : 'נוצר קשר'}</Link>)}</>}
+        <Link href="/admin/treatments?status=closed" className="inline-block mt-3 underline">הצגת פניות שנסגרו</Link>
+      </Panel></div>
       <CaseDirectory result={directory} />
       <div className="mb-6"><Panel title="מוכנים לזימון לפגישה" icon={<CheckCircle2 className="text-emerald-600" size={20} />} href="/admin/intake?stage=ready">
         {queue === null ? <EmptyRow text="הרשימה אינה זמינה כרגע" /> : ready.length === 0 ? <EmptyRow text="אין כרגע תיקים שממתינים לזימון לאחר השלמת שני השאלונים" /> : <ul className="divide-y divide-slate-100">{ready.slice(0, 8).map(row => <li key={row.id} className="py-3 flex flex-wrap items-center justify-between gap-3"><div><Link href={'/admin/sessions/' + row.id} className="font-bold text-[#01696f] hover:underline">{row.childName}</Link><p className="text-xs text-slate-500">✓ שאלון הורים נשלח · ✓ שאלון מורה נשלח</p></div><Link href={'/admin/sessions/' + row.id + '#appointments'} className="btn-ghost text-sm">תיק, דוחות וזימון ←</Link></li>)}</ul>}

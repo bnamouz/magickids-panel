@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
  if(req.headers.get('origin') !== req.nextUrl.origin) return reply({error:'forbidden'},403);
  try {
   const raw=await req.text(); if(raw.length>4096) return reply({error:'invalid_request'},413);
-  const parsed=treatmentSchema.safeParse(JSON.parse(raw)); if(!parsed.success)return reply({error:'invalid_request'},400);
+  const parsed=treatmentSchema.safeParse(JSON.parse(raw)); if(!parsed.success){const fields=[...new Set(parsed.error.issues.map(issue=>String(issue.path[0]??'form')))];console.warn('[treatments] validation failed', {fields});return reply({error:'invalid_request',fields},400);}
   const secret=process.env.BOOKING_HASH_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if(!secret) return reply({error:'unavailable'},503);
   const b=parsed.data;
