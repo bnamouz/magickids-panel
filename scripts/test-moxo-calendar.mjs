@@ -1,0 +1,14 @@
+import ts from 'typescript';import fs from 'node:fs';import assert from 'node:assert/strict';
+const source=fs.readFileSync('lib/moxo/calendar.ts','utf8').replace(/^import .*;$/gm,'');
+const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const exports={};new Function('exports',js)(exports);
+const row={id:'12345678-abcd-1234-abcd-123456789012',scheduled_at:'2099-01-06T07:00:00Z',duration_minutes:60};
+const events=new Map();let patches=0;
+const calendar={events:{async insert(p){if(events.has(p.requestBody.id))throw {code:409};events.set(p.requestBody.id,p.requestBody);},async patch(p){patches++;events.set(p.eventId,{id:p.eventId,...p.requestBody});}}};
+const id=await exports.writeMoxoEvent(calendar,'institute',row);
+assert.match(id,/^[a-v0-9]+$/);assert.equal(events.size,1);
+const event=events.get(id);assert.equal(Date.parse(event.end.dateTime)-Date.parse(event.start.dateTime),3600000);assert.equal(event.visibility,'private');assert.equal(event.attendees,undefined);
+await Promise.all([exports.writeMoxoEvent(calendar,'institute',row),exports.writeMoxoEvent(calendar,'institute',row)]);
+assert.equal(events.size,1);assert.equal(patches,2);
+await assert.rejects(exports.writeMoxoEvent({events:{insert:async()=>{throw Error('timeout');}}},'institute',row),/timeout/);
+console.log('PASS MOXO calendar: one-hour private event, valid ID, concurrent retry deduplication, provider failure');
