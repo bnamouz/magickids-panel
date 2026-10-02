@@ -1,6 +1,6 @@
 import { isAssessmentSlot, isFollowupSlot } from '@/lib/booking/schedule';
 import { getCurrentStaff } from '@/lib/admin/auth';
-import { firstRelated, intakeProgress, CLOSED_INTAKE_STATUSES } from '@/lib/intake/progress';
+import { firstRelated, intakeProgress } from '@/lib/intake/progress';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalendarEvent, checkAvailability } from '@/lib/google-calendar';
@@ -61,7 +61,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'תיק לא נמצא' }, { status: 404 });
     }
 
-    if (CLOSED_INTAKE_STATUSES.includes(session.status)) return NextResponse.json({ error: 'התיק סגור לזימון' }, { status: 409 });
     if (appointment_type === 'assessment') {
       const [forms, appointments] = await Promise.all([
         supabase.from('questionnaires').select('type,is_complete,submitted_at,responses').eq('session_id', session_id),

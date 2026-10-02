@@ -139,16 +139,23 @@ test('submission lifecycle persists both orders, ignores late drafts, and refuse
 });
 
 test('staff booking API enforces two submitted questionnaires and denies unauthenticated access',async()=>{
-  let authorized=false,forms=[form('vanderbilt_parent')],appointments=[],readError=false,writes=0;
-  const db={from(table){const q={select(){return q;},eq(){return q;},maybeSingle(){return q;},then(resolve){return Promise.resolve(table==='intake_sessions'?{data:{id:'case',patient_id:'patient',status:'profile_ready',patients:{first_name:'Test'},parents:{full_name:'Test'}},error:null}:{data:table==='questionnaires'?forms:appointments,error:readError?new Error('unavailable'):null}).then(resolve);},insert(){writes++;throw new Error('unexpected write');}};return q;}};
+  let authorized=false,forms=[form('vanderbilt_parent')],appointments=[],readError=false,writes=0,status='profile_ready';
+  const db={from(table){const q={select(){return q;},eq(){return q;},maybeSingle(){return q;},then(resolve){return Promise.resolve(table==='intake_sessions'?{data:{id:'case',patient_id:'patient',status,patients:{first_name:'Test'},parents:{full_name:'Test'}},error:null}:{data:table==='questionnaires'?forms:appointments,error:readError?new Error('unavailable'):null}).then(resolve);},insert(){writes++;return {select(){return {single:async()=>({data:{id:'test-appointment'},error:null})};}};}};return q;}};
   const route=compile('app/api/admin/appointments/create/route.ts',{
     '@/lib/admin/auth':{getCurrentStaff:async()=>authorized?{id:'staff'}:null},
     '@/lib/supabase':{getSupabaseAdmin:()=>db},
     '@/lib/google-calendar':{checkAvailability:async()=>{throw new Error('unexpected calendar call');},createCalendarEvent:async()=>{throw new Error('unexpected calendar write');}}
   });
-  const req={json:async()=>({session_id:'case',appointment_type:'assessment',scheduled_at:'2099-01-07T14:00:00Z'})};
+  const req={json:async()=>({session_id:'case',appointment_type:'assessment',scheduled_at:'2099-01-07T14:00:00Z',skip_calendar:true})};
   assert.equal((await route.POST(req)).status,403);authorized=true;
   assert.equal((await route.POST(req)).status,409);
   forms.push(form('vanderbilt_teacher'));appointments=[{status:'scheduled'}];assert.equal((await route.POST(req)).status,409);
   appointments=[];readError=true;assert.equal((await route.POST(req)).status,503);assert.equal(writes,0);
+  readError=false;
+  for (status of ['closed','completed','reported','cancelled']) {
+    forms=[form('vanderbilt_parent')]; assert.equal((await route.POST(req)).status,409);
+    forms.push(form('vanderbilt_teacher')); appointments=[{status:'scheduled'}]; assert.equal((await route.POST(req)).status,409);
+    appointments=[]; const result=await route.POST(req); assert.equal(result.status,200); assert.equal((await result.json()).ok,true);
+  }
+  assert.equal(writes,4);
 });

@@ -142,7 +142,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               <h2 className="font-bold text-slate-800 flex items-center gap-2">
                 <Calendar size={18} className="text-[#01696f]" /> פגישות
               </h2>
-              <BookAppointment sessionId={session.id} childName={childName} assessmentReady={progress.readyToSchedule} />
+              <BookAppointment sessionId={session.id} childName={childName} assessmentReady={progress.bothComplete && !progress.hasAppointment} />
             </div>
             {!appointments?.length ? (
               <p className="text-sm text-slate-500">טרם נקבעה פגישה</p>
