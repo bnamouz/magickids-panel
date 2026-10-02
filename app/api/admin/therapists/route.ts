@@ -15,6 +15,16 @@ export async function POST(req:NextRequest){
  const staff=await getCurrentStaff();if(!staff)return reply({error:'forbidden'},403);
  try{
   const raw=await req.text();if(raw.length>24000)return reply({error:'invalid_request'},400);const b=JSON.parse(raw),db=getSupabaseAdmin();
+  if(b.action==='remove'&&b.confirmed===true){
+   const r=await db.rpc('remove_therapist',{p_id:z.string().uuid().parse(b.id)});
+   if(r.error)return reply({error:'remove_failed'},409);
+   if(!['deleted','archived'].includes(r.data))return reply({error:r.data},409);
+   return reply({saved:true,removed:r.data});
+  }
+  if(b.action==='restore'){
+   const r=await db.from('therapists').update({archived_at:null,active:false,updated_at:new Date().toISOString()}).eq('id',z.string().uuid().parse(b.id)).not('archived_at','is',null).select('id').single();
+   if(r.error)return reply({error:'restore_failed'},409);return reply({saved:true});
+  }
   if(b.action==='save'){
    const p=profileSchema.parse(b.profile);const {id,...fields}=p;
    let access={};if(id){const prior=await db.from('therapists').select('email').eq('id',id).single();if(prior.error)throw new Error('not_found');if(prior.data.email!==fields.email)access={token_version:randomUUID(),token_expires_at:new Date(Date.now()+90*86400000).toISOString()};}
