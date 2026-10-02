@@ -9,7 +9,7 @@ Availability uses Israel time, weekly day/time windows, inclusive date exception
 - Calendar: existing `GOOGLE_SERVICE_ACCOUNT_JSON`; `TREATMENT_CALENDAR_ID` optionally overrides existing `GOOGLE_CALENDAR_ID`. Deterministic event IDs, private event content, sync status and retry are visible. No success claim on failed sync. Existing appointments are only synced after staff scheduling/update or explicit retry; deployment itself does not rewrite old appointments.
 - Gmail: `TREATMENT_GOOGLE_SERVICE_ACCOUNT_JSON`, falling back to existing `DEVELOPMENT_GOOGLE_SERVICE_ACCOUNT_JSON`. Workspace delegation of `gmail.send` for `magickids@magickidsinstitute.com` is required. Configuration presence is not evidence of authorization or delivery. Notification claims prevent repeated sends; ambiguous failures remain unknown/sending for manual review, never blind retry.
 - Parent reminders: existing UltraMsg settings, explicit optional `reminderConsent` checkbox. Existing requests default to no consent. Therapist reminders use email.
-- Worker: `/api/cron/treatments`, Bearer `CRON_SECRET` (at least 32 characters), every five minutes in vercel.json. Requires a hosting plan that supports this cadence. Worker heartbeat is displayed in therapist management; missing/stale heartbeat is not shown as active automation. The send window is 60–120 minutes before the appointment; cancellation and rescheduling invalidate old timing. Reminders are keyed by appointment/date/recipient.
+- Worker: `/api/cron/treatments`, Bearer `CRON_SECRET` (at least 32 characters), every five minutes through an external scheduler; no Vercel cron is enabled on the current plan. Worker heartbeat is displayed in therapist management; missing/stale heartbeat is not shown as active automation. The send window is 60–120 minutes before the appointment; cancellation and rescheduling invalidate old timing. Reminders are keyed by appointment/date/recipient.
 - Calendar popup/email reminders apply to the organizer calendar; personal Google notification preferences can affect delivery.
 
 No real invitations or appointment reminders were sent during development. Add actual therapist emails in the authenticated management page and verify one invitation and calendar sync before relying on automation.
@@ -19,3 +19,6 @@ No real invitations or appointment reminders were sent during development. Add a
 `node scripts/test-treatment-validation.mjs`
 `node scripts/test-treatments.mjs`
 `npx tsc --noEmit`
+
+## Hosting limitation
+The current Vercel account rejects sub-daily cron schedules. No Vercel cron is installed. Configure an external scheduler to GET https://app.magickidsinstitute.com/api/cron/treatments every five minutes with Authorization: Bearer CRON_SECRET (32+ characters, stored in scheduler secrets and Vercel Production). Alternatively enable a supported Vercel plan and add the schedule. Until a worker heartbeat is observed, automatic reminders are NOT active. Do not put credentials in query strings.
