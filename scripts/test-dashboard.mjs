@@ -109,7 +109,7 @@ test('dashboard authenticates before fetching data and keeps archived cases out 
   const overrides = {
     'next/link': { default: link, __esModule: true },
     '@/lib/intake/queue': { loadIntakeQueue: async options => { assert.equal(options.includeArchived, true); return all; } },
-    '@/lib/supabase': { getSupabaseAdmin: () => ({ from: () => ({ select: () => ({ limit: async () => ({ data: [] }) }) }) }) },
+    '@/lib/supabase': { getSupabaseAdmin: () => ({ from: () => ({ select: () => ({ in() { return this; }, order() { return this; }, limit: async () => ({ data: [], count: 0 }) }) }) }) },
     '@/lib/admin/auth': { requireStaff: async () => ({ full_name: 'צוות בדיקה' }) },
   };
   const Dashboard = compile('app/admin/dashboard/page.tsx', overrides).default;
