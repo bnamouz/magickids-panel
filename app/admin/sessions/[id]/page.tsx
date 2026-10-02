@@ -9,6 +9,7 @@ import ResponsesTable from '@/components/admin/ResponsesTable';
 import ScoreCard from '@/components/admin/ScoreCard';
 import BookAppointment from './BookAppointment';
 import ReportsList from './ReportsList';
+import QuestionnaireLinks from '@/components/admin/QuestionnaireLinks';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
     .from('intake_sessions')
     .select(`
       id, status, created_at, updated_at, reason_for_referral, channel,
-      parent_token, teacher_token, teacher_name, teacher_phone,
+      parent_token, teacher_token, parent_token_expires_at, teacher_token_expires_at, teacher_name, teacher_phone,
       patients(id, first_name, last_name, birth_date, school, grade, gender, teacher_name, teacher_phone),
       parents(full_name, phone, email, relation)
     `)
@@ -72,6 +73,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
       </div>
 
       <div className="card mb-6"><div className="flex flex-wrap justify-between gap-3"><h2 className="font-bold text-[#01696f]">מצב הקליטה</h2><Link className="text-sm underline" href="/admin/intake">לרשימת הקליטה והזימון</Link></div><div className="grid sm:grid-cols-3 gap-3 mt-4"><div className="rounded-lg bg-slate-50 p-3">שאלון הורים: <strong>{progress.parentComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-slate-50 p-3">שאלון מורה: <strong>{progress.teacherComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-teal-50 text-[#01696f] p-3 font-bold">{INTAKE_STAGES[progress.stage]}</div></div>{!progress.bothComplete && <p className="text-sm text-slate-500 mt-3">ניתן לזמן לפגישת אבחון לאחר השלמת שני השאלונים.</p>}</div>
+      <QuestionnaireLinks sessionId={session.id} parent={{ token: session.parent_token, expiresAt: session.parent_token_expires_at }} teacher={{ token: session.teacher_token, expiresAt: session.teacher_token_expires_at }} parentComplete={progress.parentComplete} teacherComplete={progress.teacherComplete} closed={progress.stage === 'closed'} />
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Combined profile - top priority */}
