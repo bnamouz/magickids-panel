@@ -8,7 +8,7 @@ export async function POST(req:NextRequest){
   const {consent,website,...body}=moxoSchema.parse(JSON.parse(raw));
   const db=getSupabaseAdmin();
   // No messages or appointments are created by this public endpoint.
-  const result=await db.rpc('submit_moxo_request',{p_id:body.id,p_patient:body.patient_name,p_contact:body.contact_name,p_phone:body.phone,p_language:body.language,p_date:body.preferred_date??null});
+  const result=await db.rpc('submit_moxo_preference',{p_id:body.id,p_patient:body.patient_name,p_contact:body.contact_name,p_phone:body.phone,p_language:body.language,p_date:body.preferred_date??null,p_start:body.preferred_start??null});
   if(result.error)return NextResponse.json({error:'unavailable'},{status:503});
   if(result.data!=='pending')return NextResponse.json({error:result.data},{status:result.data==='rate_limited'?429:400});
   return NextResponse.json({received:true,status:'pending',reference:body.id},{headers:{'Cache-Control':'no-store'}});
