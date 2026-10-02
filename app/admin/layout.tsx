@@ -35,6 +35,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </div>
 <Link href="/admin/development" className="text-sm font-semibold text-[#01696f] underline">התפתחות הילד</Link>
 <Link href="/admin/treatments" className="text-sm font-semibold text-[#01696f] underline">פניות לטיפול</Link>
+<Link href="/admin/classes" className="text-sm font-semibold text-[#01696f] underline">חוגי המכון</Link>
 <Link href="/admin/moxo" className="text-sm font-semibold text-[#01696f] underline">MOXO</Link>
 <Link href="/admin/intake" className="text-sm font-semibold text-[#01696f] underline">קליטה וזימון</Link>
             <LogoutButton />
@@ -60,6 +61,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <NavLink href="/admin/recruitment" icon={<Users size={18} />}>גיוס מטפלים</NavLink>
             <NavLink href="/admin/therapists" icon={<Users size={18} />}>ניהול מטפלים וזמינות</NavLink>
             <NavLink href="/admin/treatments" icon={<Users size={18} />}>פניות וטיפולים</NavLink>
+            <NavLink href="/admin/classes" icon={<Users size={18} />}>חוגים ורשימות מתעניינים</NavLink>
             <NavLink href="/admin/moxo" icon={<Calendar size={18} />}>בקשות MOXO</NavLink>
             <NavLink href="/admin/calls" icon={<Phone size={18} />}>
               שיחות שרה

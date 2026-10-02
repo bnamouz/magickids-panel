@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   const parsed=treatmentSchema.safeParse(JSON.parse(raw)); if(!parsed.success){const fields=[...new Set(parsed.error.issues.map(issue=>String(issue.path[0]??'form')))];console.warn('[treatments] validation failed', {fields});return reply({error:'invalid_request',fields},400);}
   const secret=process.env.BOOKING_HASH_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if(!secret) return reply({error:'unavailable'},503);
-  const b=parsed.data;
+  const b=parsed.data;if(b.treatment==='groups')return reply({error:'use_classes',url:'/classes'},400);
   const result=await getSupabaseAdmin().rpc('submit_treatment_request',{p_id:b.id,p_patient:b.patient,p_contact:b.contact,p_phone:b.phone,p_ip:createHmac('sha256',secret).update(`treatment-ip:${req.ip||'unknown'}`).digest('hex'),p_treatment:b.treatment,p_language:b.language,p_availability:b.availability});
   if(result.error)return reply({error:'unavailable'},503);
   if(result.data!=='received')return reply({error:result.data},result.data==='rate_limited'?429:409);
