@@ -7,6 +7,7 @@ const nextConfig = {
     }));
   },
   experimental: {
+    outputFileTracingIncludes: { '/api/admin/development': ['./public/development-original/**', './public/fonts/**'] },
     serverActions: { bodySizeLimit: '2mb' },
   },
 };

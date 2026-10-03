@@ -1,3 +1,5 @@
+import {originalPdf} from '@/lib/development/official-pdf';
+import {OFFICIAL_VERSION,ageTemplate} from '@/lib/development/official';
 import {getSupabaseAdmin} from '@/lib/supabase';
 import {staffGuard,json,failure,token,hash} from '@/lib/development/server';
 import {registration,ageEligible,VERSION,DESTINATION} from '@/lib/development/schema';
@@ -8,17 +10,18 @@ export const runtime='nodejs';
 export const maxDuration=60;
 const requiredKinds=['parent_original','education_original','referral','consent'];
 export async function GET(req:Request){try{
- if(process.env.DEVELOPMENT_REFERRALS_ENABLED!=='true')return json({error:'המסלול טרם הופעל'},503);
+
  await staffGuard(req);const db=getSupabaseAdmin();const id=new URL(req.url).searchParams.get('id');
  if(!id){const {data,error}=await db.from('development_referrals').select('id,child_name,status,created_at,parent_submitted_at,education_submitted_at').order('created_at',{ascending:false}).limit(100);if(error)throw error;return json({cases:data,mail_configured:mailReady(),destination:DESTINATION});}
- const {data,error}=await db.from('development_referrals').select('id,child_name,birth_date,parent_name,phone,education_role,parent_answers,education_answers,parent_submitted_at,education_submitted_at,summary,status,approved_at,email_id,error_code,created_at').eq('id',id).single();if(error)throw error;
+ const {data,error}=await db.from('development_referrals').select('id,child_name,birth_date,parent_name,phone,education_role,form_version,form_template,parent_answers,education_answers,parent_submitted_at,education_submitted_at,summary,status,approved_at,email_id,error_code,created_at').eq('id',id).single();if(error)throw error;
  const {data:documents,error:dErr}=await db.from('development_documents').select('id,kind').eq('referral_id',id);if(dErr)throw dErr;
  const documentId=new URL(req.url).searchParams.get('document');
+ if(documentId?.startsWith('generated-')&&data.form_version===OFFICIAL_VERSION){const role=documentId==='generated-parent'?'parent':data.education_role;if(role==='none')return json({error:'אין מסגרת'},400);return new Response(new Uint8Array(await originalPdf(data,role)),{headers:{'Content-Type':'application/pdf','Cache-Control':'no-store','Content-Disposition':'attachment; filename=questionnaire.pdf'}});}
  if(documentId){const {data:doc}=await db.from('development_documents').select('storage_path').eq('referral_id',id).eq('id',documentId).single();if(!doc)return json({error:'מסמך לא נמצא'},404);const file=await db.storage.from('development-private').download(doc.storage_path);if(file.error)throw file.error;return new Response(await file.data.arrayBuffer(),{headers:{'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="document.pdf"','Cache-Control':'no-store'}});}
  return json({case:data,documents,mail_configured:mailReady(),destination:DESTINATION});
  }catch(e){return failure(e);}}
 export async function POST(req:Request){try{
- if(process.env.DEVELOPMENT_REFERRALS_ENABLED!=='true')return json({error:'המסלול טרם הופעל'},503);
+
  const staff=await staffGuard(req,true);const db=getSupabaseAdmin();
  if(req.headers.get('content-type')?.includes('multipart/form-data')){
  if(Number(req.headers.get('content-length')||0)>5500000)return json({error:'קובץ גדול מדי'},413);
@@ -40,28 +43,32 @@ export async function POST(req:Request){try{
  }
  const body=await req.json();
  if(body.action==='create'){
- const p=registration.safeParse(body.data);if(!p.success)return json({error:'פרטים חסרים או לא תקינים'},400);if(!ageEligible(p.data.birth_date))return json({error:'הגרסה הנוכחית מיועדת לגיל שנה עד לפני גיל שבע. לגילים אחרים השתמשו בערכת מכבי המתאימה.'},400);
+ const p=registration.safeParse(body.data);if(!p.success)return json({error:'פרטים חסרים או לא תקינים'},400);if(!ageTemplate(p.data.birth_date)||(ageTemplate(p.data.birth_date)==='infant'&&p.data.education_role==='teacher'))return json({error:'יש לבדוק גיל ומסגרת. הערכות מיועדות מלידה עד לפני גיל שבע.'},400);
  const parentToken=token();const {consent,...fields}=p.data;
- const {data,error}=await db.from('development_referrals').insert({...fields,parent_hash:hash(parentToken),education_hash:hash(token()),consent_version:VERSION}).select('id').single();if(error)throw error;
+ const {data,error}=await db.from('development_referrals').insert({...fields,parent_hash:hash(parentToken),education_hash:hash(token()),consent_version:OFFICIAL_VERSION,form_version:OFFICIAL_VERSION,form_template:ageTemplate(fields.birth_date)}).select('id').single();if(error)throw error;
  return json({id:data.id,parent_token:parentToken});
  }
  const {data:row,error}=await db.from('development_referrals').select('*').eq('id',body.id).single();if(error)throw error;
  if(body.action==='link'){
  if(!['parent','education','review'].includes(row.status))return json({error:'התיק נעול'},409);
- const isParent=body.role==='parent';if(!isParent&&!row.parent_submitted_at)return json({error:'יש להשלים שאלון הורים תחילה'},409);
+ const isParent=body.role==='parent';if(!isParent&&row.education_role==='none')return json({error:'הילד אינו במסגרת'},400);if(!isParent&&!row.parent_submitted_at)return json({error:'יש להשלים שאלון הורים תחילה'},409);
  const t=token();const update=await db.from('development_referrals').update({[isParent?'parent_hash':'education_hash']:hash(t),expires_at:new Date(Date.now()+30*86400000).toISOString()}).eq('id',row.id).eq('status',row.status).select('id').maybeSingle();if(update.error||!update.data)throw new Error('UPDATE');return json({token:t});
  }
+ const official=row.form_version===OFFICIAL_VERSION;
+ const needsEducation=row.education_role!=='none';
+ const required=official?['referral']:requiredKinds;
  if(body.action==='approve'){
- if(row.status!=='review'||!row.parent_submitted_at||!row.education_submitted_at||body.confirmed!==true||typeof body.summary!=='string'||body.summary.trim().length<20||body.summary.length>60000)return json({error:'נדרשים שני שאלונים, סיכום ואישור בדיקה'},400);
+ if(row.status!=='review'||!row.parent_submitted_at||(needsEducation&&!row.education_submitted_at)||body.confirmed!==true||typeof body.summary!=='string'||body.summary.trim().length<20||body.summary.length>60000)return json({error:'נדרשים שני שאלונים, סיכום ואישור בדיקה'},400);
  const {data:docs,error:dErr}=await db.from('development_documents').select('kind').eq('referral_id',row.id);if(dErr)throw dErr;
- if(!requiredKinds.every(k=>docs?.some(d=>d.kind===k)))return json({error:'יש לצרף את שני שאלוני המקור המלאים, הפניה והסכמה חתומה'},400);
+ if(!required.every(k=>docs?.some(d=>d.kind===k)))return json({error:official?'יש לצרף הפניה רפואית ולוודא את ההסכמות בשאלונים המקוריים':'יש לצרף את שני שאלוני המקור המלאים, הפניה והסכמה חתומה'},400);
  const r=await db.from('development_referrals').update({summary:body.summary,approved_by:staff.id,approved_at:new Date().toISOString(),status:'approved'}).eq('id',row.id).eq('status','review').select('id').maybeSingle();if(r.error||!r.data)throw new Error('CONFLICT');return json({ok:true});
  }
  if(body.action==='send'){
  if(!mailReady())return json({error:'חיבור הדואר טרם הוגדר. לא נשלח מידע.'},503);
  if(row.status!=='approved'||!row.approved_at)return json({error:'נדרש אישור רפואי לפני שליחה; תיק שכבר נשלח לא נשלח שוב'},409);
- const {data:docs,error:dErr}=await db.from('development_documents').select('kind,storage_path').eq('referral_id',row.id);if(dErr)throw dErr;if(!requiredKinds.every(k=>docs?.some(d=>d.kind===k)))return json({error:'חסרים מסמכים'},400);
+ const {data:docs,error:dErr}=await db.from('development_documents').select('kind,storage_path').eq('referral_id',row.id);if(dErr)throw dErr;if(!required.every(k=>docs?.some(d=>d.kind===k)))return json({error:'חסרים מסמכים'},400);
  const attachments=[{filename:'reviewed-summary.pdf',content:(await packetPdf(row)).toString('base64')}];
+ if(official){attachments.push({filename:'parent-original-completed.pdf',content:(await originalPdf(row,'parent')).toString('base64')});if(needsEducation)attachments.push({filename:'education-original-completed.pdf',content:(await originalPdf(row,row.education_role)).toString('base64')});}
  for(const d of docs!){const f=await db.storage.from('development-private').download(d.storage_path);if(f.error)throw f.error;attachments.push({filename:`${d.kind}.pdf`,content:Buffer.from(await f.data.arrayBuffer()).toString('base64')});}
  const locked=await db.from('development_referrals').update({status:'sending',dispatch_started_at:new Date().toISOString()}).eq('id',row.id).eq('status','approved').select('id').maybeSingle();if(locked.error)throw locked.error;if(!locked.data)return json({error:'שליחה כבר החלה'},409);
  try{const emailId=await sendPacket(row.id,attachments);const saved=await db.from('development_referrals').update({status:'accepted',email_id:emailId,error_code:null}).eq('id',row.id);if(saved.error)throw new Error('STATUS_SAVE');return json({ok:true,status:'accepted'});}

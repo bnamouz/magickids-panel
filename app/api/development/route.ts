@@ -6,7 +6,7 @@ export async function POST(req:Request) {try {
  if(process.env.DEVELOPMENT_REFERRALS_ENABLED!=='true')return json({error:'המסלול טרם הופעל'},503);
  if(req.headers.get('origin')!==new URL(req.url).origin) throw new Error('ORIGIN');
  if(Number(req.headers.get('content-length')||0)>180000) return json({error:'הטופס גדול מדי'},413);
- const {db,row,role}=await access(req); const body=await req.json();
+ const {db,row,role}=await access(req);if(row.form_version)return json({error:'יש להשתמש במסלול השאלונים המקוריים'},409); const body=await req.json();
  const parent=role==='parent', done=parent?'parent_submitted_at':'education_submitted_at';
  if(!['parent','education'].includes(row.status))return json({error:'התיק נעול או מתעדכן. נסו שוב מאוחר יותר'},409);
  if(row[done])return json({error:'השאלון כבר נשלח ונעול לעריכה'},409);

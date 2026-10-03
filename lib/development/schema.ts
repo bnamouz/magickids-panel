@@ -1,5 +1,5 @@
 import { z } from 'zod';
-export const DESTINATION = 'zfn_shraam_child@mac.org.il';
+export const DESTINATION = 'magickids@magickidsinstitute.com';
 export const VERSION = 'development-intake-2026-09-v1';
 export const SOURCE = 'https://www.maccabi4u.co.il/maccabi_circles/child_development/questionnaire/child_development_questionnaire/';
 // These are an institute intake supplement, not a certified replica of Maccabi forms.
@@ -11,7 +11,7 @@ export const domains = {
  teacher: ['כתיבה','חשבון','קריאה','הבנת טקסט','קריאות כתב היד','קצב כתיבה','מאמץ בכתיבה','ארגון הדף','השלמת משימות','עמידה בזמנים','עבודה עצמאית','ארגון ציוד','ביצוע הוראות','משחק בכדור','פעילות בהפסקות','ספורט ותנועה','עייפות','קשרים חברתיים','משחק משותף','פתרון מחלוקות','התחשבות באחרים','השתלבות חברתית','תגובות רגשיות','התמודדות עם תסכול','המתנה ושליטה עצמית','קבלת גבולות','קשב ביחידות','קשב בקבוצה','ישיבה בפעילות','התמדה','רגישות לחושים']
 } as const;
 export type Role = keyof typeof domains;
-export const registration = z.object({child_name:z.string().trim().min(2).max(100),birth_date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),parent_name:z.string().trim().min(2).max(100),phone:z.string().regex(/^0\d{8,9}$/),education_role:z.enum(['kindergarten','teacher']),consent:z.literal(true)}).strict();
+export const registration = z.object({child_name:z.string().trim().min(2).max(100),birth_date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),parent_name:z.string().trim().min(2).max(100),phone:z.string().regex(/^0\d{8,9}$/),education_role:z.enum(['kindergarten','teacher','none']),consent:z.literal(true)}).strict();
 export const answersSchema = z.record(z.string().max(80),z.string().max(3000)).refine(x=>Object.keys(x).length<=100);
 export const labels: Record<string,string> = {reason:'סיבת הפנייה והעזרה המבוקשת',history:'רקע רפואי, היריון ולידה, אבחונים וטיפולים קודמים',family:'רקע משפחתי ושפות בבית',respondent:'שם ממלא/ת השאלון',setting:'שם המסגרת, כיתה/קבוצה ומשך ההיכרות',support:'סיוע וטיפולים במסגרת',strengths:'חוזקות ותחומי עניין',notes:'מידע נוסף ודוגמאות מהיומיום',signature:'שם מלא לאישור נכונות התשובות'};
 export function validateAnswers(role:Role, answers:Record<string,string>) {
