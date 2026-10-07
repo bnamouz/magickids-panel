@@ -150,7 +150,9 @@ test('Public booking integration with SQL reservations and mocked Google', async
       },
     },
   };
+  let staffAuthorized = true;
   const service = compile('lib/booking/server.ts', {
+    '@/lib/admin/auth': {getCurrentStaff: async () => staffAuthorized ? {id:'test-staff'} : null},
     '@/lib/intake/progress': progress,
     '@/lib/google-calendar': { getCalendarClient: () => google, getCalendarId: () => 'adhd' },
     '@/lib/pediatrics-calendar': { getPediatricsCalendarId: () => 'peds' },
@@ -160,6 +162,14 @@ test('Public booking integration with SQL reservations and mocked Google', async
   const body = (clinic, start = schedule.candidateSlots(clinic)[0]) => ({ requestId: randomUUID(), start, childName: 'Test Child', parentName: 'Test Parent', phone: '0501234567', consent: true, website: '', ...(clinic === 'adhd' ? { parentToken: intake.token } : {}) });
   const rejects = (promise, code) => assert.rejects(promise, error => error.code === code);
   try {
+    await t.test('staff booking is authenticated, writes a ten-minute pediatric event and retries once', async () => {
+      await reset(); const request=body('pediatrics');
+      staffAuthorized=false; await rejects(service.book('pediatrics',request,'staff:test',true),'forbidden'); assert.equal(writes.length,0);
+      staffAuthorized=true; await service.book('pediatrics',request,'staff:test',true); await service.book('pediatrics',request,'staff:test',true);
+      assert.equal(writes.length,1); assert.equal(Date.parse(writes[0].requestBody.end.dateTime)-Date.parse(request.start),600000);
+      assert.match(writes[0].requestBody.description,/דאשבורד/);
+      await rejects(service.book('adhd',body('adhd'),'staff:test',true),'forbidden');
+    });
     await t.test('writes pediatrics exclusively to pediatrics; no invitations', async () => {
       await reset(); const result = await service.book('pediatrics', body('pediatrics'), 'test-ip');
       assert.equal(result.confirmed, true); assert.equal(writes.length, 1); assert.equal(writes[0].calendarId, 'peds'); assert.equal(writes[0].sendUpdates, 'none');
@@ -210,7 +220,8 @@ test('Public booking integration with SQL reservations and mocked Google', async
       // The published windows no longer overlap. Inject one shared synthetic
       // candidate to exercise the SQL concurrency guard, not hours validation.
       const overlappingService = compile('lib/booking/server.ts', {
-        '@/lib/intake/progress': progress,
+        '@/lib/admin/auth': {getCurrentStaff: async () => staffAuthorized ? {id:'test-staff'} : null},
+    '@/lib/intake/progress': progress,
         '@/lib/google-calendar': { getCalendarClient: () => google, getCalendarId: () => 'adhd' },
         '@/lib/pediatrics-calendar': { getPediatricsCalendarId: () => 'peds' },
         '@/lib/supabase': { getSupabaseAdmin: () => adapter(pg, intake) },

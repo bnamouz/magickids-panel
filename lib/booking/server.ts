@@ -1,3 +1,4 @@
+import { getCurrentStaff } from '@/lib/admin/auth';
 import { intakeProgress } from '@/lib/intake/progress';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
@@ -104,7 +105,8 @@ function confirmed(clinic: Clinic, start: string, reference: string, visitType: 
   return { confirmed: true, clinic, start, durationMinutes: durationFor(clinic, visitType), reference, ...(clinic === 'pediatrics' ? { cancellationToken: cancellationToken(reference) } : {}) };
 }
 
-export async function book(clinic: Clinic, body: BookingBody, clientIp: string) {
+export async function book(clinic: Clinic, body: BookingBody, clientIp: string, staffBooking = false) {
+  if (staffBooking && (clinic !== 'pediatrics' || !await getCurrentStaff())) throw new BookingError('forbidden',403);
   const visitType = body.visitType ?? 'assessment';
   if (clinic !== 'adhd' && visitType === 'followup') throw new BookingError('invalid_body', 400);
   const ids = bookingSettings();
@@ -121,7 +123,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string) 
   if (prior?.status === 'confirmed') return confirmed(clinic, prior.starts_at, prior.id, visitType);
   if (prior?.status === 'released') throw new BookingError('slot_taken', 409);
   await ensureWritable(Object.values(ids));
-  if (!prior && !candidateSlots(clinic, new Date(), visitType).includes(start)) throw new BookingError('invalid_slot', 400);
+  if (!prior && (!candidateSlots(clinic, staffBooking ? new Date(Date.now()-120*60000) : new Date(), visitType).includes(start) || (staffBooking && Date.parse(start)<=Date.now()))) throw new BookingError('invalid_slot', 400);
   const eventId = `mk${body.requestId.replaceAll('-', '')}`; // Calendar-compatible, stable across retries.
   const intake = clinic === 'adhd' && visitType === 'assessment' ? await checkIntake(body.parentToken ?? '', prior ? eventId : undefined) : null;
   const attemptId = randomUUID();
@@ -159,7 +161,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string) 
       event = (await calendar.events.insert({ calendarId, sendUpdates: 'none', requestBody: {
         id: eventId,
         summary: `${clinic === 'adhd' ? (visitType === 'followup' ? 'מעקב קשב וריכוז' : 'אבחון קשב וריכוז') : 'מרפאת ילדים'} — ${intake?.childName || body.childName}`,
-        description: `הורה: ${body.parentName}\nטלפון: ${phone}\nנקבע באתר המכון\nאסמכתא: ${body.requestId}`,
+        description: `הורה: ${body.parentName}\nטלפון: ${phone}\n${staffBooking ? 'נקבע בדאשבורד המרפאה' : 'נקבע באתר המכון'}\nאסמכתא: ${body.requestId}`,
         location: 'תופיק זיאד 21, שפרעם',
         start: { dateTime: start, timeZone: TIME_ZONE }, end: { dateTime: end, timeZone: TIME_ZONE },
         visibility: 'private', transparency: 'opaque',
