@@ -101,7 +101,7 @@ test('Sarah booking route cannot bypass missing forms and confirms only after th
 });
 
 test('booking accepts real 48-hex intake tokens and legacy UUIDs without accepting malformed tokens',()=>{
- const server=compile('lib/booking/server.ts');
+ const server=compile('lib/booking/server.ts',{'@/lib/admin/auth':{getCurrentStaff:async()=>null}});
  assert.equal(server.intakeTokenSchema.safeParse('a'.repeat(48)).success,true);
  assert.equal(server.intakeTokenSchema.safeParse(randomUUID()).success,true);
  for(const token of ['a'.repeat(47),'z'.repeat(48),'','not-a-token'])assert.equal(server.intakeTokenSchema.safeParse(token).success,false);
