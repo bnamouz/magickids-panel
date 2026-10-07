@@ -55,6 +55,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <NavLink href="/admin/sessions" icon={<Users size={18} />}>
               תיקים פעילים
             </NavLink>
+            <NavLink href="/admin/pediatrics-calendar" icon={<Calendar size={18} />}>יומן מרפאת הילדים · 10 דקות</NavLink>
             <NavLink href="/admin/appointments" icon={<Calendar size={18} />}>
               יומן פגישות
             </NavLink>

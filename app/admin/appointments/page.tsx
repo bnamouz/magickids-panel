@@ -43,7 +43,7 @@ export default async function AppointmentsPage() {
             {upcoming?.length ?? 0} פגישות עתידיות המקושרות לתיקי המכון
           </p>
         </div>
-        <BookingConnectionStatus />
+        <div className="flex flex-col gap-3"><Link href="/admin/pediatrics-calendar" className="bg-teal-700 text-white rounded-lg p-3">יומן מרפאת הילדים — 10 דקות</Link><BookingConnectionStatus /></div>
       </div>
 
       <div className="card p-0 overflow-hidden">

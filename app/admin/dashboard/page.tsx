@@ -33,7 +33,7 @@ export default async function DashboardPage({ searchParams = {} }: { searchParam
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">שלום {staff.full_name.split(' ')[0]}</h1>
+        <Link href="/admin/pediatrics-calendar" className="inline-block rounded-lg bg-teal-700 text-white px-4 py-2 mb-3">יומן מרפאת הילדים — חלוקה ל־10 דקות</Link><h1 className="text-2xl font-bold text-slate-800">שלום {staff.full_name.split(' ')[0]}</h1>
         <p className="text-slate-500 mt-1">להלן סקירה יומית של הפעילות במכון.</p>
       </div>
 
