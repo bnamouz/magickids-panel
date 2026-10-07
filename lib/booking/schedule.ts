@@ -12,6 +12,9 @@ const HOURS: Record<Clinic, Record<number, [number, number]>> = {
   pediatrics: { 1: [900, 1140], 2: [960, 1140], 3: [600, 810], 4: [1020, 1200], 5: [570, 750], 6: [570, 750] },
   adhd: { 3: [960, 1200] },
 };
+export function clinicHours(clinic: Clinic, day: string): [number, number] | null {
+  return HOURS[clinic][new Date(day+'T12:00:00Z').getUTCDay()] ?? null;
+}
 const formatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
   hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
