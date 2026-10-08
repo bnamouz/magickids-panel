@@ -81,7 +81,12 @@ export async function therapistBookingData(therapistId:string) {
     .select('id,patient_name,contact_name,phone,starts_at,ends_at,duration,status,expires_at,last_error,lease_until')
     .eq('therapist_id',therapistId).order('starts_at',{ascending:false}).limit(200);
   if(r.error)throw new BookingError('unavailable',503);
+  const referrals=await getSupabaseAdmin().from('treatment_requests')
+    .select('id,patient_name,contact_name,phone,availability,status,scheduled_at,duration_minutes,calendar_sync,created_at')
+    .eq('therapist_id',therapistId).order('created_at',{ascending:false}).limit(200);
+  if(referrals.error)throw new BookingError('unavailable',503);
   return {name:p.therapist.name,availability:p.availability,version:p.version,
+    referrals:referrals.data??[],
     requests:(r.data??[]).map(r=>({...r,status:r.status==='pending'&&Date.parse(r.expires_at)<=Date.now()?'expired':r.status}))};
 }
 export async function saveBookingHours(therapistId:string,version:number,availability:unknown) {

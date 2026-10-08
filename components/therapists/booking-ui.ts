@@ -4,6 +4,7 @@ export const bookingTime=(s:string)=>new Intl.DateTimeFormat('en-GB',{timeZone:'
 export const bookingDate=(s:string)=>new Intl.DateTimeFormat('he-IL-u-nu-latn',{timeZone:'Asia/Jerusalem',weekday:'long',day:'numeric',month:'long'}).format(new Date(s));
 export const statusLabel:Record<string,string>={pending:'ממתינה לאישור רנא',syncing:'האישור ממתין להשלמת הרישום ביומן',confirmed:'התור אושר ונרשם ביומן',rejected:'הבקשה נדחתה',expired:'תוקף הבקשה הסתיים',cancelling:'הביטול ממתין להשלמה ביומן',cancelled:'התור בוטל'};
 export const bookingMessages:Record<string,string>={
+ confirm_parent:'יש לאשר שהמועד תואם עם ההורה לפני קביעת התור.',
  unavailable:'השירות אינו זמין כרגע. נסו שוב או פנו למכון.',
  calendar_unavailable:'לא ניתן לאמת את הזמינות ביומן Google כרגע. לא תתאפשר בחירת תור עד שהחיבור יחזור.',
  slot_taken:'השעה כבר אינה פנויה או אינה מתאימה לשעות העבודה. רעננו ובחרו שעה אחרת.',
