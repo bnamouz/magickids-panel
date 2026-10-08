@@ -1,4 +1,4 @@
--- Additive, opt-in booking flow. No existing patient records are changed.
+-- Applied as migration 20261008052117. No existing patient records are changed.
 create table public.therapist_booking_profiles (
  therapist_id uuid primary key references public.therapists(id),
  slug text not null unique check(slug ~ '^[a-z][a-z0-9-]{1,50}$'),
