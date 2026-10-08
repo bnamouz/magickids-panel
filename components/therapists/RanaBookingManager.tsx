@@ -1,0 +1,44 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import {bookingDate,bookingTime,bookingMessages,statusLabel} from './booking-ui';
+import {validateRequestAvailability,RANA_REQUEST_AVAILABILITY,type RequestAvailability} from '@/lib/therapists/request-slots';
+import './booking.css';
+const fmt=(v:number)=>`${String(Math.floor(v/60)).padStart(2,'0')}:${String(v%60).padStart(2,'0')}`;
+const min=(s:string)=>/^([01]\d|2[0-3]):[0-5]\d$/.test(s)?Number(s.slice(0,2))*60+Number(s.slice(3)):NaN;
+export default function RanaBookingManager({admin=false,therapistLink=''}:{admin?:boolean;therapistLink?:string}){
+ const proof=useRef({id:'',token:''}),lock=useRef(false),hoursForm=useRef<HTMLFormElement>(null);
+ const [data,setData]=useState<any>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('טוען…'),[tab,setTab]=useState('requests'),[availability,setAvailability]=useState<RequestAvailability>(RANA_REQUEST_AVAILABILITY),[closed,setClosed]=useState(''),[confirmation,setConfirmation]=useState<{id:string;action:string}|null>(null);
+ async function call(body:any){
+  const r=await fetch('/api/therapist/rana',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...(!admin?proof.current:{}),...body})});
+  const d=await r.json();if(!r.ok)throw new Error(bookingMessages[d.error]||'לא ניתן להשלים כרגע. נסו שוב.');return d;
+ }
+ async function load(){const d=await call({action:'read'});setData(d);setAvailability(d.availability);}
+ useEffect(()=>{const p=new URLSearchParams(location.hash.slice(1));proof.current={id:p.get('id')||'',token:p.get('token')||''};void load().then(()=>setMessage('')).catch(e=>setMessage(e.message));},[]);
+ async function act(fn:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(true);setMessage('');try{await fn();}catch(e){setMessage(e instanceof Error?e.message:'לא ניתן להשלים');}finally{lock.current=false;setBusy(false);}}
+ async function decide(id:string,action:string){setConfirmation(null);const r=await call({action,requestId:id});await load();setMessage(statusLabel[r.status]||'הפעולה הושלמה.');}
+ function changeRows(remove?:number){
+  if(!hoursForm.current)return;
+  const f=new FormData(hoursForm.current);
+  const windows=availability.windows.map((_,i)=>({day:Number(f.get(`day${i}`)),start:min(String(f.get(`start${i}`))),end:min(String(f.get(`end${i}`))),duration:Number(f.get(`duration${i}`))})).filter((_,i)=>i!==remove);
+  if(windows.some(w=>!Number.isFinite(w.start)||!Number.isFinite(w.end))){setMessage(bookingMessages.invalid_availability);return;}
+  if(remove===undefined)windows.push({day:5,start:510,end:810,duration:60});
+  setAvailability({...availability,windows});
+ }
+ const rows=data?.requests||[];
+ function row(r:any){return <article className="rb-request" key={r.id}><div><h3>{r.patient_name}</h3><p>איש קשר: {r.contact_name} · <a dir="ltr" href={'tel:'+r.phone}>{r.phone}</a></p><p>{bookingDate(r.starts_at)} · <bdi>{bookingTime(r.starts_at)}–{bookingTime(r.ends_at)}</bdi> · {r.duration} דקות</p><span className={'rb-badge '+r.status}>{statusLabel[r.status]}</span>{r.last_error&&<p className="rb-small">נדרש טיפול: הרישום או הביטול ביומן לא הושלמו.</p>}</div><div className="rb-actions">
+  {['pending','syncing'].includes(r.status)&&<button className="rb-primary" disabled={busy} onClick={()=>void act(()=>decide(r.id,'approve'))}>{r.status==='syncing'?'השלמת אישור ביומן':'אישור ורישום ביומן'}</button>}
+  {r.status==='pending'&&<button disabled={busy} onClick={()=>setConfirmation({id:r.id,action:'reject'})}>דחיית הבקשה</button>}
+  {['confirmed','syncing','cancelling'].includes(r.status)&&<button disabled={busy} onClick={()=>setConfirmation({id:r.id,action:'cancel'})}>{r.status==='cancelling'?'השלמת ביטול':'ביטול התור'}</button>}
+ </div>{confirmation?.id===r.id&&<div className="rb-confirm"><p>{confirmation?.action==='reject'?'לדחות את הבקשה ולשחרר את השעה?':'לבטל את התור ולהסיר את האירוע מיומן רנא?'} {bookingDate(r.starts_at)} · {bookingTime(r.starts_at)}. לא תישלח הודעה אוטומטית להורה.</p><button disabled={busy} onClick={()=>{const action=confirmation?.action;if(action)void act(()=>decide(r.id,action));}}>כן, לבצע</button><button disabled={busy} onClick={()=>setConfirmation(null)}>חזרה</button></div>}</article>;}
+ return <main className="rana-booking" dir="rtl"><header className="rb-brand"><strong>ילדי הקסם · היומן של רנא</strong><a href="/therapy/rana" target="_blank" rel="noreferrer">עמוד ההורים</a></header><section className="rb-intro"><p className="rb-eyebrow">{admin?'ניהול צוות מורשה':'פורטל אישי למטפלת'}</p><h1>בקשות תור לרנא</h1><p>הבקשות נשמרות במערכת. אישור סופי ניתן רק אחרי יצירת האירוע ביומן Google.</p></section>
+ {message&&<p role="status" className="rb-notice">{message}</p>}<div className="rb-actions"><button disabled={busy||!data} aria-pressed={tab==='requests'} onClick={()=>setTab('requests')}>בקשות ותורים</button><button disabled={busy||!data} aria-pressed={tab==='hours'} onClick={()=>setTab('hours')}>זמינות וחופשות</button><button disabled={busy} onClick={()=>void act(load)}>רענון</button></div>
+ {data&&tab==='requests'&&<><section className="rb-card"><h2>ממתינות לטיפול ({rows.filter((r:any)=>['pending','syncing','cancelling'].includes(r.status)).length})</h2>{rows.filter((r:any)=>['pending','syncing','cancelling'].includes(r.status)).map(row)}{!rows.some((r:any)=>['pending','syncing','cancelling'].includes(r.status))&&<p className="rb-empty">אין בקשות שממתינות לטיפול כעת.</p>}</section><section className="rb-card"><h2>תורים מאושרים והיסטוריה</h2>{rows.filter((r:any)=>!['pending','syncing','cancelling'].includes(r.status)).map(row)}{!rows.length&&<p className="rb-small">תורים שטופלו יופיעו כאן.</p>}</section></>}
+ {data&&tab==='hours'&&<section className="rb-card"><h2>שעות קבלת קהל</h2><p className="rb-small">כל טווח מחולק למפגשים רצופים. שינוי שעות אינו מבטל תור מאושר; בקשות ממתינות נבדקות שוב לפני אישור.</p>
+ <form ref={hoursForm} onSubmit={e=>{e.preventDefault();const form=e.currentTarget;void act(async()=>{const f=new FormData(form);const windows=availability.windows.map((_,i)=>({day:Number(f.get(`day${i}`)),start:min(String(f.get(`start${i}`))),end:min(String(f.get(`end${i}`))),duration:Number(f.get(`duration${i}`))}));let value;try{value=validateRequestAvailability({windows,closedDates:availability.closedDates});}catch{throw new Error(bookingMessages.invalid_availability);}await call({action:'hours',version:data.version,availability:value});await load();setMessage('הזמינות נשמרה. תורים שכבר אושרו לא השתנו.');});}}>
+ <div key={data.version+':'+availability.windows.length}>{availability.windows.map((w,i)=><div className="rb-window" key={i}><label>יום<select disabled={busy} name={'day'+i} defaultValue={w.day}>{['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'].map((d,n)=><option key={n} value={n}>{d}</option>)}</select></label><label>משעה<input disabled={busy} name={'start'+i} dir="ltr" defaultValue={fmt(w.start)} placeholder="08:30" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" required/></label><label>עד שעה<input disabled={busy} name={'end'+i} dir="ltr" defaultValue={fmt(w.end)} placeholder="15:00" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" required/></label><label>משך<select name={'duration'+i} defaultValue={w.duration} disabled={busy}>{[30,45,60,90].map(n=><option key={n} value={n}>{n} דקות</option>)}</select></label><button type="button" disabled={busy} onClick={()=>changeRows(i)}>הסרה</button></div>)}</div>
+ <button type="button" disabled={busy||availability.windows.length>=28} onClick={()=>changeRows()}>הוספת טווח</button>
+ <h3 className="rb-space">ימים ללא קבלת קהל</h3><div className="rb-actions"><label>תאריך<input type="date" value={closed} onChange={e=>setClosed(e.target.value)} disabled={busy}/></label><button type="button" disabled={busy||!closed} onClick={()=>{setAvailability({...availability,closedDates:[...new Set([...availability.closedDates,closed])]});setClosed('');}}>הוספת יום לחסימה</button></div><div className="rb-actions">{availability.closedDates.map(d=><button key={d} type="button" disabled={busy} onClick={()=>setAvailability({...availability,closedDates:availability.closedDates.filter(x=>x!==d)})}><bdi>{d}</bdi> · הסרת חסימה</button>)}</div>
+ <button className="rb-primary rb-space" disabled={busy}>שמירת הזמינות</button></form></section>}
+ {admin&&therapistLink&&<details className="rb-card"><summary>קישור אישי לרנא</summary><p className="rb-small">הקישור מאפשר גישה לפרטי מטופלים ולניהול התורים של רנא. יש להעביר אותו לרנא בלבד, בערוץ פרטי.</p><input readOnly dir="ltr" value={therapistLink} onFocus={e=>e.currentTarget.select()}/><a className="rb-button" href={therapistLink} target="_blank" rel="noreferrer">פתיחת פורטל רנא</a></details>}
+ <footer className="rb-footer">בשלב זה לא נשלחות הודעות אוטומטיות להורים. ההורה רואה את ההחלטה בקישור המעקב האישי; ניתן לתאם גם בטלפון.</footer></main>;
+}

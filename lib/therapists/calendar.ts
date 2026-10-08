@@ -6,7 +6,12 @@ export async function syncTreatment(id:string){
  if(!calendarConfigured())return 'not_configured';
  const claim=await db.from('treatment_requests').update({calendar_sync:'syncing',calendar_sync_started_at:new Date().toISOString()}).eq('id',id).in('calendar_sync',['pending','failed']).select('*').maybeSingle();
  if(claim.error)return 'failed';if(!claim.data)return 'unchanged';
- const r=claim.data,calendarId=r.calendar_id||process.env.TREATMENT_CALENDAR_ID||getCalendarId(),eventId=r.calendar_event_id||'treatment'+r.id.replace(/-/g,'');
+ const r=claim.data;
+ // Opt-in therapists have an explicit calendar. Never silently use ADHD for
+ // new legacy/manual bookings of an opted-in therapist.
+ const profile=r.therapist_id?await db.from('therapist_booking_profiles').select('calendar_id').eq('therapist_id',r.therapist_id).maybeSingle():null;
+ if(profile?.error){await db.from('treatment_requests').update({calendar_sync:'failed'}).eq('id',id);return 'failed';}
+ const calendarId=r.calendar_id||profile?.data?.calendar_id||process.env.TREATMENT_CALENDAR_ID||getCalendarId(),eventId=r.calendar_event_id||'treatment'+r.id.replace(/-/g,'');
  try{
   const c=getCalendarClient();
   if(r.status==='closed'){
