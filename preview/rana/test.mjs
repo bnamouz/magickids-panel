@@ -1,0 +1,88 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { openStore } from './store.mjs';
+import { requestSlots, validateRequestAvailability, RANA_REQUEST_AVAILABILITY } from './generated/request-slots.mjs';
+import { localParts } from './generated/schedule.mjs';
+let checks = 0;
+const check = (name, fn) => { fn(); checks++; console.log('PASS', name); };
+const defaultHours = structuredClone(RANA_REQUEST_AVAILABILITY);
+for (const [season, now, offset] of [['summer','2026-10-08T00:00:00Z',3],['winter','2026-11-05T00:00:00Z',2]]) {
+  const result = requestSlots(defaultHours, [], new Date(now));
+  const first = result.filter(s => s.day === result[0].day);
+  check(season + ': seven consecutive Friday slots; five hours then two 45m', () => {
+    assert.equal(first.length, 7);
+    assert.deepEqual(first.map(x => localParts(new Date(x.start)).minutes), [510,570,630,690,750,810,855]);
+    assert.deepEqual(first.map(x => x.duration), [60,60,60,60,60,45,45]);
+    assert.equal(localParts(new Date(first[6].end)).minutes,900);
+    assert.equal(new Date(first[0].start).getUTCHours(), 8-offset);
+    assert.ok(result.every(s => new Date(s.day+'T12:00:00Z').getUTCDay() === 5));
+  });
+}
+check('reject overlapping and uneven windows and invalid dates', () => {
+  assert.throws(() => validateRequestAvailability({...defaultHours, windows:[defaultHours.windows[0],defaultHours.windows[0]]}));
+  assert.throws(() => validateRequestAvailability({windows:[{day:5,start:510,end:800,duration:60}],closedDates:[]}));
+  assert.throws(() => validateRequestAvailability({...defaultHours,closedDates:['2026-02-31']}));
+});
+let now = new Date('2026-10-08T00:00:00Z');
+const store = await openStore(undefined, () => now);
+const expectedError = async (operation, message) => {
+  await assert.rejects(operation, e => e.message === message); checks++; console.log('PASS', message);
+};
+try {
+  const scope = 'visitor-a', auth = await store.bootstrap(scope), other = await store.bootstrap('visitor-b');
+  const all = (await store.slots(scope)).slots;
+  await expectedError(store.staff(scope,auth.parentKey), 'unauthorized');
+  await expectedError(store.mine(scope,other.parentKey), 'unauthorized');
+  const payload = {start:all[0].start,family:'משפחת בדיקה א',idem:randomUUID()};
+  const pending = await store.create(scope,auth.parentKey,payload);
+  check('request pending without calendar event; slot hidden', () => assert.equal(pending.status,'pending'));
+  assert.equal((await store.staff(scope,auth.demoStaffKey)).events,0);
+  assert.ok(!(await store.slots(scope)).slots.some(x=>x.start===pending.start));
+  check('duplicate request is idempotent', () => assert.equal(pending.id.length,36));
+  assert.equal((await store.create(scope,auth.parentKey,payload)).id,pending.id);
+  await expectedError(store.create(scope,auth.parentKey,{...payload,family:'משפחת בדיקה ב'}),'idempotency_mismatch');
+  await expectedError(store.decide(scope,auth.demoStaffKey,{id:pending.id,action:'approve',simulateFailure:true}),'demo_calendar_failure');
+  assert.equal((await store.mine(scope,auth.parentKey))[0].status,'pending');
+  assert.equal((await store.staff(scope,auth.demoStaffKey)).events,0);
+  const approval = await store.decide(scope,auth.demoStaffKey,{id:pending.id,action:'approve'});
+  assert.equal(approval.status,'confirmed');
+  assert.equal((await store.decide(scope,auth.demoStaffKey,{id:pending.id,action:'approve'})).eventId,approval.eventId);
+  assert.equal((await store.staff(scope,auth.demoStaffKey)).events,1);
+  checks++; console.log('PASS approval retry creates exactly one mock event');
+  const race = await Promise.allSettled([1,2].map(()=>store.create(scope,auth.parentKey,{...payload,start:all[1].start,idem:randomUUID()})));
+  assert.equal(race.filter(x=>x.status==='fulfilled').length,1);
+  assert.equal(race.filter(x=>x.status==='rejected').length,1);
+  checks++; console.log('PASS simultaneous requests cannot hold same slot');
+  const held = race.find(x=>x.status==='fulfilled').value;
+  await store.decide(scope,auth.demoStaffKey,{id:held.id,action:'reject'});
+  assert.ok((await store.slots(scope)).slots.some(x=>x.start===held.start));
+  checks++; console.log('PASS rejection releases slot');
+  assert.equal((await store.mine('visitor-b',other.parentKey)).length,0);
+  assert.ok((await store.slots('visitor-b')).slots.some(x=>x.start===pending.start));
+  checks++; console.log('PASS visitor-isolated synthetic requests and availability');
+  const stale = await store.create(scope,auth.parentKey,{...payload,start:all[2].start,idem:randomUUID()});
+  await store.addExternalBusy(scope,all[2].start,all[2].end);
+  await expectedError(store.decide(scope,auth.demoStaffKey,{id:stale.id,action:'approve'}),'slot_unavailable');
+  await store.decide(scope,auth.demoStaffKey,{id:stale.id,action:'reject'});
+  const withdrawn = await store.create(scope,auth.parentKey,{...payload,start:all[3].start,idem:randomUUID()});
+  const s = await store.staff(scope,auth.demoStaffKey);
+  await store.availability(scope,auth.demoStaffKey,{version:s.version,availability:{...defaultHours,closedDates:[all[0].day]}});
+  await expectedError(store.decide(scope,auth.demoStaffKey,{id:withdrawn.id,action:'approve'}),'slot_unavailable');
+  assert.equal((await store.mine(scope,auth.parentKey)).find(x=>x.id===pending.id).status,'confirmed');
+  checks++; console.log('PASS closing day preserves confirmed booking, prevents pending approval');
+  await expectedError(store.availability(scope,auth.demoStaffKey,{version:s.version,availability:defaultHours}),'stale_settings');
+  const expiryAuth = await store.bootstrap('expiry');
+  await store.create('expiry',expiryAuth.parentKey,{...payload,start:all[7].start,idem:randomUUID()});
+  now = new Date(now.getTime()+86400001);
+  assert.equal((await store.mine('expiry',expiryAuth.parentKey))[0].status,'expired');
+  checks++; console.log('PASS pending holds expire after 24 hours');
+  const shortAuth = await store.bootstrap('short');
+  now = new Date('2026-10-08T00:00:00Z');
+  const short = await store.create('short',shortAuth.parentKey,{...payload,start:all[5].start,idem:randomUUID()});
+  assert.equal(short.duration,45);
+  await store.decide('short',shortAuth.demoStaffKey,{id:short.id,action:'approve'});
+  assert.equal((await store.mine('short',shortAuth.parentKey))[0].duration,45);
+  checks++; console.log('PASS short-session duration persists through approval');
+  await expectedError(store.create(scope,auth.parentKey,{...payload,family:'Real patient',idem:randomUUID()}),'invalid_request');
+  console.log(`SUCCESS: ${checks} checks; no network, no real calendars, no messages.`);
+} finally { await store.close(); }
