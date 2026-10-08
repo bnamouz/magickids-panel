@@ -2,3 +2,4 @@
 @media(max-width:760px){.rana-booking{padding:18px 14px}.rb-columns{grid-template-columns:1fr;gap:0}.rb-card{padding:18px}.rb-slots button{font-size:13px;gap:4px;padding:14px 9px}.rb-intro{padding:24px 0 18px}.rb-brand{gap:10px}.rb-brand>a{font-size:12px}.rb-window{grid-template-columns:1fr 1fr;gap:12px}.rb-window button{grid-column:span 2}.rb-request{display:block}.rb-request .rb-actions{margin-top:12px}.rb-confirm{margin-top:12px}}
 @media(prefers-reduced-motion:reduce){.rana-booking *{transition:none!important}}
 .rana-booking bdi{white-space:nowrap}
+.rb-referral-booking{width:100%;max-width:560px;border-top:1px solid var(--rb-line);padding-top:16px}
