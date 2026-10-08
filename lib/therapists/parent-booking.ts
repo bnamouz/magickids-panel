@@ -46,8 +46,6 @@ export async function publicBookingSlots() {
   return {name:p.therapist.name,slots,timeZone:'Asia/Jerusalem'};
 }
 export async function submitBooking(b:{id:string;token:string;patient:string;contact:string;phone:string;start:string},ip:string) {
-  const slots=await publicBookingSlots();
-  const slot=slots.slots.find(s=>s.start===b.start);
   // Retries may occur after the original reservation hid its slot.
   const db=getSupabaseAdmin();
   const existing=await db.from('therapist_booking_requests').select('id,parent_hash,patient_name,contact_name,phone,starts_at')
@@ -59,6 +57,8 @@ export async function submitBooking(b:{id:string;token:string;patient:string;con
       ||r.phone!==b.phone||Date.parse(r.starts_at)!==Date.parse(b.start))throw new BookingError('invalid_retry');
     return {received:true,id:b.id};
   }
+  const slots=await publicBookingSlots();
+  const slot=slots.slots.find(s=>s.start===b.start);
   if(!slot)throw new BookingError('slot_taken');
   const result=await db.rpc('submit_therapy_booking',{p_id:b.id,p_slug:BOOKING_SLUG,p_hash:bookingHash(b.token),
     p_patient:b.patient,p_contact:b.contact,p_phone:b.phone,p_ip:bookingHash(ip),p_start:slot.start,p_end:slot.end});

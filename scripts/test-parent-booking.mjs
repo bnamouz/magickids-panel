@@ -44,7 +44,7 @@ let passed=0;
 function pass(s){passed++;console.log('PASS',s);}
 try{
  await pg.exec('create role anon;create role authenticated;create role service_role;');
- for(const file of ['20260912062810_clinic_self_service.sql','20261002193341_therapists_and_treatment_workflow.sql','20261008050000_therapist_parent_booking.sql'])await pg.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+ for(const file of ['20260912062810_clinic_self_service.sql','20261002193341_therapists_and_treatment_workflow.sql','20261008052117_therapist_parent_booking.sql'])await pg.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
  const tid=randomUUID();
  await pg.query("insert into therapists(id,name,email,treatments,hours) values($1,'Rana Test','test@example.com',array['emotional'],$2)",[tid,JSON.stringify([{day:5,start:510,end:900}])]);
  await pg.query('insert into therapist_booking_profiles(therapist_id,slug,calendar_id,enabled,availability) values($1,$2,$3,true,$4)',[tid,'rana',slots.RANA_CALENDAR_ID,JSON.stringify(slots.RANA_REQUEST_AVAILABILITY)]);
@@ -60,7 +60,7 @@ try{
  const legacy=randomUUID();
  await pg.query("insert into treatment_requests(id,patient_name,contact_name,phone,ip_hash,treatment,language,therapist_id) values($1,'Test','Test','+972500000001','test','emotional','he',$2)",[legacy,tid]);
  await assert.rejects(pg.query('select schedule_assigned_treatment($1,$2,$3,null)',[legacy,tid,b.start]),/slot_taken/);pass('legacy and parent request paths share overlap protection');
- calendarFailure=true;await assert.rejects(service.publicBookingSlots(),e=>e.message==='calendar_unavailable');await assert.rejects(service.decideBooking(b.id,tid,'approve'),e=>e.message==='sync_pending');
+ calendarFailure=true;await service.submitBooking(b,'ip-a');await assert.rejects(service.publicBookingSlots(),e=>e.message==='calendar_unavailable');await assert.rejects(service.decideBooking(b.id,tid,'approve'),e=>e.message==='sync_pending');
  assert.equal((await service.bookingStatus(b.id,b.token)).status,'syncing');assert.equal(writes,0);calendarFailure=false;pass('calendar failure never confirms');
  afterWriteFailure=true;await assert.rejects(service.decideBooking(b.id,tid,'approve'),e=>e.message==='sync_pending');assert.equal(writes,1);
  afterWriteFailure=false;assert.equal((await service.decideBooking(b.id,tid,'approve')).status,'confirmed');assert.equal(writes,1);
