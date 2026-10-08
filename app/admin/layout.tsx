@@ -61,6 +61,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </NavLink>
             <NavLink href="/admin/recruitment" icon={<Users size={18} />}>גיוס מטפלים</NavLink>
             <NavLink href="/admin/therapists" icon={<Users size={18} />}>ניהול מטפלים וזמינות</NavLink>
+            <NavLink href="/admin/rana" icon={<Users size={18} />}>בקשות תור לרנא</NavLink>
             <NavLink href="/admin/treatments" icon={<Users size={18} />}>פניות וטיפולים</NavLink>
             <NavLink href="/admin/abroad" icon={<Users size={18} />}>ליווי ילדים בחו״ל</NavLink>
             <NavLink href="/admin/reviews" icon={<Users size={18} />}>חוות דעת ותמונות</NavLink>

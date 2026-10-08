@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>היומן של רנא | Magic Kids · סביבת בדיקה</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+<a class="skip" href="#content">דלג לתוכן</a>
+<div class="test-banner"><strong>סביבת בדיקה פרטית</strong><span>משפחות לדוגמה בלבד · ללא תורים ב־Google וללא שליחת הודעות</span></div>
+<header class="topbar">
+  <div class="brand"><svg aria-label="ילדי הקסם" width="38" height="38" viewBox="0 0 40 40" fill="none"><path d="M6 31V12l14 9 14-9v19M6 7l14 9L34 7" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"/><circle cx="20" cy="6" r="3" fill="currentColor"/></svg><div><strong>ילדי הקסם</strong><span>MAGIC KIDS INSTITUTE</span></div></div>
+  <div class="header-actions"><span class="desktop-only">מרחב תיאום טיפולים</span><button id="theme" class="quiet" aria-label="החלפת תצוגה בהירה או כהה">תצוגה כהה</button></div>
+</header>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="profile"><div class="initials" aria-hidden="true">רש</div><strong>רנא שלח דור</strong><span>טיפול רגשי</span></div>
+    <p class="nav-caption">מעבר תפקידים לצורך בדיקה</p>
+    <nav aria-label="תצוגות הבדיקה">
+      <button data-view="parent" class="active">בחירת תור להורים <span>01</span></button>
+      <button data-view="staff">הבקשות של רנא <span>02</span></button>
+      <button data-view="availability">זמינות ושעות עבודה <span>03</span></button>
+    </nav>
+    <div class="sidebar-note"><strong>קודם מבקשים. אחר כך מאשרים.</strong><p>בחירת שעה אינה אישור לתור. רנא מחליטה על כל בקשה בנפרד.</p></div>
+    <div class="timezone">כל השעות לפי שעון ישראל<br><bdi>Asia/Jerusalem</bdi></div>
+  </aside>
+  <main id="content">
+    <div class="page-top"><div><p class="eyebrow" id="eyebrow">טיפול רגשי · רנא שלח דור</p><h1 id="page-title">נמצא זמן שמתאים לכם</h1><p id="page-subtitle">בחרו שעה פנויה ושלחו בקשה. התור ייקבע רק לאחר האישור של רנא.</p></div><button id="refresh" class="quiet">רענון</button></div>
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    <div id="app"><div class="loading">טוען שעות פנויות…</div></div>
+    <footer>ילדי הקסם · תיאום טיפול אישי <span>דגם לבדיקה בלבד · נבנה עם Perplexity Computer</span></footer>
+  </main>
+</div>
+</body>
+</html>
