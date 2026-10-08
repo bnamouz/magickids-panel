@@ -7,6 +7,14 @@ const monthLabel = day => new Intl.DateTimeFormat('he-IL-u-nu-latn', { month: 's
 const weekday = day => new Intl.DateTimeFormat('he-IL', { weekday: 'short', timeZone: 'Asia/Jerusalem' }).format(new Date(day + 'T12:00:00Z'));
 const range = s => `<bdi>${time(s.start)}–${time(s.end)}</bdi>`;
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// getRandomValues also works in an opaque-origin iframe where randomUUID may
+// not be exposed. This is an idempotency identifier, never an auth credential.
+const newId = () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 15) | 64; bytes[8] = (bytes[8] & 63) | 128;
+  const h = [...bytes].map(b => b.toString(16).padStart(2,'0')).join('');
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+};
 const labels = { pending: 'ממתינה לאישור רנא', confirmed: 'אושר בסביבת הבדיקה', rejected: 'הבקשה נדחתה', expired: 'תוקף הבקשה הסתיים' };
 const errors = {
   slot_unavailable: 'השעה אינה זמינה כעת, או שהזמינות השתנתה. רעננו ובחרו שעה אחרת.',
@@ -18,7 +26,7 @@ const errors = {
   unauthorized: 'הגישה לבדיקה פגה. רעננו את העמוד.',
   too_many_requests: 'יש יותר מדי בקשות בדיקה ממתינות. טפלו בחלק מהן לפני יצירת נוספות.',
 };
-let auth, view = 'parent', slots = [], mine = [], staff, selectedDay = '', selected = null, draft, busy = false, failure = false, family = 'משפחת בדיקה א', idem = crypto.randomUUID();
+let auth, view = 'parent', slots = [], mine = [], staff, selectedDay = '', selected = null, draft, busy = false, failure = false, family = 'משפחת בדיקה א', idem = newId();
 function notice(text = '', error = false) {
   $('#notice').textContent = text; $('#notice').hidden = !text;
   $('#notice').classList.toggle('error', error);
@@ -61,7 +69,7 @@ function parentHTML() {
     ${days.length ? `<div class="dates">${days.map(d => `<button class="date ${selectedDay === d ? 'selected' : ''}" data-day="${d}" aria-pressed="${selectedDay === d}" aria-label="${dateLabel(d)}"><span>${weekday(d)}</span><strong>${Number(d.slice(8))}</strong><span>${monthLabel(d)}</span></button>`).join('')}</div><div class="panel-top"><strong>${dateLabel(selectedDay)}</strong><span class="muted">${slots.filter(s => s.day === selectedDay).length} שעות פנויות</span></div><div class="slots">${slots.filter(s => s.day === selectedDay).map(s => `<button data-slot="${s.start}" class="slot ${selected?.start === s.start ? 'selected' : ''}" aria-pressed="${selected?.start === s.start}">${range(s)}<span class="duration">${s.duration} דקות</span></button>`).join('')}</div>` : '<div class="empty"><strong>אין כרגע שעות פנויות</strong>אפשר לבדוק שוב בהמשך או לשנות זמינות בתצוגת רנא.</div>'}
     <div class="process"><strong>1 · בחירת מועד</strong><span>←</span><span>2 · שליחת בקשה</span><span>←</span><span>3 · אישור רנא</span></div></section>
     <section class="panel" aria-label="סיכום בקשה"><p class="eyebrow">הבקשה שלכם</p><h2>טיפול רגשי עם רנא</h2><p class="muted">רנא שלח דור</p><div class="selection">${selected ? `<strong>${dateLabel(selected.day)}</strong>${range(selected)}<p>משך המפגש: ${selected.duration} דקות</p>` : '<strong>עוד לא נבחרה שעה</strong><p>בחרו מועד פנוי ביומן כדי להמשיך.</p>'}</div>
-    <form id="request-form"><label for="family">משפחת הדגמה</label><select id="family">${['משפחת בדיקה א','משפחת בדיקה ב','משפחת בדיקה ג'].map(f => `<option ${f === family ? 'selected' : ''}>${f}</option>`).join('')}</select><button id="submit-request" class="primary full" ${!selected ? 'disabled' : ''}>שליחת בקשת בדיקה לרנא</button></form><p class="fine">הבקשה תופיע כאן במסך רנא, ללא הודעה אמיתית. אין להזין פרטים של מטופלים.</p></section></div>
+    <div id="request-form"><label for="family">משפחת הדגמה</label><select id="family">${['משפחת בדיקה א','משפחת בדיקה ב','משפחת בדיקה ג'].map(f => `<option ${f === family ? 'selected' : ''}>${f}</option>`).join('')}</select><button type="button" id="submit-request" class="primary full" ${!selected ? 'disabled' : ''}>שליחת בקשת בדיקה לרנא</button></div><p class="fine">הבקשה תופיע כאן במסך רנא, ללא הודעה אמיתית. אין להזין פרטים של מטופלים.</p></section></div>
     <section class="panel my-requests"><div class="panel-top"><h2>הבקשות שלי בבדיקה</h2><span class="muted">${mine.length} בקשות</span></div>${mine.length ? mine.map(r => requestMarkup(r)).join('') : '<div class="empty"><strong>הבקשה הראשונה תופיע כאן</strong>לאחר השליחה תוכלו לעקוב כאן אם היא ממתינה, אושרה או נדחתה.</div>'}</section>`;
 }
 function staffHTML() {
@@ -91,10 +99,10 @@ function render() {
   $('#page-subtitle').textContent = view === 'parent' ? 'בחרו שעה פנויה ושלחו בקשה. התור ייקבע רק לאחר האישור של רנא.' : view === 'staff' ? 'כל הבקשות כאן הן לבדיקה. אפשר להתנסות באישור, בדחייה ובכשל בסנכרון.' : 'קבעי ימים, שעות ומשך טיפול. ההורים יראו רק את המועדים הזמינים.';
   $('#app').innerHTML = view === 'parent' ? parentHTML() : view === 'staff' ? staffHTML() : settingsHTML();
   document.querySelectorAll('[data-day]').forEach(b => b.onclick = () => { selectedDay = b.dataset.day; selected = null; render(); });
-  document.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => { selected = slots.find(s => s.start === b.dataset.slot); idem = crypto.randomUUID(); render(); });
-  if ($('#family')) $('#family').onchange = e => { family = e.target.value; idem = crypto.randomUUID(); };
-  if ($('#request-form')) $('#request-form').onsubmit = e => { e.preventDefault(); if (!selected) return; void act(async () => {
-    await api('request', { start: selected.start, family, idem }); selected = null; idem = crypto.randomUUID();
+  document.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => { selected = slots.find(s => s.start === b.dataset.slot); idem = newId(); render(); });
+  if ($('#family')) $('#family').onchange = e => { family = e.target.value; idem = newId(); };
+  if ($('#submit-request')) $('#submit-request').onclick = () => { if (!selected) return; void act(async () => {
+    await api('request', { start: selected.start, family, idem }); selected = null; idem = newId();
     await refresh(); notice('בקשת הבדיקה נשמרה וממתינה לאישור רנא. עברו ל״הבקשות של רנא״ כדי לבדוק אישור או דחייה.');
   }); };
   if ($('#failure')) $('#failure').onchange = e => { failure = e.target.checked; };
