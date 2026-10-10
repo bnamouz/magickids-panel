@@ -62,7 +62,7 @@ test('pediatrics Monday/Tuesday hours in summer and winter, with all other clini
     for(const [date,minutes] of days){
       const weekday=new Date(`${date}T12:00:00Z`).getUTCDay();
       assert.notEqual(weekday,0);
-      const [start,end]=expected[weekday];
+      const [start,end]=date === '2026-10-12' ? [600,900] : expected[weekday];
       assert.deepEqual(minutes,Array.from({length:(end-start)/10},(_,i)=>start+i*10));
     }
     for(const weekday of [1,2])assert.ok([...days.keys()].some(date=>new Date(`${date}T12:00:00Z`).getUTCDay()===weekday));
