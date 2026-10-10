@@ -13,6 +13,8 @@ const HOURS: Record<Clinic, Record<number, [number, number]>> = {
   adhd: { 3: [960, 1200] },
 };
 export function clinicHours(clinic: Clinic, day: string): [number, number] | null {
+  // One-day change requested by the clinic; recurring Monday hours stay unchanged.
+  if (clinic === 'pediatrics' && day === '2026-10-12') return [600, 900];
   return HOURS[clinic][new Date(day+'T12:00:00Z').getUTCDay()] ?? null;
 }
 const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -38,7 +40,7 @@ export function candidateSlots(clinic: Clinic, now = new Date(), visitType: Visi
   const slots: string[] = [];
   for (let offset = 0; offset < HORIZON_DAYS; offset++) {
     const day = new Date(today + offset * 86400000);
-    const hours = HOURS[clinic][day.getUTCDay()];
+    const hours = clinicHours(clinic, day.toISOString().slice(0, 10));
     if (!hours) continue;
     for (let minute = hours[0]; minute + durationFor(clinic, visitType) <= hours[1]; minute += durationFor(clinic, visitType)) {
       const at = localToUTC(day.toISOString().slice(0, 10), minute);

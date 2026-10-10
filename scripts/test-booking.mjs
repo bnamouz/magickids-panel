@@ -366,3 +366,15 @@ test('follow-up quarter-hour slots share the Wednesday ADHD hour window', () => 
   assert.equal(schedule.isFollowupSlot('2026-10-21T13:15:00.000Z', new Date('2026-10-21T13:15:00.000Z')), false); // not strictly in the future
   assert.deepEqual(schedule.FOLLOWUP_QUARTERS, [0, 15, 30, 45]);
 });
+
+test('October 12 one-day pediatrics window applies to booking and dashboard', () => {
+  const now = new Date('2026-10-10T12:00:00Z');
+  assert.deepEqual(schedule.clinicHours('pediatrics', '2026-10-12'), [600, 900]);
+  assert.deepEqual(schedule.clinicHours('pediatrics', '2026-10-19'), [900, 1140]);
+  assert.equal(schedule.clinicHours('adhd', '2026-10-12'), null);
+  const slots = schedule.candidateSlots('pediatrics', now).map(iso => schedule.localParts(new Date(iso)));
+  const changed = slots.filter(s => s.date === '2026-10-12');
+  assert.equal(changed.length, 30);
+  assert.deepEqual(changed.map(s => s.minutes), Array.from({length:30}, (_,i)=>600+i*10));
+  assert.equal(slots.filter(s=>s.date==='2026-10-19').length, 24);
+});
