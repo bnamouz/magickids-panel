@@ -33,10 +33,13 @@ test('real ledger SQL, private calendar writes, retry recovery and validation',a
  assert.equal(mod.requestDay(schedule.localToUTC('2026-10-17',800)),'2026-10-19');
  assert.equal(mod.requestDay(schedule.localToUTC('2026-10-19',929)),'2026-10-19');
  assert.equal(mod.requestDay(schedule.localToUTC('2026-10-19',930)),'2026-10-20');
- const body={requestId:randomUUID(),childName:'Test Child',parentName:'Test Parent',phone:'0500000000',message:'Synthetic nonclinical test',consent:true,language:'he',website:''};
+ const body={requestId:randomUUID(),childName:'Test Child',parentName:'Test Parent',phone:'0500000000',childId:'123456782',cardlessVisitConfirmed:true,message:'Synthetic nonclinical test',consent:true,language:'he',website:''};
  const receipt=await mod.submitDoctorRequest(body,'test-ip');
  assert.equal(receipt.received,true);const event=[...saved.values()][0];
  assert.equal(event.visibility,'private');assert.equal(event.transparency,'transparent');assert.ok(event.start.date);assert.ok(!event.start.dateTime);assert.equal(event.attendees,undefined);
+ assert.ok(event.description.includes(body.childId));assert.ok(event.description.includes('דיווח עצמי'));assert.ok(!event.summary.includes(body.childId));
+ for(const missing of [{childId:undefined},{childId:''},{childId:'123'},{childId:'12345678x'},{childId:'000000000'},{cardlessVisitConfirmed:undefined},{cardlessVisitConfirmed:false}]){await assert.rejects(()=>mod.submitDoctorRequest({...body,...missing},'test-ip'),e=>e.code==='invalid_body');}
+ await assert.rejects(()=>mod.submitDoctorRequest({...body,childId:'234567890'},'test-ip'),e=>e.code==='invalid_retry');
  assert.deepEqual(await mod.submitDoctorRequest(body,'test-ip'),receipt);assert.equal(inserts,1);
  await assert.rejects(()=>mod.submitDoctorRequest({...body,message:'Changed content'},'test-ip'),e=>e.code==='invalid_retry');
  await assert.rejects(()=>mod.submitDoctorRequest({...body,consent:false},'test-ip'),e=>e.code==='invalid_body');

@@ -8,6 +8,8 @@ import { clinicHours, localParts, TIME_ZONE } from './schedule';
 const name = z.string().trim().min(2).max(100).refine(v => !/[\x00-\x1f\x7f]/.test(v));
 export const doctorRequestSchema = z.object({
   requestId: z.string().uuid(), childName: name, parentName: name,
+  childId: z.string().trim().regex(/^[0-9]{9}$/).refine(v => v !== '000000000'),
+  cardlessVisitConfirmed: z.literal(true),
   phone: z.string().trim().regex(/^[+\d() .-]{7,25}$/),
   message: z.string().trim().min(5).max(1000).refine(v => !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(v)),
   consent: z.literal(true), language: z.enum(['he','ar','en']), website: z.literal('').default(''),
@@ -31,7 +33,7 @@ export async function submitDoctorRequest(input: unknown, ip: string) {
   const digits = body.phone.replace(/\D/g,'');
   const phone = body.phone.startsWith('+') ? '+'+digits : digits.startsWith('0') ? '+972'+digits.slice(1) : '+'+digits;
   if (!/^\+[1-9]\d{6,14}$/.test(phone)) throw new BookingError('invalid_body',400);
-  const fingerprint = digest(JSON.stringify([body.childName,body.parentName,phone,body.message,body.language]));
+  const fingerprint = digest(JSON.stringify([body.childName,body.parentName,phone,body.message,body.language,body.childId,body.cardlessVisitConfirmed]));
   const {data,error} = await getSupabaseAdmin().rpc('reserve_pediatrics_doctor_request',{
     p_id:body.requestId,p_fingerprint:fingerprint,p_phone:digest('phone:'+phone),p_ip:digest('ip:'+ip),p_day:requestDay(),p_calendar:calendarId,
   });
@@ -49,7 +51,7 @@ export async function submitDoctorRequest(input: unknown, ip: string) {
     try {
       event = (await calendar.events.insert({calendarId:target,sendUpdates:'none',requestBody:{
         id:eventId,summary:`בקשה ללא תור — ${body.childName}`,
-        description:`בקשה מהרופא ללא תור — אינה פגישה\nילד/ה: ${body.childName}\nהורה: ${body.parentName}\nטלפון: ${phone}\n\n${body.message}\n\nאסמכתא: ${body.requestId}`,
+        description:`בקשה מהרופא ללא תור — אינה פגישה\nילד/ה: ${body.childName}\nתעודת זהות הילד/ה: ${body.childId}\nאישור ביקור ללא כרטיס: סומן כבוצע על ידי ההורה (דיווח עצמי)\nהורה: ${body.parentName}\nטלפון: ${phone}\n\n${body.message}\n\nאסמכתא: ${body.requestId}`,
         start:{date:day},end:{date:nextDay(day)},visibility:'private',transparency:'transparent',
         reminders:{useDefault:false},
         extendedProperties:{private:{doctorRequest:body.requestId,fingerprint,clinic:'pediatrics'}},
