@@ -159,7 +159,7 @@ test('Public booking integration with SQL reservations and mocked Google', async
     '@/lib/supabase': { getSupabaseAdmin: () => adapter(pg, intake) }, './schedule': schedule,
   });
   async function reset() { await pg.exec('truncate website_bookings, appointments;'); events.clear(); writes = []; busy = []; failWrite = false; missingCalendar = false; accessRole = 'writer'; }
-  const body = (clinic, start = schedule.candidateSlots(clinic)[0]) => ({ requestId: randomUUID(), start, childName: 'Test Child', parentName: 'Test Parent', phone: '0501234567', consent: true, website: '', ...(clinic === 'adhd' ? { parentToken: intake.token } : {}) });
+  const body = (clinic, start = schedule.candidateSlots(clinic)[0]) => ({ requestId: randomUUID(), start, childName: 'Test Child', childId: '123456782', parentName: 'Test Parent', phone: '0501234567', consent: true, website: '', ...(clinic === 'adhd' ? { parentToken: intake.token } : {}) });
   const rejects = (promise, code) => assert.rejects(promise, error => error.code === code);
   try {
     await t.test('staff booking is authenticated, writes a ten-minute pediatric event and retries once', async () => {
@@ -169,6 +169,16 @@ test('Public booking integration with SQL reservations and mocked Google', async
       assert.equal(writes.length,1); assert.equal(Date.parse(writes[0].requestBody.end.dateTime)-Date.parse(request.start),600000);
       assert.match(writes[0].requestBody.description,/דאשבורד/);
       await rejects(service.book('adhd',body('adhd'),'staff:test',true),'forbidden');
+    });
+    await t.test('patient ID is mandatory and stays in the private calendar description', async () => {
+      await reset(); const request=body('pediatrics');
+      for(const childId of [undefined,'','123','12345678x','000000000']) assert.equal(service.bookingSchema.safeParse({...request,childId}).success,false);
+      assert.equal(service.bookingSchema.safeParse(request).success,true);
+      const receipt=await service.book('pediatrics',request,'test-ip');
+      assert.ok(writes[0].requestBody.description.includes(request.childId));
+      assert.ok(!writes[0].requestBody.summary.includes(request.childId));
+      assert.ok(!JSON.stringify(receipt).includes(request.childId));
+      await rejects(service.book('pediatrics',{...request,childId:'234567890'},'test-ip'),'invalid_retry');
     });
     await t.test('writes pediatrics exclusively to pediatrics; no invitations', async () => {
       await reset(); const result = await service.book('pediatrics', body('pediatrics'), 'test-ip');

@@ -17,6 +17,7 @@ export const bookingSchema = z.object({
   requestId: z.string().uuid(),
   start: z.string().datetime(),
   childName: name,
+  childId: z.string().trim().regex(/^[0-9]{9}$/).refine(value => value !== '000000000'),
   parentName: name,
   phone: z.string().trim().regex(/^[+\d() .-]{7,25}$/),
   parentToken: intakeTokenSchema.optional(),
@@ -25,7 +26,9 @@ export const bookingSchema = z.object({
   language: z.enum(['he', 'ar', 'en']).optional(),
   website: z.literal('').default(''),
 }).strict();
-type BookingBody = z.infer<typeof bookingSchema>;
+// Public/staff HTTP routes require the ID through bookingSchema.
+// The authenticated legacy voice workflow uses an existing case and retains its contract.
+type BookingBody = Omit<z.infer<typeof bookingSchema>, 'childId'> & { childId?: string };
 
 export function bookingSettings() {
   if (process.env.PUBLIC_BOOKING_ENABLED !== 'true' || !process.env.BOOKING_HASH_SECRET || process.env.BOOKING_HASH_SECRET.length < 32) throw new BookingError('unavailable');
@@ -115,7 +118,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
   if (!/^\+[1-9]\d{6,14}$/.test(phone)) throw new BookingError('invalid_body', 400);
   const start = new Date(body.start).toISOString();
   const end = new Date(Date.parse(start) + durationFor(clinic, visitType) * 60000).toISOString();
-  const fingerprint = digest(JSON.stringify([clinic, start, body.childName, body.parentName, phone, body.parentToken ?? '', ...(visitType === 'followup' ? ['followup'] : [])]));
+  const fingerprint = digest(JSON.stringify([clinic, start, body.childName, body.parentName, phone, body.parentToken ?? '', ...(visitType === 'followup' ? ['followup'] : []), ...(body.childId ? [body.childId] : [])]));
   const db = getSupabaseAdmin();
   const { data: prior, error: priorError } = await db.from('website_bookings').select('*').eq('id', body.requestId).maybeSingle();
   if (priorError) throw new BookingError('unavailable');
@@ -161,7 +164,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
       event = (await calendar.events.insert({ calendarId, sendUpdates: 'none', requestBody: {
         id: eventId,
         summary: `${clinic === 'adhd' ? (visitType === 'followup' ? 'מעקב קשב וריכוז' : 'אבחון קשב וריכוז') : 'מרפאת ילדים'} — ${intake?.childName || body.childName}`,
-        description: `הורה: ${body.parentName}\nטלפון: ${phone}\n${staffBooking ? 'נקבע בדאשבורד המרפאה' : 'נקבע באתר המכון'}\nאסמכתא: ${body.requestId}`,
+        description: `${body.childId ? `תעודת זהות המטופל/ת: ${body.childId}\n` : ''}הורה: ${body.parentName}\nטלפון: ${phone}\n${staffBooking ? 'נקבע בדאשבורד המרפאה' : 'נקבע באתר המכון'}\nאסמכתא: ${body.requestId}`,
         location: 'תופיק זיאד 21, שפרעם',
         start: { dateTime: start, timeZone: TIME_ZONE }, end: { dateTime: end, timeZone: TIME_ZONE },
         visibility: 'private', transparency: 'opaque',

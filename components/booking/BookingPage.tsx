@@ -102,7 +102,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
     if (clinic === 'adhd' && visitType === 'assessment' && !token) { setError('invalid_intake'); return; }
     const body = retryBody.current ?? {
       requestId: crypto.randomUUID(), start, visitType,
-      childName: String(fields.get('childName') ?? '').trim(), parentName: String(fields.get('parentName') ?? '').trim(),
+      childName: String(fields.get('childName') ?? '').trim(), childId: String(fields.get('childId') ?? '').trim(), parentName: String(fields.get('parentName') ?? '').trim(),
       language, reminderConsent: fields.get('reminderConsent') === 'on',
       phone: String(fields.get('phone') ?? '').trim(), consent: fields.get('consent') === 'on', website: String(fields.get('website') ?? ''),
       ...(clinic === 'adhd' && visitType === 'assessment' ? { parentToken: token } : {}),
@@ -163,7 +163,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
             <h3 className={styles.step}><span>3</span>{t.step3}</h3>
             <fieldset disabled={sending || uncertain} className={styles.fields}>
 
-              <label>{t.child}<input name="childName" required minLength={2} maxLength={100} autoComplete="off" /></label><label>{t.parent}<input name="parentName" required minLength={2} maxLength={100} autoComplete="name" /></label><label>{t.phone}<input name="phone" type="tel" dir="ltr" autoComplete="tel" required minLength={7} maxLength={25} /></label>
+              <label>{t.child}<input name="childName" required minLength={2} maxLength={100} autoComplete="off" /></label><label>{t.patientId}<input name="childId" type="text" inputMode="numeric" dir="ltr" required minLength={9} maxLength={9} pattern="[0-9]{9}" autoComplete="off" /></label><label>{t.parent}<input name="parentName" required minLength={2} maxLength={100} autoComplete="name" /></label><label>{t.phone}<input name="phone" type="tel" dir="ltr" autoComplete="tel" required minLength={7} maxLength={25} /></label>
               <div className={styles.honeypot} aria-hidden="true"><label>Website<input name="website" tabIndex={-1} autoComplete="off" /></label></div>
               <label className={styles.consent}><input type="checkbox" name="consent" required /><span>{t.consent}</span></label><p className={styles.muted}>{t.noMedical}</p>{clinic === 'pediatrics' && remindersEnabled && <label className={styles.consent}><input type="checkbox" name="reminderConsent" /><span>{t.reminderConsent}</span></label>}
             </fieldset>
