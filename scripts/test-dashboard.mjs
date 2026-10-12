@@ -127,3 +127,39 @@ test('dashboard authenticates before fetching data and keeps archived cases out 
   await assert.rejects(denied({}), /UNAUTHORIZED/);
   assert.equal(fetched, false);
 });
+
+test('dashboard distinguishes failed data from empty queues and sorts appointments', async () => {
+  let ordered = false;
+  const Dashboard = compile('app/admin/dashboard/page.tsx', {
+    'next/link': { default: link, __esModule: true },
+    '@/lib/admin/auth': { requireStaff: async () => ({ full_name: 'צוות בדיקה' }) },
+    '@/lib/intake/queue': { loadIntakeQueue: async () => { throw new Error('unavailable'); } },
+    '@/lib/supabase': { getSupabaseAdmin: () => ({ from: table => ({
+      select() { return this; }, in() { return this; },
+      order(column, options) { if(table === 'v_today_appointments') { assert.equal(column, 'scheduled_at'); assert.equal(options.ascending, true); ordered = true; } return this; },
+      limit: async () => ({ data: null, count: null, error: { message: 'unavailable' } }),
+    }) }) },
+  }).default;
+  const html = renderToStaticMarkup(await Dashboard({}));
+  assert.equal(ordered, true);
+  assert.ok(html.includes('לא ניתן לטעון את פגישות היום'));
+  assert.ok(html.includes('לא ניתן לטעון את הפניות לטיפול'));
+  assert.ok(html.includes('לא ניתן לטעון את התיקים שדורשים טיפול'));
+  assert.ok(!html.includes('אין פגישות מכון מתוזמנות היום'));
+  assert.ok(!html.includes('אין פניות שממתינות לתיאום'));
+});
+
+test('staff navigation keeps every destination available with current-page semantics and mobile toggle', () => {
+  const Navigation = compile('components/admin/AdminNavigation.tsx', {
+    'next/link': { default: link, __esModule: true },
+    'next/navigation': { usePathname: () => '/admin/sessions/example' },
+  }).default;
+  const html = renderToStaticMarkup(React.createElement(Navigation));
+  assert.match(html, /href="\/admin\/sessions" aria-current="page"/);
+  assert.match(html, /aria-controls="staff-navigation"/);
+  assert.match(html, /id="staff-navigation"/);
+  for (const route of ['pediatrics-calendar','intake','appointments','moxo','treatments','therapists','rana','recruitment','development','classes','abroad','reviews','calls','personal/calls']) {
+    assert.ok(html.includes(`href="/admin/${route}"`), route);
+    assert.ok(fs.existsSync(path.join(root, 'app/admin', route, 'page.tsx')), route);
+  }
+});

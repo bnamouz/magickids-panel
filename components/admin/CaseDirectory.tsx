@@ -4,7 +4,7 @@ import { INTAKE_STAGES } from '@/lib/intake/progress';
 
 export default function CaseDirectory({ result }: { result: ReturnType<typeof caseDirectory> | null }) {
   const url = (page: number) => `/admin/dashboard?${new URLSearchParams({ q: result?.query ?? '', page: String(page) })}#case-directory`;
-  return <section id="case-directory" aria-labelledby="case-directory-title" className="card mb-6 scroll-mt-6">
+  return <section id="case-directory" aria-labelledby="case-directory-title" className="card mb-6 scroll-mt-24">
     <h2 id="case-directory-title" className="text-xl font-bold text-[#01696f]">כל התיקים ותשובות השאלונים</h2>
     <p className="text-sm text-slate-600 mt-2">כולל תיקים שכבר הופק בהם דוח ותיקים שהסתיימו. ממוינים לפי הגשת השאלון האחרונה; תיק ללא הגשה לפי תאריך פתיחתו.</p>
     <form action="/admin/dashboard#case-directory" method="get" className="flex flex-wrap items-end gap-3 my-4">

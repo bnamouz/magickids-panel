@@ -1,112 +1,23 @@
 import Link from 'next/link';
 import { getCurrentStaff } from '@/lib/admin/auth';
-import { LayoutDashboard, Users, Calendar, LogOut, Phone, User } from 'lucide-react';
 import LogoutButton from '@/components/admin/LogoutButton';
-
+import AdminNavigation from '@/components/admin/AdminNavigation';
 export const dynamic = 'force-dynamic';
-
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const staff = await getCurrentStaff();
-
-  // /admin/login has its own layout — skip chrome there.
-  // We can't easily detect route here, so wrap conditionally in each page.
-  // If no staff, show login-only content (children will be the login page).
-  if (!staff) return <>{children}</>;
-
-  return (
-    <div className="min-h-screen bg-slate-50" dir="rtl">
-      {/* Top bar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/admin/dashboard" className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-[#01696f] rounded-lg flex items-center justify-center text-white font-bold">
-              יק
-            </div>
-            <div>
-              <div className="font-bold text-[#01696f]">ילדי הקסם</div>
-              <div className="text-xs text-slate-500 -mt-1">פאנל צוות</div>
-            </div>
-          </Link>
-
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-slate-700 hidden sm:block">
-              <div className="font-semibold">{staff.full_name}</div>
-              <div className="text-xs text-slate-500">{roleLabel(staff.role)}</div>
-            </div>
-<Link href="/admin/development" className="text-sm font-semibold text-[#01696f] underline">התפתחות הילד</Link>
-<Link href="/admin/treatments" className="text-sm font-semibold text-[#01696f] underline">פניות לטיפול</Link>
-<Link href="/admin/classes" className="text-sm font-semibold text-[#01696f] underline">חוגי המכון</Link>
-<Link href="/admin/moxo" className="text-sm font-semibold text-[#01696f] underline">MOXO</Link>
-<Link href="/admin/intake" className="text-sm font-semibold text-[#01696f] underline">קליטה וזימון</Link>
-            <LogoutButton />
-          </div>
-        </div>
-      </header>
-
-      {/* Main layout: sidebar + content */}
-      <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
-        <aside className="w-56 flex-shrink-0 hidden md:block">
-          <nav className="space-y-1">
-            <NavLink href="/admin/dashboard" icon={<LayoutDashboard size={18} />}>
-              דשבורד
-            </NavLink>
-            <NavLink href="/admin/development" icon={<Users size={18} />}>התפתחות הילד</NavLink>
-            <NavLink href="/admin/intake" icon={<Users size={18} />}>קליטה וזימון לקשב</NavLink>
-            <NavLink href="/admin/sessions" icon={<Users size={18} />}>
-              תיקים פעילים
-            </NavLink>
-            <NavLink href="/admin/pediatrics-calendar" icon={<Calendar size={18} />}>יומן מרפאת הילדים · 10 דקות</NavLink>
-            <NavLink href="/admin/appointments" icon={<Calendar size={18} />}>
-              יומן פגישות
-            </NavLink>
-            <NavLink href="/admin/recruitment" icon={<Users size={18} />}>גיוס מטפלים</NavLink>
-            <NavLink href="/admin/therapists" icon={<Users size={18} />}>ניהול מטפלים וזמינות</NavLink>
-            <NavLink href="/admin/rana" icon={<Users size={18} />}>בקשות תור לרנא</NavLink>
-            <NavLink href="/admin/treatments" icon={<Users size={18} />}>פניות וטיפולים</NavLink>
-            <NavLink href="/admin/abroad" icon={<Users size={18} />}>ליווי ילדים בחו״ל</NavLink>
-            <NavLink href="/admin/reviews" icon={<Users size={18} />}>חוות דעת ותמונות</NavLink>
-            <NavLink href="/admin/classes" icon={<Users size={18} />}>חוגים ורשימות מתעניינים</NavLink>
-            <NavLink href="/admin/moxo" icon={<Calendar size={18} />}>בקשות MOXO</NavLink>
-            <NavLink href="/admin/calls" icon={<Phone size={18} />}>
-              שיחות שרה
-            </NavLink>
-            <div className="pt-3 mt-3 border-t border-slate-200">
-              <div className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase">
-                אישי
-              </div>
-              <NavLink href="/admin/personal/calls" icon={<User size={18} />}>
-                שיחות נור
-              </NavLink>
-            </div>
-          </nav>
-        </aside>
-
-        <main className="flex-1 min-w-0">{children}</main>
-      </div>
-    </div>
-  );
+export default async function AdminLayout({children}:{children:React.ReactNode}){
+ const staff=await getCurrentStaff();
+ if(!staff)return <>{children}</>;
+ return <div className="min-h-screen bg-slate-50" dir="rtl">
+  <a href="#staff-main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:right-2 focus:z-50 focus:rounded focus:bg-white focus:p-3 focus:text-teal-900">דילוג לתוכן הראשי</a>
+  <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
+   <div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+    <Link href="/admin/dashboard" className="flex shrink-0 items-center gap-2"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-700 font-bold text-white" aria-hidden="true">יק</span><span><b className="block text-teal-900">ילדי הקסם</b><span className="block text-xs text-slate-500">סביבת העבודה לצוות</span></span></Link>
+    <div className="flex items-center gap-3 sm:gap-5"><Link href="/admin/pediatrics-calendar" className="hidden rounded-lg border border-teal-200 px-3 py-2 text-sm font-bold text-teal-800 hover:bg-teal-50 sm:block">יומן מרפאת הילדים</Link><span className="hidden text-sm text-slate-700 md:block"><b className="block">{staff.full_name}</b><span className="text-xs text-slate-500">{roleLabel(staff.role)}</span></span><LogoutButton/></div>
+   </div>
+  </header>
+  <div className="mx-auto flex max-w-[1440px] flex-col gap-5 px-4 py-5 sm:px-6 lg:flex-row lg:gap-7 lg:py-7">
+   <AdminNavigation/>
+   <main id="staff-main" tabIndex={-1} className="min-w-0 flex-1 outline-none">{children}</main>
+  </div>
+ </div>;
 }
-
-function NavLink({
-  href,
-  icon,
-  children,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-teal-50 hover:text-[#01696f] transition"
-    >
-      {icon}
-      <span className="font-medium">{children}</span>
-    </Link>
-  );
-}
-
-function roleLabel(role: string): string {
-  return { admin: 'מנהל/ת', diagnostician: 'מאבחן/ת', assistant: 'צוות עזר' }[role] ?? role;
-}
+function roleLabel(role:string){return {admin:'מנהל/ת',diagnostician:'מאבחן/ת',assistant:'צוות עזר'}[role]??role;}
