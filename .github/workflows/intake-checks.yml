@@ -20,4 +20,5 @@ jobs:
       - run: npm run test:intake
       - run: node --test scripts/test-dashboard.mjs
       - run: npm run test:booking
+      - run: node --test scripts/test-doctor-requests.mjs
       - run: npm run test:sarah-moxo

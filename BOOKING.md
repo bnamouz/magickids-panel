@@ -41,10 +41,10 @@ actual deployment; a GitHub or Vercel connection alone does not activate it.
 ## Existing scheduling rules
 
 Time zone: `Asia/Jerusalem`, including daylight saving changes. Booking window:
-28 days, with a two-hour lead time.
+28 days, with a 15-minute lead time for pediatrics and two hours for ADHD.
 
-Pediatrics booking hours (Monday/Tuesday updated on 2026-09-19): Monday 15:00–19:00,
-Tuesday 16:00–19:00, Wednesday 10:00–13:30,
+Pediatrics booking hours (Monday/Tuesday updated on 2026-10-12): Monday 10:00–15:30,
+Tuesday 16:00–20:00, Wednesday 10:00–13:30,
 Thursday 17:00–20:00, Friday and Saturday
 09:30–12:30; Sunday closed. New pediatric slots are 10 minutes, with consecutive
 start times and no added gap. Existing Google events retain their original duration.
@@ -160,3 +160,7 @@ Apply supabase/migrations/20260912062810_clinic_self_service.sql once; the publi
 and authenticated client roles have no direct table/RPC access. Staff routes
 require an active staff_users record. Test with npm run test:booking and
 node scripts/test-treatments.mjs; all messages and Google operations are mocked.
+
+## Requests to the pediatrician without appointments
+
+The pediatric booking page offers a Hebrew/Arabic/English request form. The server validates consent and contact details, reserves a hashed idempotency/rate-limit record, then writes a private transparent all-day Google event to the pediatric calendar. After closing time or on a closed day, it is filed on the next working day. The staff calendar shows request details in a separate section. No appointment, attendance invitation, reminder, or response-time promise is created. A success receipt is returned only after Google confirms the deterministic event ID; uncertain retries reuse that ID. Apply the pediatric_doctor_requests migration before deployment. Anonymous/authenticated database roles cannot access the ledger or RPC. Tests use synthetic data and mocked Google writes.

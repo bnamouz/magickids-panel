@@ -34,7 +34,7 @@ test('Israel daylight saving and clinic windows', () => {
     assert.ok([960, 1020, 1080, 1140].includes(local.minutes));
   }
   const peds = schedule.candidateSlots('pediatrics', new Date('2026-09-07T06:00:00Z'));
-  assert.ok(peds.every(slot => Date.parse(slot) >= Date.parse('2026-09-07T08:00:00Z')));
+  assert.ok(peds.every(slot => Date.parse(slot) >= Date.parse('2026-09-07T06:15:00Z')));
   assert.ok(!peds.some(slot => schedule.localParts(new Date(slot)).date === '2026-09-13'));
   const friday = peds.filter(slot => schedule.localParts(new Date(slot)).date === '2026-09-11');
   assert.equal(friday.length, 18);
@@ -42,16 +42,16 @@ test('Israel daylight saving and clinic windows', () => {
   assert.equal(schedule.durationFor('pediatrics'), 10);
   assert.equal(schedule.durationFor('adhd'), 60);
   const tuesday = peds.filter(slot => schedule.localParts(new Date(slot)).date === '2026-09-08');
-  assert.equal(tuesday.length, 18);
+  assert.equal(tuesday.length, 24);
   assert.equal(schedule.localParts(new Date(tuesday[0])).minutes, 960);
-  assert.equal(schedule.localParts(new Date(tuesday.at(-1))).minutes, 1130);
+  assert.equal(schedule.localParts(new Date(tuesday.at(-1))).minutes, 1190);
   const wednesday = peds.filter(slot => schedule.localParts(new Date(slot)).date === '2026-09-09');
   assert.deepEqual(wednesday.map(slot => schedule.localParts(new Date(slot)).minutes), Array.from({length:21}, (_,i) => 600+i*10));
   // Existing half-hour visits must still block all three new ten-minute slots.
   assert.deepEqual(schedule.freeSlots('pediatrics', friday, [{start:friday[0],end:friday[3]}]), friday.slice(3));
 });
 test('pediatrics Monday/Tuesday hours in summer and winter, with all other clinic windows preserved', () => {
-  const expected = {1:[900,1140],2:[960,1140],3:[600,810],4:[1020,1200],5:[570,750],6:[570,750]};
+  const expected = {1:[600,930],2:[960,1200],3:[600,810],4:[1020,1200],5:[570,750],6:[570,750]};
   for(const now of ['2026-09-20T00:00:00Z','2026-12-06T00:00:00Z']){
     const days = new Map();
     for(const slot of schedule.candidateSlots('pediatrics',new Date(now))){
@@ -370,11 +370,12 @@ test('follow-up quarter-hour slots share the Wednesday ADHD hour window', () => 
 test('October 12 one-day pediatrics window applies to booking and dashboard', () => {
   const now = new Date('2026-10-10T12:00:00Z');
   assert.deepEqual(schedule.clinicHours('pediatrics', '2026-10-12'), [600, 900]);
-  assert.deepEqual(schedule.clinicHours('pediatrics', '2026-10-19'), [900, 1140]);
+  assert.deepEqual(schedule.clinicHours('pediatrics', '2026-10-19'), [600, 930]);
   assert.equal(schedule.clinicHours('adhd', '2026-10-12'), null);
   const slots = schedule.candidateSlots('pediatrics', now).map(iso => schedule.localParts(new Date(iso)));
   const changed = slots.filter(s => s.date === '2026-10-12');
   assert.equal(changed.length, 30);
   assert.deepEqual(changed.map(s => s.minutes), Array.from({length:30}, (_,i)=>600+i*10));
-  assert.equal(slots.filter(s=>s.date==='2026-10-19').length, 24);
+  assert.equal(slots.filter(s=>s.date==='2026-10-19').length, 33);
 });
+

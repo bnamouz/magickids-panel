@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import { getPediatricsCalendarId } from '@/lib/pediatrics-calendar';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { candidateSlots, durationFor, freeSlots, overlaps, parseFreeBusy, TIME_ZONE, type Clinic, type VisitType } from './schedule';
+import { candidateSlots, leadMinutesFor, durationFor, freeSlots, overlaps, parseFreeBusy, TIME_ZONE, type Clinic, type VisitType } from './schedule';
 
 export class BookingError extends Error {
   constructor(public code: string, public status = 503) { super(code); }
@@ -123,7 +123,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
   if (prior?.status === 'confirmed') return confirmed(clinic, prior.starts_at, prior.id, visitType);
   if (prior?.status === 'released') throw new BookingError('slot_taken', 409);
   await ensureWritable(Object.values(ids));
-  if (!prior && (!candidateSlots(clinic, staffBooking ? new Date(Date.now()-120*60000) : new Date(), visitType).includes(start) || (staffBooking && Date.parse(start)<=Date.now()))) throw new BookingError('invalid_slot', 400);
+  if (!prior && (!candidateSlots(clinic, staffBooking ? new Date(Date.now()-leadMinutesFor(clinic)*60000) : new Date(), visitType).includes(start) || (staffBooking && Date.parse(start)<=Date.now()))) throw new BookingError('invalid_slot', 400);
   const eventId = `mk${body.requestId.replaceAll('-', '')}`; // Calendar-compatible, stable across retries.
   const intake = clinic === 'adhd' && visitType === 'assessment' ? await checkIntake(body.parentToken ?? '', prior ? eventId : undefined) : null;
   const attemptId = randomUUID();

@@ -24,13 +24,14 @@ export default async function PediatricsCalendar({searchParams}:{searchParams:{d
     const client=getCalendarClient();
     let pageToken:string|undefined;
     do {
-      const result=await client.events.list({calendarId:getPediatricsCalendarId(),timeMin:localToUTC(day,0).toISOString(),timeMax:localToUTC(shift(day,1),0).toISOString(),timeZone:TIME_ZONE,singleEvents:true,showDeleted:false,orderBy:'startTime',maxResults:2500,pageToken,fields:'nextPageToken,items(id,summary,start,end,status,transparency)'},{timeout:15000});
+      const result=await client.events.list({calendarId:getPediatricsCalendarId(),timeMin:localToUTC(day,0).toISOString(),timeMax:localToUTC(shift(day,1),0).toISOString(),timeZone:TIME_ZONE,singleEvents:true,showDeleted:false,orderBy:'startTime',maxResults:2500,pageToken,fields:'nextPageToken,items(id,summary,description,start,end,status,transparency,extendedProperties)'},{timeout:15000});
       events.push(...(result.data.items??[]));
       pageToken=result.data.nextPageToken??undefined;
     } while(pageToken);
     events=events.filter(e=>e.status!=='cancelled');
   } catch {failed=true;events=[];}
-  const allDay=events.filter(e=>e.start?.date);
+  const requests=events.filter(e=>e.extendedProperties?.private?.doctorRequest);
+  const allDay=events.filter(e=>e.start?.date&&!e.extendedProperties?.private?.doctorRequest);
   const timed=events.filter(e=>e.start?.dateTime&&e.end?.dateTime);
   const outside=timed.filter(e=>!hours || Date.parse(e.start!.dateTime!)<localToUTC(day,hours[0]).getTime() || Date.parse(e.end!.dateTime!)>localToUTC(day,hours[1]).getTime());
   return <section dir="rtl" className="space-y-4">
@@ -46,6 +47,7 @@ export default async function PediatricsCalendar({searchParams}:{searchParams:{d
     <h2 className="font-bold">{new Date(day+'T12:00:00Z').toLocaleDateString('he-IL',{timeZone:TIME_ZONE,dateStyle:'full'})}</h2>
     {hours?<p>שעות הפעילות היום: <b dir="ltr">{clock(hours[0])}–{clock(hours[1])}</b></p>:<p className="bg-slate-100 p-4 rounded">המרפאה סגורה ביום זה לפי שעות הפעילות המוגדרות.</p>}
     {failed&&<p role="alert" className="bg-amber-50 border border-amber-300 p-4 rounded">לא ניתן לטעון את התורים מיומן גוגל. חלוקת השעות מוצגת, אך מצב התפוסה אינו ידוע. נסו לרענן.</p>}
+    {requests.length>0&&<aside className="bg-teal-50 border rounded-xl p-4 space-y-3"><h3 className="font-bold">בקשות מהרופא ללא תור ({requests.length})</h3><p className="text-sm">בקשות לטיפול הצוות; אינן תורים ואינן חוסמות שעות ביומן.</p>{requests.map(e=><article key={e.id} className="bg-white rounded border p-3"><h4 className="font-bold">{e.summary}</h4><p className="whitespace-pre-wrap break-words text-sm" dir="auto">{e.description}</p></article>)}</aside>}
     {allDay.length>0&&<aside className="bg-amber-50 p-3 rounded"><h3 className="font-bold">אירועים לכל היום</h3>{allDay.map((e,i)=><p key={e.id??i}>{e.summary||'אירוע ללא כותרת'} {e.transparency==='transparent'?'(אינו חוסם זמן)':'(חוסם את היום)'}</p>)}</aside>}
     {outside.length>0&&<aside className="bg-amber-50 p-3 rounded"><h3 className="font-bold">אירועים החורגים משעות הפעילות</h3>{outside.map((e,i)=><p key={e.id??i}>{e.summary||'תור ללא כותרת'} · <span dir="ltr">{time(e.start!.dateTime!)}–{time(e.end!.dateTime!)}</span></p>)}</aside>}
     {hours&&<div className="rounded-xl border overflow-hidden bg-white"><table className="w-full text-sm"><caption className="sr-only">יומן מרפאת הילדים ליום {day} בחלוקה של עשר דקות</caption><thead className="bg-slate-100"><tr><th className="p-3 text-right">שעה</th><th className="p-3 text-right">תורים מיומן גוגל</th></tr></thead><tbody>

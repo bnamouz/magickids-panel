@@ -2,6 +2,7 @@ export type Clinic = 'pediatrics' | 'adhd';
 export const TIME_ZONE = 'Asia/Jerusalem';
 export const HORIZON_DAYS = 28;
 export const LEAD_MINUTES = 120;
+export const leadMinutesFor = (clinic: Clinic) => clinic === 'pediatrics' ? 15 : LEAD_MINUTES;
 export type VisitType = 'assessment' | 'followup';
 export const durationFor = (clinic: Clinic, visitType: VisitType = 'assessment') => clinic === 'adhd' ? (visitType === 'followup' ? 15 : 60) : 10;
 export const isClinic = (value: string): value is Clinic => value === 'pediatrics' || value === 'adhd';
@@ -9,11 +10,11 @@ export const isClinic = (value: string): value is Clinic => value === 'pediatric
 // Existing published clinic hours; ADHD assessments follow the existing
 // Wednesday 16:00–20:00 intake workflow. All times are Israeli local time.
 const HOURS: Record<Clinic, Record<number, [number, number]>> = {
-  pediatrics: { 1: [900, 1140], 2: [960, 1140], 3: [600, 810], 4: [1020, 1200], 5: [570, 750], 6: [570, 750] },
+  pediatrics: { 1: [600, 930], 2: [960, 1200], 3: [600, 810], 4: [1020, 1200], 5: [570, 750], 6: [570, 750] },
   adhd: { 3: [960, 1200] },
 };
 export function clinicHours(clinic: Clinic, day: string): [number, number] | null {
-  // One-day change requested by the clinic; recurring Monday hours stay unchanged.
+  // Preserve the earlier one-day exception; subsequent Mondays use the new hours.
   if (clinic === 'pediatrics' && day === '2026-10-12') return [600, 900];
   return HOURS[clinic][new Date(day+'T12:00:00Z').getUTCDay()] ?? null;
 }
@@ -44,7 +45,7 @@ export function candidateSlots(clinic: Clinic, now = new Date(), visitType: Visi
     if (!hours) continue;
     for (let minute = hours[0]; minute + durationFor(clinic, visitType) <= hours[1]; minute += durationFor(clinic, visitType)) {
       const at = localToUTC(day.toISOString().slice(0, 10), minute);
-      if (at.getTime() >= now.getTime() + LEAD_MINUTES * 60000) slots.push(at.toISOString());
+      if (at.getTime() >= now.getTime() + leadMinutesFor(clinic) * 60000) slots.push(at.toISOString());
     }
   }
   return slots;
@@ -87,3 +88,4 @@ export function isFollowupSlot(iso: string, now = new Date()) {
  const local = localParts(value);
  return new Date(`${local.date}T12:00:00Z`).getUTCDay() === 3 && local.minutes >= 960 && local.minutes < 1200 && local.minutes % 15 === 0 && local.seconds === 0 && value.getUTCMilliseconds() === 0;
 }
+
