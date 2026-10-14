@@ -108,6 +108,7 @@ test('dashboard authenticates before fetching data and keeps archived cases out 
   const all = await loadIntakeQueue({ includeArchived: true });
   const overrides = {
     'next/link': { default: link, __esModule: true },
+    '@/components/admin/CalendarOverview': {default:()=>null,__esModule:true},
     '@/lib/intake/queue': { loadIntakeQueue: async options => { assert.equal(options.includeArchived, true); return all; } },
     '@/lib/supabase': { getSupabaseAdmin: () => ({ from: () => ({ select: () => ({ in() { return this; }, order() { return this; }, limit: async () => ({ data: [], count: 0 }) }) }) }) },
     '@/lib/admin/auth': { requireStaff: async () => ({ full_name: 'צוות בדיקה' }) },
@@ -132,6 +133,7 @@ test('dashboard distinguishes failed data from empty queues and sorts appointmen
   let ordered = false;
   const Dashboard = compile('app/admin/dashboard/page.tsx', {
     'next/link': { default: link, __esModule: true },
+    '@/components/admin/CalendarOverview': {default:()=>null,__esModule:true},
     '@/lib/admin/auth': { requireStaff: async () => ({ full_name: 'צוות בדיקה' }) },
     '@/lib/intake/queue': { loadIntakeQueue: async () => { throw new Error('unavailable'); } },
     '@/lib/supabase': { getSupabaseAdmin: () => ({ from: table => ({
@@ -152,6 +154,7 @@ test('dashboard distinguishes failed data from empty queues and sorts appointmen
 test('staff navigation keeps every destination available with current-page semantics and mobile toggle', () => {
   const Navigation = compile('components/admin/AdminNavigation.tsx', {
     'next/link': { default: link, __esModule: true },
+    '@/components/admin/CalendarOverview': {default:()=>null,__esModule:true},
     'next/navigation': { usePathname: () => '/admin/sessions/example' },
   }).default;
   const html = renderToStaticMarkup(React.createElement(Navigation));

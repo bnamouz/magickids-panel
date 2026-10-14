@@ -135,7 +135,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
     p_fingerprint: fingerprint, p_phone_hash: digest(`phone:${phone}`), p_ip_hash: digest(`ip:${clientIp}`),
     p_session_id: intake?.id ?? null, p_calendar_id: ids[clinic], p_event_id: eventId, p_attempt_id: attemptId,
   });
-  if (reservationError) throw new BookingError('unavailable');
+  if (reservationError) throw new BookingError(reservationError.code==='23P01'?'slot_taken':'unavailable',reservationError.code==='23P01'?409:503);
   if (reservation === 'confirmed') return confirmed(clinic, start, body.requestId, visitType);
   if (reservation === 'processing') throw new BookingError('processing', 503);
   if (reservation !== 'pending') throw new BookingError(reservation === 'released' ? 'slot_taken' : String(reservation), reservation === 'rate_limited' ? 429 : 409);

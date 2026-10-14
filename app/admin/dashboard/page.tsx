@@ -1,3 +1,4 @@
+import CalendarOverview from '@/components/admin/CalendarOverview';
 import { loadIntakeQueue } from '@/lib/intake/queue';
 import { caseDirectory } from '@/lib/intake/directory';
 import CaseDirectory from '@/components/admin/CaseDirectory';
@@ -34,6 +35,7 @@ export default async function DashboardPage({searchParams={}}:{searchParams?:{q?
    <QuickLink href="/onboarding/public" title="פתיחת תיק חדש" detail="מעבר לטופס ההרשמה להורים" icon={<FilePlus2 size={22}/>}/>
   </div></section>
   <section aria-labelledby="intake-overview"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 id="intake-overview" className="font-bold text-slate-800">תמונת מצב · קליטת קשב</h2><Link href="/admin/intake" className="text-sm font-semibold text-teal-700 underline">לכל תהליכי הקליטה</Link></div>{queue===null&&<ErrorRow text="לא ניתן לטעון את נתוני הקליטה. המספרים אינם זמינים כרגע."/>}<div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{stats.map(({label,value,icon:Icon,href,color})=><Link key={label} href={href} className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-teal-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700"><div className="mb-3 flex items-center justify-between gap-2"><span className={`rounded-lg p-2 ${color}`}><Icon size={18}/></span><ArrowLeft size={15} className="text-slate-400"/></div><b className="block text-3xl text-slate-900">{value??'—'}</b><span className="mt-1 block text-sm text-slate-600">{label}</span></Link>)}</div></section>
+  <CalendarOverview/>
   <section aria-labelledby="today-work"><h2 id="today-work" className="mb-3 text-lg font-bold text-slate-900">לעבודה היום</h2><div className="grid gap-4 xl:grid-cols-2">
    <Panel title="פגישות המכון היום" icon={<CalendarDays size={20}/>} href="/admin/appointments">
     <p className="mb-2 text-xs text-slate-500">עד 10 פגישות, לפי שעה. תורי הילדים ובקשות לרופא מוצגים ביומן המרפאה.</p>

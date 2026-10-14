@@ -1,3 +1,4 @@
+import {ensureCalendarEvent} from '@/lib/calendar-consistency';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import type { calendar_v3 } from 'googleapis';
@@ -11,9 +12,7 @@ export async function writeMoxoEvent(calendar:calendar_v3.Calendar, calendarId:s
   end:{dateTime:new Date(Date.parse(row.scheduled_at)+row.duration_minutes*60000).toISOString(),timeZone:'Asia/Jerusalem'},
   extendedProperties:{private:{moxoRequestId:row.id}},
   reminders:{useDefault:true}};
- try {await calendar.events.insert({calendarId,sendUpdates:'none',requestBody:{id:eventId,...body}},{timeout:10000,retry:false});}
- catch(error){if(Number((error as {code?:number}).code)!==409)throw error;
-  await calendar.events.patch({calendarId,eventId,sendUpdates:'none',requestBody:body},{timeout:10000,retry:false});}
+ await ensureCalendarEvent(calendar,calendarId,eventId,body);
  return eventId;
 }
 

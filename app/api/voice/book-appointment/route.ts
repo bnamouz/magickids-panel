@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertVoiceAuth, normalisePhone } from '@/lib/voice-auth';
-import { createPediatricsAppointment, checkPediatricsAvailability } from '@/lib/pediatrics-calendar';
+import {book,BookingError} from '@/lib/booking/server';
+import {createHash} from 'node:crypto';
 import { sendWhatsAppText } from '@/lib/whatsapp-ultramsg';
 
 /**
@@ -19,7 +20,7 @@ import { sendWhatsAppText } from '@/lib/whatsapp-ultramsg';
  *     parent_name?: string,           // caller's name if different from patient
  *     parent_phone: string,           // callback phone number
  *     scheduled_at: string,           // ISO datetime, e.g. "2026-09-05T09:30:00+03:00"
- *     duration_minutes?: number,      // default 30
+ *     duration_minutes?: number,      // default 10
  *     reason?: string,                // brief reason
  *     language?: 'ar' | 'he' | 'en',  // for WhatsApp confirmation
  *     send_confirmation?: boolean,    // default true
@@ -82,45 +83,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const duration = body.duration_minutes ?? 30;
+  const duration = body.duration_minutes ?? 10;
+  if(duration!==10)return NextResponse.json({success:false,error:'pediatrics_duration_must_be_10'},{status:400});
 
-  // Check availability
-  try {
-    const conflicts = await checkPediatricsAvailability(body.scheduled_at, duration);
-    if (conflicts.length > 0) {
-      return NextResponse.json({
-        success: false,
-        error: 'slot_taken',
-        conflicts: conflicts.map((c) => ({
-          summary: c.summary,
-          start: c.start,
-        })),
-      }, { status: 409 });
-    }
-  } catch (e: any) {
-    console.error('[book-appointment] availability check failed:', e);
-    // Continue anyway — better to double-book than to fail booking
-  }
-
-  // Create calendar event
-  let eventInfo;
-  try {
-    eventInfo = await createPediatricsAppointment({
-      patientName: body.patient_name,
-      parentName: body.parent_name,
-      parentPhone: phone,
-      scheduledAt: body.scheduled_at,
-      durationMinutes: duration,
-      reason: body.reason,
-      bookedVia: 'Nour voice agent',
-    });
-  } catch (e: any) {
-    console.error('[book-appointment] calendar create failed:', e);
-    return NextResponse.json(
-      { success: false, error: 'calendar_error', details: e?.message || String(e) },
-      { status: 500 },
-    );
-  }
+  const start=when.toISOString();
+  const hash=createHash('sha256').update(JSON.stringify([phone,start,body.patient_name])).digest('hex');
+  const requestId=`${hash.slice(0,8)}-${hash.slice(8,12)}-4${hash.slice(13,16)}-a${hash.slice(17,20)}-${hash.slice(20,32)}`;
+  try{
+    await book('pediatrics',{requestId,start,childName:body.patient_name,parentName:body.parent_name||body.patient_name,phone,consent:true,website:''},`voice:${phone}`);
+  }catch(error){return NextResponse.json({success:false,error:error instanceof BookingError?error.code:'unavailable'},{status:error instanceof BookingError?error.status:503});}
+  const eventInfo={eventId:'mk'+requestId.replaceAll('-',''),htmlLink:undefined};
 
   // Send WhatsApp confirmation (default: yes)
   const shouldConfirm = body.send_confirmation !== false;

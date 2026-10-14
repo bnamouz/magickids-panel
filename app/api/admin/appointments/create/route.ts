@@ -3,7 +3,9 @@ import { getCurrentStaff } from '@/lib/admin/auth';
 import { firstRelated, intakeProgress } from '@/lib/intake/progress';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createCalendarEvent, checkAvailability } from '@/lib/google-calendar';
+import { getCalendarId } from '@/lib/google-calendar';
+import {syncAppointment} from '@/lib/calendar-consistency';
+import {randomUUID} from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +19,7 @@ const DURATION_BY_TYPE: Record<string, number> = {
 export async function POST(req: NextRequest) {
   try {
     if (!await getCurrentStaff()) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    if(req.headers.get('origin')!==req.nextUrl.origin)return NextResponse.json({error:'forbidden'},{status:403});
     const body = await req.json();
     const {
       session_id,
@@ -75,61 +78,23 @@ export async function POST(req: NextRequest) {
     const parent = firstRelated<any>(session.parents);
     const childName = `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || 'ילד';
 
-    // Optional: check availability in Google Calendar
-    let calendarInfo: { eventId?: string; htmlLink?: string; calendarId?: string } = {};
-    let calendarWarning: string | null = null;
-
-    if (!skip_calendar && process.env.GOOGLE_SERVICE_ACCOUNT_JSON && process.env.GOOGLE_CALENDAR_ID) {
-      try {
-        const avail = await checkAvailability(scheduled_at, duration);
-        if (!avail.available) {
-          return NextResponse.json(
-            {
-              error: 'השעה תפוסה ביומן',
-              conflicts: avail.conflicts.map((c) => ({
-                summary: c.summary,
-                start: c.start?.dateTime,
-              })),
-            },
-            { status: 409 }
-          );
-        }
-
-        const created = await createCalendarEvent({
-          appointmentType: appointment_type,
-          childName,
-          parentName: parent?.full_name || 'הורה',
-          parentPhone: parent?.phone || '',
-          parentEmail: parent?.email || undefined,
-          scheduledAt: scheduled_at,
-          durationMinutes: duration,
-          location: location || undefined,
-          notes: notes || undefined,
-        });
-        calendarInfo = {
-          eventId: created.eventId,
-          htmlLink: created.htmlLink,
-          calendarId: created.calendarId,
-        };
-      } catch (e: any) {
-        calendarWarning = `לא הצלחתי ליצור אירוע ב-Google Calendar: ${e.message}. הפגישה נשמרה במערכת אבל לא ביומן.`;
-      }
-    } else if (!skip_calendar) {
-      calendarWarning = 'Google Calendar לא מוגדר. הפגישה נשמרה במערכת בלבד.';
-    }
-
+    // Reserve in PostgreSQL before any external write. All booking tables share the guard.
+    if(skip_calendar)return NextResponse.json({error:'יש לסנכרן כל פגישה ליומן'}, {status:400});
+    const appointmentId=randomUUID();
+    const calendarId=getCalendarId();
     // Insert appointment row
     const { data: appt, error: aErr } = await supabase
       .from('appointments')
       .insert({
+        id: appointmentId,
         session_id,
         patient_id: session.patient_id,
         appointment_type,
         scheduled_at,
         duration_minutes: duration,
         status: 'scheduled',
-        gcal_event_id: calendarInfo.eventId || null,
-        gcal_calendar_id: calendarInfo.calendarId || null,
+        gcal_event_id: 'appt'+appointmentId.replaceAll('-',''),
+        gcal_calendar_id: calendarId,
         location: location || null,
         notes: notes || null,
       })
@@ -137,19 +102,13 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (aErr) {
-      // Try to rollback Google event
-      if (calendarInfo.eventId) {
-        try {
-          const { cancelCalendarEvent } = await import('@/lib/google-calendar');
-          await cancelCalendarEvent(calendarInfo.eventId);
-        } catch {}
-      }
       return NextResponse.json(
         { error: `שגיאה בשמירת הפגישה: ${aErr.message}` },
-        { status: 500 }
+        { status: aErr.code==='23P01'?409:500 }
       );
     }
 
+    const calendarStatus=await syncAppointment(appointmentId);
     // Update session status to 'booked' if it was in an earlier state
     if (['profile_ready', 'created', 'parent_form_done', 'teacher_form_done'].includes(session.status as string)) {
       await supabase
@@ -161,8 +120,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       appointment: appt,
-      calendar_link: calendarInfo.htmlLink,
-      warning: calendarWarning,
+      calendar_sync: calendarStatus,
+      warning: calendarStatus==='synced'?null:'تم حفظ الموعد / הפגישה נשמרה אך סנכרון היומן טרם אושר. יש לבדוק את מצב הסנכרון בדאשבורד.',
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || String(e) }, { status: 500 });
