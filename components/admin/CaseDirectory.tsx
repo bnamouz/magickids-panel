@@ -1,20 +1,24 @@
+import CaseActions from './CaseActions';
 import Link from 'next/link';
 import type { caseDirectory } from '@/lib/intake/directory';
 import { INTAKE_STAGES } from '@/lib/intake/progress';
 
-export default function CaseDirectory({ result }: { result: ReturnType<typeof caseDirectory> | null }) {
-  const url = (page: number) => `/admin/dashboard?${new URLSearchParams({ q: result?.query ?? '', page: String(page) })}#case-directory`;
+export default function CaseDirectory({ result,archived=false }: { result: ReturnType<typeof caseDirectory> | null;archived?:boolean }) {
+  const url = (page: number) => `/admin/dashboard?${new URLSearchParams({ q: result?.query ?? '', page: String(page),...(archived?{archive:'1'}:{}) })}#case-directory`;
   return <section id="case-directory" aria-labelledby="case-directory-title" className="card mb-6 scroll-mt-24">
     <h2 id="case-directory-title" className="text-xl font-bold text-[#01696f]">כל התיקים ותשובות השאלונים</h2>
     <p className="text-sm text-slate-600 mt-2">כולל תיקים שכבר הופק בהם דוח ותיקים שהסתיימו. ממוינים לפי הגשת השאלון האחרונה; תיק ללא הגשה לפי תאריך פתיחתו.</p>
+    <Link className="inline-block mt-3 text-sm text-teal-700 underline" href={archived?"/admin/dashboard#case-directory":"/admin/dashboard?archive=1#case-directory"}>{archived?"חזרה לרשימה הפעילה":"תיקים שהוסרו מהרשימה — ארכיון ושחזור"}</Link>
+    {archived&&<p className="mt-2 font-semibold text-amber-800">ארכיון · תיקים שהוסרו מהדאשבורד</p>}
     <form action="/admin/dashboard#case-directory" method="get" className="flex flex-wrap items-end gap-3 my-4">
+      {archived&&<input type="hidden" name="archive" value="1"/>}
       <label className="flex-1 min-w-0 basis-52" htmlFor="case-search">
         <span className="block text-sm font-semibold mb-1">חיפוש בכל התיקים לפי שם ילד או הורה</span>
         <input id="case-search" name="q" defaultValue={result?.query ?? ''} maxLength={120}
           placeholder="הקלידו שם ילד או הורה" className="w-full border border-slate-300 rounded-lg p-3 bg-white" />
       </label>
       <button type="submit" className="btn-primary min-h-11">חיפוש</button>
-      {result?.query && <Link href="/admin/dashboard#case-directory" className="btn-ghost min-h-11">ניקוי חיפוש</Link>}
+      {result?.query && <Link href={archived?"/admin/dashboard?archive=1#case-directory":"/admin/dashboard#case-directory"} className="btn-ghost min-h-11">ניקוי חיפוש</Link>}
     </form>
     {!result ? <p role="alert" className="text-red-700">לא ניתן לטעון את התיקים כרגע. נסו לרענן; אין להסיק שהרשימה ריקה.</p> : <>
       <p role="status" className="text-sm text-slate-500 mb-3">{result.total} תיקים{result.query ? ' התואמים לחיפוש' : ' בכל הסטטוסים'}</p>
@@ -29,7 +33,7 @@ export default function CaseDirectory({ result }: { result: ReturnType<typeof ca
             <p className="text-sm mt-2">שאלון הורים: {row.parentComplete ? 'הושלם ונשלח' : 'טרם הושלם ונשלח'}{row.parentSubmittedAt && <> · <time dateTime={row.parentSubmittedAt}>{dateLabel(row.parentSubmittedAt)}</time></>}</p>
             <p className="text-sm text-slate-600">שאלון מורה: {row.teacherComplete ? 'הושלם ונשלח' : 'טרם הושלם ונשלח'}{row.teacherSubmittedAt && <> · <time dateTime={row.teacherSubmittedAt}>{dateLabel(row.teacherSubmittedAt)}</time></>}</p>
           </div>
-          <Link href={`/admin/sessions/${row.id}#questionnaires`} className="btn-ghost text-sm min-h-11">צפייה בתשובות השאלונים</Link>
+          <div className="flex flex-wrap items-center gap-2"><CaseActions id={row.id} name={row.childName} archived={archived}/><Link href={`/admin/sessions/${row.id}#questionnaires`} className="btn-ghost text-sm min-h-11">צפייה בתשובות השאלונים</Link></div>
         </li>)}</ul>}
       {result.pageCount > 1 && <nav aria-label="עמודי רשימת התיקים" className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
         {result.page > 1 ? <Link href={url(result.page - 1)} className="btn-ghost min-h-11">הקודם</Link> : <span />}

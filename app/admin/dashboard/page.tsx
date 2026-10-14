@@ -1,3 +1,5 @@
+import {loadDashboardArchive} from '@/lib/intake/dashboard-archive';
+import CaseActions from '@/components/admin/CaseActions';
 import CalendarOverview from '@/components/admin/CalendarOverview';
 import { loadIntakeQueue } from '@/lib/intake/queue';
 import { caseDirectory } from '@/lib/intake/directory';
@@ -7,17 +9,20 @@ import { requireStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { Users, Clock, AlertTriangle, CheckCircle2, ArrowLeft, CalendarDays, FilePlus2, Search, RefreshCw, MessageSquare } from 'lucide-react';
 export const dynamic = 'force-dynamic';
-export default async function DashboardPage({searchParams={}}:{searchParams?:{q?:string;page?:string}}){
+export default async function DashboardPage({searchParams={}}:{searchParams?:{q?:string;page?:string;archive?:string}}){
  const staff=await requireStaff();
  const supabase=getSupabaseAdmin();
- const [allCases,stuck,todayAppointments,treatmentRequests]=await Promise.all([
+ const [allCases,stuck,todayAppointments,treatmentRequests,hidden]=await Promise.all([
   loadIntakeQueue({includeArchived:true}).catch(()=>null),
   supabase.from('v_stuck_sessions').select('*').limit(5),
   supabase.from('v_today_appointments').select('*').order('scheduled_at',{ascending:true}).limit(10),
   supabase.from('treatment_requests').select('id,patient_name,contact_name,status,created_at',{count:'exact'}).in('status',['pending','contacted']).order('created_at',{ascending:false}).limit(5),
+  loadDashboardArchive().catch(()=>null),
  ]);
- const queue=allCases?.filter(row=>!['closed','cancelled','reported'].includes(row.status))??null;
- const directory=allCases?caseDirectory(allCases,searchParams.q,searchParams.page):null;
+ const archived=searchParams.archive==='1';
+ const visibleCases=allCases&&hidden?allCases.filter(row=>!hidden.has(row.id)):null;
+ const queue=visibleCases?.filter(row=>!['closed','cancelled','reported'].includes(row.status))??null;
+ const directory=allCases&&hidden?caseDirectory(archived?allCases.filter(row=>hidden.has(row.id)):visibleCases!,searchParams.q,searchParams.page):null;
  const ready=queue?.filter(row=>row.readyToSchedule)??[];
  const stats=[
   {label:'תיקי קשב פעילים',value:queue?.length,icon:Users,href:'/admin/intake?stage=all',color:'text-teal-700 bg-teal-50'},
@@ -46,13 +51,13 @@ export default async function DashboardPage({searchParams={}}:{searchParams?:{q?
     <Link href="/admin/treatments?status=closed" className="mt-3 inline-block text-xs text-teal-700 underline">פניות שנסגרו</Link>
    </Panel>
   </div></section>
-  <details open={!!searchParams.q||!!searchParams.page} className="rounded-2xl border border-slate-200 bg-white"><summary className="cursor-pointer rounded-2xl p-5 font-bold text-teal-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700">כל התיקים ותשובות השאלונים <span className="font-normal text-sm text-slate-500">· פתיחת המאגר והחיפוש המלא</span></summary><div className="px-3 pb-1"><CaseDirectory result={directory}/></div></details>
+  <details open={!!searchParams.q||!!searchParams.page||archived} className="rounded-2xl border border-slate-200 bg-white"><summary className="cursor-pointer rounded-2xl p-5 font-bold text-teal-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700">כל התיקים ותשובות השאלונים <span className="font-normal text-sm text-slate-500">· פתיחת המאגר והחיפוש המלא</span></summary><div className="px-3 pb-1"><CaseDirectory result={directory} archived={archived}/></div></details>
   <div className="grid gap-4 xl:grid-cols-2">
    <Panel title="מוכנים לזימון לפגישה" icon={<CheckCircle2 size={20} className="text-emerald-600"/>} href="/admin/intake?stage=ready">
-    {queue===null?<ErrorRow text="לא ניתן לטעון את רשימת הממתינים לזימון."/>:ready.length===0?<EmptyRow text="אין תיקים שממתינים לזימון לאחר השלמת שני השאלונים"/>:<><p className="text-xs text-slate-500">מוצגים עד 8 תיקים שהשלימו את שני השאלונים.</p><ul className="divide-y divide-slate-100">{ready.slice(0,8).map(row=><li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div><Link href={'/admin/sessions/'+row.id} className="text-sm font-bold text-teal-800 hover:underline">{row.childName}</Link><p className="mt-1 text-xs text-slate-500">שאלון הורים ומורה הושלמו</p></div><Link href={'/admin/sessions/'+row.id+'#appointments'} className="rounded-lg border border-teal-200 px-3 py-2 text-sm font-bold text-teal-800 hover:bg-teal-50">תיק וזימון ←</Link></li>)}</ul></>}
+    {queue===null?<ErrorRow text="לא ניתן לטעון את רשימת הממתינים לזימון."/>:ready.length===0?<EmptyRow text="אין תיקים שממתינים לזימון לאחר השלמת שני השאלונים"/>:<><p className="text-xs text-slate-500">מוצגים עד 8 תיקים שהשלימו את שני השאלונים.</p><ul className="divide-y divide-slate-100">{ready.slice(0,8).map(row=><li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div><Link href={'/admin/sessions/'+row.id} className="text-sm font-bold text-teal-800 hover:underline">{row.childName}</Link><p className="mt-1 text-xs text-slate-500">שאלון הורים ומורה הושלמו</p></div><Link href={'/admin/sessions/'+row.id+'#appointments'} className="rounded-lg border border-teal-200 px-3 py-2 text-sm font-bold text-teal-800 hover:bg-teal-50">תיק וזימון ←</Link><CaseActions id={row.id} name={row.childName}/></li>)}</ul></>}
    </Panel>
    <Panel title="תיקים שדורשים המשך טיפול" icon={<AlertTriangle size={20} className="text-amber-600"/>} href="/admin/sessions?filter=stuck">
-    {stuck.error?<ErrorRow text="לא ניתן לטעון את התיקים שדורשים טיפול. נסו לרענן."/>:!stuck.data?.length?<EmptyRow text="אין תיקים מסומנים להמשך טיפול"/>:<ul className="divide-y divide-slate-100">{stuck.data.map((row:any)=><li key={row.id}><Link href={`/admin/sessions/${row.id}`} className="flex items-center justify-between gap-3 rounded py-3 hover:bg-slate-50"><div><b className="text-sm text-slate-800">{row.child_name}</b><p className="mt-1 text-xs text-slate-500">{statusLabel(row.status)} · ללא התקדמות {row.days_stuck} ימים</p></div><ArrowLeft size={18} className="shrink-0 text-slate-400"/></Link></li>)}</ul>}
+    {stuck.error||!hidden?<ErrorRow text="לא ניתן לטעון את התיקים שדורשים טיפול. נסו לרענן."/>:!stuck.data?.length?<EmptyRow text="אין תיקים מסומנים להמשך טיפול"/>:<ul className="divide-y divide-slate-100">{stuck.data.filter((row:any)=>!hidden?.has(row.id)).map((row:any)=><li key={row.id}><Link href={`/admin/sessions/${row.id}`} className="flex items-center justify-between gap-3 rounded py-3 hover:bg-slate-50"><div><b className="text-sm text-slate-800">{row.child_name}</b><p className="mt-1 text-xs text-slate-500">{statusLabel(row.status)} · ללא התקדמות {row.days_stuck} ימים</p></div><ArrowLeft size={18} className="shrink-0 text-slate-400"/></Link><CaseActions id={row.id} name={row.child_name}/></li>)}</ul>}
    </Panel>
   </div>
   <p className="text-xs text-slate-500">הנתונים נטענים בפתיחת הדף. לעדכון לאחר פעולה אפשר ללחוץ על ״רענון נתונים״.</p>

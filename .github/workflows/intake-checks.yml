@@ -19,6 +19,7 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run test:intake
       - run: node --test scripts/test-dashboard.mjs
+      - run: node scripts/test-case-actions.mjs
       - run: node --test scripts/test-calendar-consistency.mjs scripts/test-moxo-calendar.mjs
       - run: npm run test:booking
       - run: node --test scripts/test-doctor-requests.mjs

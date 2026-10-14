@@ -17,6 +17,7 @@ function compile(relative, overrides = {}) {
   const module = { exports: {} };
   new Function('require', 'module', 'exports', js)(name => {
     if (name in overrides) return overrides[name];
+    if(name==='next/navigation')return {useRouter:()=>({refresh(){}})};
     if (name.startsWith('@/') || name.startsWith('./')) {
       const base = name.startsWith('@/') ? name.slice(2) : path.relative(root, path.resolve(path.dirname(filename), name));
       const ext = ['.ts', '.tsx', '/index.ts'].find(ext => fs.existsSync(path.join(root, base + ext)));
@@ -109,6 +110,7 @@ test('dashboard authenticates before fetching data and keeps archived cases out 
   const overrides = {
     'next/link': { default: link, __esModule: true },
     '@/components/admin/CalendarOverview': {default:()=>null,__esModule:true},
+    '@/lib/intake/dashboard-archive': {loadDashboardArchive:async()=>new Set()},
     '@/lib/intake/queue': { loadIntakeQueue: async options => { assert.equal(options.includeArchived, true); return all; } },
     '@/lib/supabase': { getSupabaseAdmin: () => ({ from: () => ({ select: () => ({ in() { return this; }, order() { return this; }, limit: async () => ({ data: [], count: 0 }) }) }) }) },
     '@/lib/admin/auth': { requireStaff: async () => ({ full_name: 'צוות בדיקה' }) },
@@ -119,6 +121,11 @@ test('dashboard authenticates before fetching data and keeps archived cases out 
   assert.ok(html.includes('>202<'));
   const readyPanel = html.slice(html.indexOf('<h2 class="font-bold text-slate-800">מוכנים לזימון לפגישה'));
   assert.ok(!readyPanel.includes('ילד בדיקת ארכיון'));
+  const WithArchive=compile('app/admin/dashboard/page.tsx',{...overrides,'@/lib/intake/dashboard-archive':{loadDashboardArchive:async()=>new Set(['synthetic-204'])}}).default;
+  const visible=renderToStaticMarkup(await WithArchive({searchParams:{q:'ארכיון'}}));
+  assert.ok(!visible.includes('ילד בדיקת ארכיון'));
+  const hidden=renderToStaticMarkup(await WithArchive({searchParams:{q:'ארכיון',archive:'1'}}));
+  assert.ok(hidden.includes('ילד בדיקת ארכיון'));assert.ok(hidden.includes('שחזור לרשימה'));assert.ok(hidden.includes('/edit'));
   let fetched = false;
   const denied = compile('app/admin/dashboard/page.tsx', {
     ...overrides,
@@ -134,6 +141,7 @@ test('dashboard distinguishes failed data from empty queues and sorts appointmen
   const Dashboard = compile('app/admin/dashboard/page.tsx', {
     'next/link': { default: link, __esModule: true },
     '@/components/admin/CalendarOverview': {default:()=>null,__esModule:true},
+    '@/lib/intake/dashboard-archive': {loadDashboardArchive:async()=>new Set()},
     '@/lib/admin/auth': { requireStaff: async () => ({ full_name: 'צוות בדיקה' }) },
     '@/lib/intake/queue': { loadIntakeQueue: async () => { throw new Error('unavailable'); } },
     '@/lib/supabase': { getSupabaseAdmin: () => ({ from: table => ({
@@ -155,6 +163,7 @@ test('staff navigation keeps every destination available with current-page seman
   const Navigation = compile('components/admin/AdminNavigation.tsx', {
     'next/link': { default: link, __esModule: true },
     '@/components/admin/CalendarOverview': {default:()=>null,__esModule:true},
+    '@/lib/intake/dashboard-archive': {loadDashboardArchive:async()=>new Set()},
     'next/navigation': { usePathname: () => '/admin/sessions/example' },
   }).default;
   const html = renderToStaticMarkup(React.createElement(Navigation));
