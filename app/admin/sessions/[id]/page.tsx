@@ -40,7 +40,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
     supabase.from('scores').select('*').eq('session_id', session.id).order('created_at', { ascending: false }),
     supabase.from('clinical_notes').select('*, staff_users(full_name)').eq('session_id', session.id).order('created_at', { ascending: false }),
     supabase.from('appointments').select('*').eq('session_id', session.id).order('scheduled_at'),
-    supabase.from('audit_log').select('*').eq('session_id', session.id).order('created_at', { ascending: false }).limit(20),
+    supabase.from('audit_log').select('*').eq('entity_type','intake_session').eq('entity_id', session.id).order('created_at', { ascending: false }).limit(20),
   ]);
 
   const progress = intakeProgress(questionnaires ?? [], appointments ?? [], session.status);
@@ -188,7 +188,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
                   <li key={a.id} className="border-r-2 border-r-slate-200 pr-2">
                     <div className="text-slate-700">{a.action}</div>
                     <div className="text-slate-400">
-                      {new Date(a.created_at).toLocaleString('he-IL')} · {a.actor}
+                      {new Date(a.created_at).toLocaleString('he-IL')} · {a.actor_type==='staff'?'צוות המכון':a.actor_type}
                     </div>
                   </li>
                 ))}

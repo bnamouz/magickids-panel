@@ -17,5 +17,5 @@ export async function POST(req:NextRequest){
  const v=parsed.data;
  const {data,error}=await getSupabaseAdmin().rpc('manage_dashboard_case',{p_session:v.sessionId,p_staff:staff.id,p_action:v.action,p_data:v.action==='edit'?v.fields:{},p_version:v.action==='edit'?v.version:null});
  if(error){if(error.message.includes('case_changed'))return json({error:'התיק עודכן בינתיים. רעננו את הדף לפני שמירה נוספת.'},409);if(error.message.includes('case_not_found'))return json({error:'התיק לא נמצא'},404);return json({error:'הפעולה לא נשמרה. נסו שוב.'},500);}
- return json(data);
+ return json(v.action==='read'?{...data,canDelete:staff.role==='admin'}:data);
 }

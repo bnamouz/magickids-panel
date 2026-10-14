@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { caseDirectory } from '@/lib/intake/directory';
 import { INTAKE_STAGES } from '@/lib/intake/progress';
 
-export default function CaseDirectory({ result,archived=false }: { result: ReturnType<typeof caseDirectory> | null;archived?:boolean }) {
+export default function CaseDirectory({ result,archived=false,canDelete=false }: { result: ReturnType<typeof caseDirectory> | null;archived?:boolean;canDelete?:boolean }) {
   const url = (page: number) => `/admin/dashboard?${new URLSearchParams({ q: result?.query ?? '', page: String(page),...(archived?{archive:'1'}:{}) })}#case-directory`;
   return <section id="case-directory" aria-labelledby="case-directory-title" className="card mb-6 scroll-mt-24">
     <h2 id="case-directory-title" className="text-xl font-bold text-[#01696f]">כל התיקים ותשובות השאלונים</h2>
@@ -33,7 +33,7 @@ export default function CaseDirectory({ result,archived=false }: { result: Retur
             <p className="text-sm mt-2">שאלון הורים: {row.parentComplete ? 'הושלם ונשלח' : 'טרם הושלם ונשלח'}{row.parentSubmittedAt && <> · <time dateTime={row.parentSubmittedAt}>{dateLabel(row.parentSubmittedAt)}</time></>}</p>
             <p className="text-sm text-slate-600">שאלון מורה: {row.teacherComplete ? 'הושלם ונשלח' : 'טרם הושלם ונשלח'}{row.teacherSubmittedAt && <> · <time dateTime={row.teacherSubmittedAt}>{dateLabel(row.teacherSubmittedAt)}</time></>}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2"><CaseActions id={row.id} name={row.childName} archived={archived}/><Link href={`/admin/sessions/${row.id}#questionnaires`} className="btn-ghost text-sm min-h-11">צפייה בתשובות השאלונים</Link></div>
+          <div className="flex flex-wrap items-center gap-2"><CaseActions id={row.id} name={row.childName} archived={archived} canDelete={canDelete}/><Link href={`/admin/sessions/${row.id}#questionnaires`} className="btn-ghost text-sm min-h-11">צפייה בתשובות השאלונים</Link></div>
         </li>)}</ul>}
       {result.pageCount > 1 && <nav aria-label="עמודי רשימת התיקים" className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
         {result.page > 1 ? <Link href={url(result.page - 1)} className="btn-ghost min-h-11">הקודם</Link> : <span />}
