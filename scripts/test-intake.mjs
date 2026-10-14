@@ -144,9 +144,10 @@ test('staff booking API enforces two submitted questionnaires and denies unauthe
   const route=compile('app/api/admin/appointments/create/route.ts',{
     '@/lib/admin/auth':{getCurrentStaff:async()=>authorized?{id:'staff'}:null},
     '@/lib/supabase':{getSupabaseAdmin:()=>db},
-    '@/lib/google-calendar':{checkAvailability:async()=>{throw new Error('unexpected calendar call');},createCalendarEvent:async()=>{throw new Error('unexpected calendar write');}}
+    '@/lib/calendar-consistency':{syncAppointment:async()=> 'synced'},
+    '@/lib/google-calendar':{getCalendarId:()=> 'test-calendar',checkAvailability:async()=>{throw new Error('unexpected calendar call');},createCalendarEvent:async()=>{throw new Error('unexpected calendar write');}}
   });
-  const req={json:async()=>({session_id:'case',appointment_type:'assessment',scheduled_at:'2099-01-07T14:00:00Z',skip_calendar:true})};
+  const req={headers:new Headers({origin:'https://app.test'}),nextUrl:new URL('https://app.test/api/admin/appointments/create'),json:async()=>({session_id:'case',appointment_type:'assessment',scheduled_at:'2099-01-07T14:00:00Z'})};
   assert.equal((await route.POST(req)).status,403);authorized=true;
   assert.equal((await route.POST(req)).status,409);
   forms.push(form('vanderbilt_teacher'));appointments=[{status:'scheduled'}];assert.equal((await route.POST(req)).status,409);
