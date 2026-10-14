@@ -34,6 +34,7 @@ export function getSupabaseAdmin() {
     requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
     {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) },
     },
   );
 }

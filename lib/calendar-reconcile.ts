@@ -27,7 +27,7 @@ export async function reconcileCalendars(){
   ]);
   if(a.error||t.error||m.error)throw new Error('unavailable');
   for(const [rows,sync] of [[a.data,syncAppointment],[t.data,syncTreatment],[m.data,syncMoxoCalendar]] as const){
-   for(const row of rows??[]){if(Date.now()>deadline){report.truncated=true;break;}const result=await sync(row.id);if(result==='synced')report.synced++;else report.failed++;}
+   for(const row of rows??[]){if(Date.now()>deadline){report.truncated=true;break;}const result=await sync(row.id);if(result==='synced')report.synced++;else if(result!=='unchanged')report.failed++;}
   }
   const reservations=await db.from('v_calendar_reservations').select('*').gt('ends_at',now).order('starts_at').limit(51);
   if(reservations.error)throw reservations.error;
