@@ -1,13 +1,13 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { firstRelated, intakeProgress, type QuestionnaireProgress, type IntakeAppointment } from './progress';
-type Person = { full_name?: string; phone?: string };
+type Person = { full_name?: string; phone?: string; email?: string };
 type Patient = { first_name?: string; last_name?: string };
 type Session = { id: string; status: string; created_at: string; patients: Patient | Patient[]; parents: Person | Person[]; questionnaires: QuestionnaireProgress[]; appointments: IntakeAppointment[] };
 export async function loadIntakeQueue({ includeArchived = false }: { includeArchived?: boolean } = {}) {
   const db = getSupabaseAdmin(), sessions: Session[] = [];
   for (let offset = 0; ; offset += 200) {
     let query = db.from('intake_sessions')
-      .select('id,status,created_at,patients(first_name,last_name),parents(full_name,phone),questionnaires(type,is_complete,submitted_at,responses),appointments(id,status,scheduled_at,appointment_type)')
+      .select('id,status,created_at,patients(first_name,last_name),parents(full_name,phone,email),questionnaires(type,is_complete,submitted_at,responses),appointments(id,status,scheduled_at,appointment_type)')
       .order('created_at', { ascending: true }).order('id', { ascending: true }).range(offset, offset + 199);
     if (!includeArchived) query = query.not('status', 'in', '(closed,cancelled,reported)');
     const { data, error } = await query;
@@ -19,7 +19,7 @@ export async function loadIntakeQueue({ includeArchived = false }: { includeArch
     const patient = firstRelated(session.patients), parent = firstRelated(session.parents);
     return { id: session.id, status: session.status, createdAt: session.created_at,
       childName: [patient?.first_name, patient?.last_name].filter(Boolean).join(' ') || '—',
-      parentName: parent?.full_name ?? '—', parentPhone: parent?.phone ?? '',
+      parentName: parent?.full_name ?? '—', parentPhone: parent?.phone ?? '', parentEmail: parent?.email ?? '',
       ...intakeProgress(session.questionnaires ?? [], session.appointments ?? [], session.status) };
   }).sort((a, b) => (a.readyAt ?? a.createdAt).localeCompare(b.readyAt ?? b.createdAt));
 }

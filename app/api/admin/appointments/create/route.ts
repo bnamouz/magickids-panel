@@ -6,8 +6,10 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarId } from '@/lib/google-calendar';
 import {syncAppointment} from '@/lib/calendar-consistency';
 import {randomUUID} from 'node:crypto';
+import {confirmationSchema,sendAppointmentConfirmation} from '@/lib/appointments/confirmation';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const DURATION_BY_TYPE: Record<string, number> = {
   assessment: 60,
@@ -21,6 +23,8 @@ export async function POST(req: NextRequest) {
     if (!await getCurrentStaff()) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     if(req.headers.get('origin')!==req.nextUrl.origin)return NextResponse.json({error:'forbidden'},{status:403});
     const body = await req.json();
+    const notice = body.confirmation == null ? null : confirmationSchema.safeParse(body.confirmation);
+    if (notice && !notice.success) return NextResponse.json({error:'יש לאמת פרטי נמען והסכמה לשליחת אישור'}, {status:400});
     const {
       session_id,
       appointment_type,
@@ -117,10 +121,14 @@ export async function POST(req: NextRequest) {
         .eq('id', session_id);
     }
 
+    const confirmation = notice?.success
+      ? await sendAppointmentConfirmation(appointmentId, notice.data)
+      : null;
     return NextResponse.json({
       ok: true,
       appointment: appt,
       calendar_sync: calendarStatus,
+      confirmation,
       warning: calendarStatus==='synced'?null:'تم حفظ الموعد / הפגישה נשמרה אך סנכרון היומן טרם אושר. יש לבדוק את מצב הסנכרון בדאשבורד.',
     });
   } catch (e: any) {

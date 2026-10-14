@@ -3,11 +3,15 @@
 import { useState, useEffect } from 'react';
 import { candidateSlots, localParts, isAssessmentSlot, FOLLOWUP_QUARTERS } from '@/lib/booking/schedule';
 import { CalendarPlus, X, Loader2, Check, AlertCircle } from 'lucide-react';
+import { ConfirmationFields, ConfirmationStatus, initialNotice, type NoticeOptions } from '@/components/admin/AppointmentConfirmation';
+import type { ConfirmationResult } from '@/lib/appointments/confirmation-copy';
 
 interface Props {
   sessionId: string;
   childName: string;
   assessmentReady: boolean;
+  parentEmail: string;
+  parentPhone: string;
 }
 
 // Follow-ups (מעקב) are quarter-hour slots inside the same Wednesday
@@ -20,7 +24,7 @@ const APPOINTMENT_TYPES = [
 
 type QuarterSlot = { minute: number; time: string; available: boolean; takenBy: string | null };
 
-export default function BookAppointment({ sessionId, childName, assessmentReady }: Props) {
+export default function BookAppointment({ sessionId, childName, assessmentReady, parentEmail, parentPhone }: Props) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState(assessmentReady ? 'assessment' : 'followup');
   const [date, setDate] = useState('');
@@ -33,6 +37,9 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [notice, setNotice] = useState<NoticeOptions>({ ...initialNotice });
+  const [noticeResult, setNoticeResult] = useState<ConfirmationResult | null>(null);
+  const [uncertain, setUncertain] = useState(false);
 
   const duration = APPOINTMENT_TYPES.find((t) => t.value === type)?.duration ?? 60;
   const wednesdayDates = [...new Set(candidateSlots('adhd').map((iso) => localParts(new Date(iso)).date))];
@@ -83,6 +90,9 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
   async function submit() {
     setError(null);
     setSuccess(null);
+    if ((notice.email || notice.whatsapp) && !notice.consentConfirmed) {
+      setError('יש לאמת נמען והסכמה, או לבטל את בחירת שני ערוצי השליחה'); return;
+    }
 
     if (!date || !time) {
       setError('חובה לבחור תאריך ושעה');
@@ -114,6 +124,8 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
           duration_minutes: duration,
           location: location || null,
           notes: notes || null,
+          confirmation: notice.email || notice.whatsapp
+            ? { ...notice, expectedEmail: parentEmail, expectedPhone: parentPhone, expectedStart: scheduledAt, expectedLocation: location } : undefined,
         }),
       });
 
@@ -140,12 +152,10 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
           : 'הפגישה נקבעה בהצלחה ונוספה ליומן'
       );
 
-      // Refresh page after 1.5s to show new appointment
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      setNoticeResult(data.confirmation ?? null);
     } catch (e: any) {
-      setError(e.message || 'שגיאת רשת');
+      setUncertain(true);
+      setError('תוצאת השמירה אינה ודאית. רעננו ובדקו את רשימת התורים לפני קביעת תור נוסף.');
     } finally {
       setLoading(false);
     }
@@ -254,6 +264,7 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
                 <input
                   type="text"
                   value={location}
+                  maxLength={200}
                   onChange={(e) => setLocation(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 />
@@ -278,6 +289,12 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
                 </div>
               )}
 
+              <ConfirmationFields value={notice} onChange={setNotice} email={parentEmail} phone={parentPhone}
+                start={date && (type !== 'followup' || quarter !== null) ? `${date}T${time.split(':')[0]}:${type === 'followup' ? String(quarter).padStart(2, '0') : '00'}:00${getIsraelOffset(date)}` : undefined}
+                location={location} disabled={loading || !!success || uncertain} />
+              {noticeResult && <ConfirmationStatus result={noticeResult} />}
+              {(success || uncertain) && <button type="button" className="underline text-sm" onClick={() => window.location.reload()}>רענון רשימת התורים ומצב השליחה</button>}
+
               {success && (
                 <div className="flex items-start gap-2 p-3 bg-green-50 text-green-800 rounded-lg text-sm">
                   <Check size={16} className="mt-0.5 flex-shrink-0" />
@@ -288,7 +305,7 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={submit}
-                  disabled={loading || !!success}
+                  disabled={loading || !!success || uncertain || ((notice.email || notice.whatsapp) && !notice.consentConfirmed)}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#01696f] text-white rounded-lg font-semibold text-sm hover:bg-[#0C4E54] transition disabled:opacity-50"
                 >
                   {loading ? (
@@ -297,7 +314,7 @@ export default function BookAppointment({ sessionId, childName, assessmentReady 
                     </>
                   ) : (
                     <>
-                      <CalendarPlus size={16} /> קבע פגישה
+                      <CalendarPlus size={16} /> {notice.email || notice.whatsapp ? 'קביעת פגישה ושליחת אישור' : 'קבע פגישה ללא הודעה'}
                     </>
                   )}
                 </button>
