@@ -166,3 +166,16 @@ test('staff navigation keeps every destination available with current-page seman
     assert.ok(fs.existsSync(path.join(root, 'app/admin', route, 'page.tsx')), route);
   }
 });
+
+test('unified calendar presents sync problems and never reports a failed load as an empty calendar',async()=>{
+ const overrides={
+  'next/link':{default:link,__esModule:true},
+  './CalendarSyncButton':{default:()=>null,__esModule:true},
+  '@/lib/calendar-agenda':{loadCalendarAgenda:async()=>({rows:[{key:'t',start:'2099-01-01T10:00:00Z',name:'Synthetic',service:'טיפול',state:'failed',href:'/admin/treatments'}],health:{last_run:new Date().toISOString(),details:{failed:1}},truncated:false})},
+ };
+ const Overview=compile('components/admin/CalendarOverview.tsx',overrides).default;
+ const html=renderToStaticMarkup(await Overview({}));
+ assert.ok(html.includes('הסנכרון נכשל'));assert.ok(html.includes('role="alert"'));assert.ok(html.includes('Synthetic'));
+ const Broken=compile('components/admin/CalendarOverview.tsx',{...overrides,'@/lib/calendar-agenda':{loadCalendarAgenda:async()=>{throw Error('unavailable');}}}).default;
+ const broken=renderToStaticMarkup(await Broken({}));assert.ok(broken.includes('לא ניתן לטעון'));assert.ok(!broken.includes('אין תורים עתידיים'));
+});

@@ -66,8 +66,8 @@ test('MOXO persists pending requests, guards retries/rate limits, approves once 
 });
 test('MOXO approval requires staff and explicit phone verification; never sends for a rejected approval',async()=>{
  let staff=null,approved='slot_taken',sends=0;
- const db={rpc:async()=>({data:approved,error:null})};
- const route=compile('app/api/admin/moxo/route.ts',{'@/lib/admin/auth':{getCurrentStaff:async()=>staff},'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/moxo/notification':{notifyOnce:async()=>{sends++;return 'accepted';}}});
+ const db={rpc:async()=>({data:approved,error:null}),from(){const q={update(){return q;},eq(){return q;},is(){return Promise.resolve({error:null});}};return q;}};
+ const route=compile('app/api/admin/moxo/route.ts',{'@/lib/google-calendar':{getCalendarId:()=> 'calendar-test'},'@/lib/admin/auth':{getCurrentStaff:async()=>staff},'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/moxo/notification':{notifyOnce:async()=>{sends++;return 'accepted';}}});
  const body={id:randomUUID(),start:'2099-01-01T10:00:00Z',duration:30,phone_verified:true};
  const req={headers:new Headers({origin:'https://clinic.test'}),nextUrl:new URL('https://clinic.test/api/admin/moxo'),json:async()=>body};
  assert.equal((await route.POST(req)).status,403);staff={id:randomUUID()};
