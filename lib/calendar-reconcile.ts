@@ -11,7 +11,7 @@ export async function reconcileCalendars(){
  if(claim.error)throw new Error('unavailable');
  if(!claim.data)return {busy:true};
  const deadline=Date.now()+200000;
- const report={error:false,synced:0,failed:0,checked:0,mismatches:0,truncated:false,issues:[] as string[]};
+ const report={error:false,synced:0,failed:0,checked:0,mismatches:0,truncated:false,issues:[] as string[],differences:[] as {source:string;id:string;expectedStart:string;expectedEnd:string;actualStart:string|null;actualEnd:string|null;reason:string}[]};
  try{
   const stale=await db.from('appointments').update({calendar_sync:'failed'}).eq('calendar_sync','syncing').lt('calendar_sync_started_at',new Date(Date.now()-600000).toISOString());
   if(stale.error)throw stale.error;
@@ -41,8 +41,8 @@ export async function reconcileCalendars(){
    try{
     const event=(await calendar.events.get({calendarId:row.calendar_id,eventId:row.event_id},{timeout:5000,retry:false})).data;
     report.checked++;
-    if(event.status==='cancelled'||Date.parse(event.start?.dateTime??'')!==Date.parse(row.starts_at)||Date.parse(event.end?.dateTime??'')!==Date.parse(row.ends_at)){report.mismatches++;report.issues.push(key);}
-   }catch{report.mismatches++;report.issues.push(key);}
+    if(event.status==='cancelled'||Date.parse(event.start?.dateTime??'')!==Date.parse(row.starts_at)||Date.parse(event.end?.dateTime??'')!==Date.parse(row.ends_at)){report.mismatches++;report.issues.push(key);report.differences.push({source:row.source,id:row.id,expectedStart:row.starts_at,expectedEnd:row.ends_at,actualStart:event.start?.dateTime??null,actualEnd:event.end?.dateTime??null,reason:event.status==='cancelled'?'cancelled':'time_mismatch'});}
+   }catch{report.mismatches++;report.issues.push(key);report.differences.push({source:row.source,id:row.id,expectedStart:row.starts_at,expectedEnd:row.ends_at,actualStart:null,actualEnd:null,reason:'unavailable'});}
   }
   return report;
  }catch(error){report.error=true;throw error;}finally{
