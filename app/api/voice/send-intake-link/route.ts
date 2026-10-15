@@ -14,7 +14,10 @@ import { sendWhatsAppText } from '@/lib/whatsapp-ultramsg';
 export const runtime = 'nodejs';
 
 const BodySchema = z.object({
-  phone: z.string().min(6),
+  // Number the caller dictated. Optional: when missing or malformed we fall
+  // back to the caller ID that ElevenLabs passes in `caller_id`.
+  phone: z.string().optional(),
+  caller_id: z.string().optional(),
   parent_name: z.string().optional(),
   child_name: z.string().optional(),
   language: z.enum(['he', 'ar']).default('he'),
@@ -35,10 +38,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const phone = normalisePhone(body.phone);
+  // Voice transcription and the model's own E.164 conversion sometimes add or
+  // drop a digit (e.g. 0548800600 -> +9725448800600). Prefer the dictated
+  // number when it is valid; otherwise use the verified caller ID, so the
+  // family still gets the link. Never guess beyond these two sources.
+  const dictated = normalisePhone(body.phone);
+  const callerId = normalisePhone(body.caller_id);
+  const phone = dictated || callerId;
+  const usedCallerId = !dictated && !!callerId;
   if (!phone) {
     return NextResponse.json(
-      { success: false, error: 'invalid_phone' },
+      {
+        success: false,
+        error: 'invalid_phone',
+        instruction:
+          'The number is not a valid Israeli mobile number (05X followed by 7 digits). Read the number back digit by digit and ask the caller to repeat it. If it still fails, use escalate_to_human.',
+      },
       { status: 400 },
     );
   }
@@ -94,5 +109,9 @@ export async function POST(req: NextRequest) {
     success: true,
     link,
     whatsapp_message_id: waResult.id,
+    sent_to: phone,
+    used_caller_id: usedCallerId,
+    // Local format so the agent can read it back to the caller.
+    sent_to_local: '0' + phone.slice(4),
   });
 }

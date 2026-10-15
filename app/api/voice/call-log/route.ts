@@ -18,7 +18,7 @@ export const runtime = 'nodejs';
 const WEBHOOK_TOLERANCE_SEC = 30 * 60; // 30 minutes
 
 function verifyHmacSignature(rawBody: string, signatureHeader: string | null): boolean {
-  const secret = process.env.ELEVENLABS_WEBHOOK_SECRET;
+  const secret = process.env.SARAH_ELEVENLABS_WEBHOOK_SECRET || process.env.ELEVENLABS_WEBHOOK_SECRET;
   if (!secret || !signatureHeader) return false;
 
   // ElevenLabs sends: "t=1234567890,v0=abc123..."
