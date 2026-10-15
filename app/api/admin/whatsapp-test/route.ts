@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getCurrentStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { notifyOnce } from '@/lib/moxo/notification';
+import { notifyMagicKidsOnce } from '@/lib/appointments/magic-kids-whatsapp';
 import { OWNER_WHATSAPP_TEST } from '@/lib/appointments/owner-whatsapp-test';
 import { ownerWhatsAppIdentity } from '@/lib/appointments/owner-whatsapp-identity';
 
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const identity = await ownerWhatsAppIdentity();
     if (identity !== 'verified') return reply({ state: identity }, 503);
     // Existing atomic once-only claim protects against concurrent clicks and reloads.
-    const state = await notifyOnce(OWNER_WHATSAPP_TEST.id, OWNER_WHATSAPP_TEST.to, OWNER_WHATSAPP_TEST.body);
+    const state = await notifyMagicKidsOnce(OWNER_WHATSAPP_TEST.id, OWNER_WHATSAPP_TEST.to, OWNER_WHATSAPP_TEST.body);
     return reply({ state });
   } catch { return reply({ state: 'unknown' }, 503); }
 }

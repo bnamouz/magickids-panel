@@ -17,7 +17,7 @@ function setup(role = 'admin', options = {}) {
     '@/lib/admin/auth': { getCurrentStaff: async () => role ? { role } : null },
     '@/lib/appointments/owner-whatsapp-test': copy,
     '@/lib/appointments/owner-whatsapp-identity': { ownerWhatsAppIdentity: async () => { identities.push(1); return options.identity ?? 'verified'; } },
-    '@/lib/moxo/notification': { notifyOnce: async (...args) => { calls.push(args); if (options.fail) throw Error('private'); return 'accepted'; } },
+    '@/lib/appointments/magic-kids-whatsapp': { notifyMagicKidsOnce: async (...args) => { calls.push(args); if (options.fail) throw Error('private'); return 'accepted'; } },
     '@/lib/supabase': { getSupabaseAdmin: () => ({ from: table => {
       assert.equal(table, 'clinic_notifications');
       return { select: fields => { assert.equal(fields, 'state'); return {
@@ -86,7 +86,7 @@ test('provider exceptions sanitized as unknown', async () => {
 });
 test('identity verifies exact instance and sender; network failures never leak token', async () => {
   const original = global.fetch;
-  const oldInstance = process.env.ULTRAMSG_INSTANCE_ID, oldToken = process.env.ULTRAMSG_TOKEN;
+  const oldInstance = process.env.MAGIC_KIDS_ULTRAMSG_INSTANCE_ID, oldToken = process.env.MAGIC_KIDS_ULTRAMSG_TOKEN;
   const mod = load('lib/appointments/owner-whatsapp-identity.ts', { './owner-whatsapp-test': copy });
   let calls = 0;
   try {
@@ -95,12 +95,12 @@ test('identity verifies exact instance and sender; network failures never leak t
       assert.equal(opts.redirect, 'error'); assert.equal(opts.cache, 'no-store');
       return { ok: true, json: async () => ({ id: '972544020043@c.us' }) };
     };
-    delete process.env.ULTRAMSG_TOKEN;
+    delete process.env.MAGIC_KIDS_ULTRAMSG_TOKEN;
     assert.equal(await mod.ownerWhatsAppIdentity(), 'not_configured');
-    process.env.ULTRAMSG_TOKEN = 'synthetic-test-only';
-    process.env.ULTRAMSG_INSTANCE_ID = 'wrong';
+    process.env.MAGIC_KIDS_ULTRAMSG_TOKEN = 'synthetic-test-only';
+    process.env.MAGIC_KIDS_ULTRAMSG_INSTANCE_ID = 'wrong';
     assert.equal(await mod.ownerWhatsAppIdentity(), 'identity_mismatch'); assert.equal(calls, 0);
-    process.env.ULTRAMSG_INSTANCE_ID = 'instance173060';
+    process.env.MAGIC_KIDS_ULTRAMSG_INSTANCE_ID = 'instance173060';
     assert.equal(await mod.ownerWhatsAppIdentity(), 'verified');
     global.fetch = async () => ({ ok: true, json: async () => ({ id: '972500000000@c.us' }) });
     assert.equal(await mod.ownerWhatsAppIdentity(), 'identity_mismatch');
@@ -110,7 +110,7 @@ test('identity verifies exact instance and sender; network failures never leak t
     assert.equal(await mod.ownerWhatsAppIdentity(), 'identity_unavailable');
   } finally {
     global.fetch = original;
-    if (oldInstance === undefined) delete process.env.ULTRAMSG_INSTANCE_ID; else process.env.ULTRAMSG_INSTANCE_ID = oldInstance;
-    if (oldToken === undefined) delete process.env.ULTRAMSG_TOKEN; else process.env.ULTRAMSG_TOKEN = oldToken;
+    if (oldInstance === undefined) delete process.env.MAGIC_KIDS_ULTRAMSG_INSTANCE_ID; else process.env.MAGIC_KIDS_ULTRAMSG_INSTANCE_ID = oldInstance;
+    if (oldToken === undefined) delete process.env.MAGIC_KIDS_ULTRAMSG_TOKEN; else process.env.MAGIC_KIDS_ULTRAMSG_TOKEN = oldToken;
   }
 });

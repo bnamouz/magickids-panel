@@ -15,7 +15,7 @@ export const WHATSAPP_TEST_LABELS: Record<string, string> = {
   accepted: 'UltraMsg קיבל את ההודעה לטיפול. יש לבדוק שהתקבלה בפועל בוואטסאפ של הנמען.',
   unknown: 'תוצאת השליחה אינה ודאית. אין לשלוח שוב לפני בירור.',
   unavailable: 'לא ניתן לבדוק את המצב כרגע. השליחה חסומה.',
-  not_configured: 'חסרה הגדרת UltraMsg באתר.',
+  not_configured: 'חסרה הגדרת חיבור הוואטסאפ הנפרד של המכון באתר. החיבור המשותף אינו משמש כתחליף.',
   identity_mismatch: 'חיבור הוואטסאפ באתר אינו תואם למספר המכון שאושר. השליחה חסומה.',
   identity_unavailable: 'לא ניתן לאמת כעת את מספר הוואטסאפ המחובר. השליחה חסומה.',
   verified: 'מספר המכון אומת מול UltraMsg.',

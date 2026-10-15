@@ -9,6 +9,8 @@ export const confirmationLabels: Record<string, string> = {
   contact_changed: 'פרטי הנמען השתנו; יש לרענן ולאמת אותם',
   test_blocked: 'מצב בדיקה: הנמען אינו נמען הבדיקה המאושר',
   not_configured: 'הערוץ אינו מוגדר',
+  identity_mismatch: 'חיבור הוואטסאפ אינו תואם למספר המכון; לא נשלח',
+  identity_unavailable: 'לא ניתן לאמת את מספר המכון; לא נשלח',
   sending: 'שליחה בטיפול; אין לשלוח שוב',
   pending: 'טרם נשלח',
   unknown: 'תוצאת השליחה אינה ודאית; נדרשת בדיקה ללא שליחה חוזרת',

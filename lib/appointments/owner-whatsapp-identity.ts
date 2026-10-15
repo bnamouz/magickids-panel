@@ -2,8 +2,9 @@ import { OWNER_WHATSAPP_TEST } from './owner-whatsapp-test';
 
 // No secrets or upstream error bodies are returned or logged.
 export async function ownerWhatsAppIdentity() {
-  const instance = process.env.ULTRAMSG_INSTANCE_ID;
-  const token = process.env.ULTRAMSG_TOKEN;
+  // Never fall back to shared Marhaba/Nour credentials.
+  const instance = process.env.MAGIC_KIDS_ULTRAMSG_INSTANCE_ID;
+  const token = process.env.MAGIC_KIDS_ULTRAMSG_TOKEN;
   if (!instance || !token) return 'not_configured';
   if (instance !== OWNER_WHATSAPP_TEST.instance) return 'identity_mismatch';
   try {

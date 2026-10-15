@@ -28,7 +28,7 @@ function fixture(overrides={}) {
   const mod=compile('lib/appointments/confirmation.ts',{
     '@/lib/supabase':{getSupabaseAdmin:()=>db},
     '@/lib/intake/progress':{firstRelated:v=>Array.isArray(v)?v[0]:v},
-    '@/lib/moxo/notification':{notifyOnce:once},
+    '@/lib/appointments/magic-kids-whatsapp':{notifyMagicKidsOnce:once},
     '@/lib/therapists/mail':{emailOnce:once},
     './confirmation-copy':copy,
   });
