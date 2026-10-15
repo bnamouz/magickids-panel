@@ -11,6 +11,7 @@ import BookAppointment from './BookAppointment';
 import AppointmentConfirmation from '@/components/admin/AppointmentConfirmation';
 import ReportsList from './ReportsList';
 import QuestionnaireLinks from '@/components/admin/QuestionnaireLinks';
+import CaseActions from '@/components/admin/CaseActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,15 +35,23 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
   const patient = firstRelated<any>(session.patients);
   const parent = firstRelated<any>(session.parents);
   const childName = `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || '—';
+  const archive = await supabase.from('dashboard_case_archive').select('session_id')
+    .eq('session_id', session.id).maybeSingle();
 
   // Load questionnaires + scores + notes + appointments in parallel
-  const [{ data: questionnaires }, { data: scores }, { data: notes }, { data: appointments }, { data: audit }] = await Promise.all([
+  const [{ data: questionnaires }, { data: scores }, { data: notes, error: notesError }, { data: appointments }, { data: audit }] = await Promise.all([
     supabase.from('questionnaires').select('*').eq('session_id', session.id).order('type'),
     supabase.from('scores').select('*').eq('session_id', session.id).order('created_at', { ascending: false }),
-    supabase.from('clinical_notes').select('*, staff_users(full_name)').eq('session_id', session.id).order('created_at', { ascending: false }),
+    supabase.from('clinical_notes').select('*').eq('session_id', session.id).order('created_at', { ascending: false }),
     supabase.from('appointments').select('*').eq('session_id', session.id).order('scheduled_at'),
     supabase.from('audit_log').select('*').eq('entity_type','intake_session').eq('entity_id', session.id).order('created_at', { ascending: false }).limit(20),
   ]);
+  // staff_users is a view of public.users. Resolve display names explicitly.
+  const noteAuthors = notes?.length ? await supabase.from('staff_users').select('id,full_name')
+    .in('id', Array.from(new Set(notes.map(n => n.staff_id)))) : { data: [] };
+  const notesWithAuthors = notes?.map(n => ({ ...n,
+    staff_users: noteAuthors.data?.find(author => author.id === n.staff_id) ?? null,
+  }));
 
   const progress = intakeProgress(questionnaires ?? [], appointments ?? [], session.status);
   const parentQ = questionnaires?.find((q: any) => q.type === 'vanderbilt_parent');
@@ -71,6 +80,17 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
             <span className="px-4 py-2 rounded-full bg-teal-50 text-[#01696f] font-semibold text-sm">{INTAKE_STAGES[progress.stage]}</span>
           </div>
         </div>
+      </div>
+
+      <div className="card mb-6 space-y-3" aria-label="פעולות בתיק">
+        <h2 className="font-bold text-slate-800">פעולות בתיק</h2>
+        {archive.error ? <p role="alert" className="text-sm text-red-700">לא ניתן לטעון את מצב הארכיון. פעולות התיק אינן זמינות כרגע.</p>
+          : <CaseActions id={session.id} name={childName} archived={!!archive.data} canDelete={staff.role === 'admin'} />}
+        <div className="flex flex-wrap gap-4 text-sm text-teal-800">
+          <a className="underline" href="#clinical-notes">ממצאים והערות קליניות</a>
+          <a className="underline" href="#appointments">תורים והודעות להורה</a>
+        </div>
+        <p className="text-xs text-slate-500">עריכת פרטים אינה משנה תשובות שאלונים או דוחות קיימים. מחיקה לצמיתות מתייחסת לתיק כולו, לא לממצא בודד.</p>
       </div>
 
       <div className="card mb-6"><div className="flex flex-wrap justify-between gap-3"><h2 className="font-bold text-[#01696f]">מצב הקליטה</h2><Link className="text-sm underline" href="/admin/intake">לרשימת הקליטה והזימון</Link></div><div className="grid sm:grid-cols-3 gap-3 mt-4"><div className="rounded-lg bg-slate-50 p-3">שאלון הורים: <strong>{progress.parentComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-slate-50 p-3">שאלון מורה: <strong>{progress.teacherComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-teal-50 text-[#01696f] p-3 font-bold">{INTAKE_STAGES[progress.stage]}</div></div>{!progress.bothComplete && <p className="text-sm text-slate-500 mt-3">ניתן לזמן לפגישת אבחון לאחר השלמת שני השאלונים.</p>}</div>
@@ -114,7 +134,8 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           )}
 
           {/* Clinical notes */}
-          <ClinicalNotes sessionId={session.id} notes={notes ?? []} currentStaffId={staff.id} />
+          {notesError ? <div id="clinical-notes" role="alert" className="card text-red-800">לא ניתן לטעון את הממצאים. אין בכך אישור שהתיק ריק; יש לרענן ולבדוק.</div>
+            : <ClinicalNotes sessionId={session.id} notes={notesWithAuthors ?? []} currentStaffId={staff.id} isAdmin={staff.role === 'admin'} />}
         </div>
 
         {/* Right sidebar */}
