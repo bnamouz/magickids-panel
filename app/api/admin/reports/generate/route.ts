@@ -95,11 +95,15 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     // Load clinical notes
-    const { data: clinicalNotes } = await supabase
+    const { data: clinicalNotes, error: clinicalNotesError } = await supabase
       .from('clinical_notes')
       .select('category, content, created_at')
+      .is('voided_at', null)
       .eq('session_id', session_id)
       .order('created_at', { ascending: true });
+    if (clinicalNotesError) {
+      return NextResponse.json({ error: 'לא ניתן לטעון ממצאים קליניים. לא הופק דוח ללא הממצאים.' }, { status: 503 });
+    }
 
     // Compute scores
     const parentResponses = parentQ.responses as Record<string, number>;
