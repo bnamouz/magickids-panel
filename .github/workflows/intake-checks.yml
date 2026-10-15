@@ -17,6 +17,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: node scripts/test-appointment-messages.mjs
       - run: npm run test:intake
       - run: node --test scripts/test-dashboard.mjs
       - run: node scripts/test-case-actions.mjs

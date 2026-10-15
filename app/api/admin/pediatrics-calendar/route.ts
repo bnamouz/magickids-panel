@@ -10,7 +10,7 @@ export async function POST(req:NextRequest){
   try{
     const raw=await req.text();if(raw.length>8192)return reply({error:'invalid_body'},413);
     const body=bookingSchema.parse(JSON.parse(raw));
-    if(body.visitType==='followup'||body.parentToken||body.reminderConsent)return reply({error:'invalid_body'},400);
+    if(body.visitType==='followup'||body.parentToken)return reply({error:'invalid_body'},400);
     const result=await book('pediatrics',body,`staff:${staff.id}`,true);
     return reply({confirmed:result.confirmed,start:result.start,reference:result.reference});
   }catch(error){return error instanceof BookingError?reply({error:error.code},error.status):reply({error:'unavailable'},503);}

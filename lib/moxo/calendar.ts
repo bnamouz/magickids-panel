@@ -1,3 +1,4 @@
+import {sendAppointmentMessage} from '@/lib/appointment-messages/server';
 import {ensureCalendarEvent} from '@/lib/calendar-consistency';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
@@ -36,6 +37,7 @@ export async function syncMoxoCalendar(id:string):Promise<string>{
   if(bound.error||!bound.data?.google_calendar_id)return 'unavailable';
   const eventId=await writeMoxoEvent(getCalendarClient(),bound.data.google_calendar_id,row);
   const saved=await db.from('moxo_requests').update({calendar_status:'synced',google_event_id:eventId,calendar_synced_at:new Date().toISOString()}).eq('id',id).eq('status','approved');
+  if(!saved.error)await sendAppointmentMessage('moxo_requests',id).catch(()=>null);
   return saved.error?'unavailable':'synced';
  }catch{
   await db.from('moxo_requests').update({calendar_status:'failed'}).eq('id',id).neq('calendar_status','synced');

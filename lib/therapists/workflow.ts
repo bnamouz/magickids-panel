@@ -40,7 +40,6 @@ export async function runTreatmentWorker(){
  for(const r of due.data??[]){
   const current=await db.from('treatment_requests').select('status,scheduled_at,therapist_id').eq('id',r.id).single();if(current.data?.status!=='scheduled'||current.data.scheduled_at!==r.scheduled_at||current.data.therapist_id!==r.therapist_id)continue;
   const when=new Intl.DateTimeFormat('he-IL',{timeZone:'Asia/Jerusalem',dateStyle:'short',timeStyle:'short'}).format(new Date(r.scheduled_at));
-  if(r.reminder_consent){const message=r.language==='ar'?`تذكير بموعدكم في معهد أطفال السحر بتاريخ ${when} (توقيت إسرائيل). للتغيير اتصلوا بالمعهد.`:r.language==='en'?`Reminder: your Magic Kids Institute appointment is on ${when} (Israel time). Contact the institute for changes.`:`תזכורת: נקבע לכם טיפול במכון ילדי הקסם בתאריך ${when} (שעון ישראל). לשינויים פנו למכון.`;if(await notifyOnce(`treatment-parent:${r.id}:${r.scheduled_at}`,r.phone,message)==='accepted')accepted++;}
   const t=await db.from('therapists').select('*').eq('id',r.therapist_id).maybeSingle();if(t.data){if(await emailOnce(`treatment-reminder:${r.id}:${r.scheduled_at}:${r.therapist_id}`,t.data.email,'תזכורת לטיפול במכון ילדי הקסם',`תזכורת לטיפול בתאריך ${when} (שעון ישראל). פרטי הטיפול בקישור האישי שלך: ${portalLink(t.data)}`)==='accepted')accepted++;}
  }
  await db.from('treatment_worker_state').upsert({id:true,last_run:new Date().toISOString()});return {processed:pending.data?.length??0,accepted};
