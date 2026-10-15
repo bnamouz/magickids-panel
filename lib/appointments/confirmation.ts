@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { firstRelated } from '@/lib/intake/progress';
-import { notifyOnce } from '@/lib/moxo/notification';
+import { notifyMagicKidsOnce } from '@/lib/appointments/magic-kids-whatsapp';
 import { emailOnce } from '@/lib/therapists/mail';
 import { confirmationMessage, type ConfirmationResult } from './confirmation-copy';
 
@@ -81,7 +81,7 @@ export async function sendAppointmentConfirmation(id: string, raw: unknown): Pro
       try {
         result[channel] = channel === 'email'
           ? await emailOnce(confirmationKey(id, channel), email, request.language === 'he' ? 'Magic Kids | אישור תור' : 'Magic Kids | تأكيد موعد', body)
-          : await notifyOnce(confirmationKey(id, channel), normalizedPhone!, body);
+          : await notifyMagicKidsOnce(confirmationKey(id, channel), normalizedPhone!, body);
       } catch { result[channel] = 'unknown'; }
     }
     return result;

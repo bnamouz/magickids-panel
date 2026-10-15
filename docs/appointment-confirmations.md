@@ -11,7 +11,8 @@
 - השליחה כבויה אם `APPOINTMENT_CONFIRMATIONS_MODE` אינו `test` או `live`.
 - מצב `test` מאפשר רק התאמה מדויקת ל־`APPOINTMENT_TEST_EMAIL` ול־`APPOINTMENT_TEST_PHONE` (E.164). אין העברה שקטה של הודעות מטופלים לנמען בדיקה.
 - לפני `test`: לאמת הרשאת שליחה כ־magickids@magickidsinstitute.com ואת מספר UltraMsg בפועל, ולאשר תור דמה, נוסח ויעדי בדיקה.
-- המימוש משתמש ב־emailOnce וב־notifyOnce שכבר באתר. חיבורי Perplexity אינם מגדירים את שרת Vercel.
+- המימוש משתמש ב־emailOnce וב־notifyMagicKidsOnce המבודד למכון. חיבורי Perplexity אינם מגדירים את שרת Vercel.
+- החיבור המבודד דורש `MAGIC_KIDS_ULTRAMSG_INSTANCE_ID=instance173060` ואת `MAGIC_KIDS_ULTRAMSG_TOKEN` המתאים, ללא fallback לחיבור המשותף. ראו `magic-kids-whatsapp-isolation.md`.
 - אישורי התורים משתמשים ב־`clinic_notifications` הקיימת. ההרחבה לניהול ממצאים באותה חבילה דורשת את המיגרציה המתוארת ב־`docs/case-workspace-upgrade.md`; היא טרם הוחלה על הטבלאות החיות.
 - תור חייב להיות עתידי, פעיל ומסונכרן. נבדק שוב לפני כל ערוץ.
 - מפתח ייחודי לכל תור וערוץ, עם claim אטומי של המנגנונים הקיימים. מצב sending/unknown אינו מאופס ואינו נשלח שוב אוטומטית.
