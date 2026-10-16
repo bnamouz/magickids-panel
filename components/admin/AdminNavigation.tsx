@@ -8,7 +8,7 @@ const groups = [
  {title:'קשב ואבחונים',icon:ClipboardList,items:[['/admin/intake','קליטה וזימון לקשב'],['/admin/sessions','תיקי מטופלים'],['/admin/appointments','יומן פגישות המכון'],['/admin/moxo','בקשות MOXO']]},
  {title:'טיפולים וצוות',icon:Users,items:[['/admin/treatments','פניות וטיפולים'],['/admin/therapists','מטפלים ושעות עבודה'],['/admin/rana','בקשות תור לרנא'],['/admin/recruitment','גיוס מטפלים']]},
  {title:'שירותי המכון',icon:CalendarDays,items:[['/admin/development','התפתחות הילד'],['/admin/classes','חוגים ומתעניינים'],['/admin/abroad','ליווי ילדים בחו״ל'],['/admin/reviews','חוות דעת ותמונות']]},
- {title:'שיחות',icon:MessageSquare,items:[['/admin/calls','שיחות שרה'],['/admin/personal/calls','שיחות נור']]},
+ {title:'שיחות',icon:MessageSquare,items:[['/admin/calls','שיחות שרה'],['/admin/personal/calls','שיחות נור'],['/admin/system-health','בריאות המערכת']]},
 ];
 export default function AdminNavigation(){
  const pathname=usePathname();
