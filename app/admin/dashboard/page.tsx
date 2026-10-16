@@ -5,19 +5,22 @@ import { loadIntakeQueue } from '@/lib/intake/queue';
 import { caseDirectory } from '@/lib/intake/directory';
 import CaseDirectory from '@/components/admin/CaseDirectory';
 import Link from 'next/link';
+import { loadCallFollowUps } from '@/lib/voice/follow-up';
+import FollowUpButton from '@/components/admin/FollowUpButton';
 import { requireStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { Users, Clock, AlertTriangle, CheckCircle2, ArrowLeft, CalendarDays, FilePlus2, Search, RefreshCw, MessageSquare } from 'lucide-react';
+import { Users, Clock, AlertTriangle, CheckCircle2, ArrowLeft, CalendarDays, FilePlus2, Search, RefreshCw, MessageSquare, PhoneCall } from 'lucide-react';
 export const dynamic = 'force-dynamic';
 export default async function DashboardPage({searchParams={}}:{searchParams?:{q?:string;page?:string;archive?:string;deleted?:string}}){
  const staff=await requireStaff();
  const supabase=getSupabaseAdmin();
- const [allCases,stuck,todayAppointments,treatmentRequests,hidden]=await Promise.all([
+ const [allCases,stuck,todayAppointments,treatmentRequests,hidden,callFollowUps]=await Promise.all([
   loadIntakeQueue({includeArchived:true}).catch(()=>null),
   supabase.from('v_stuck_sessions').select('*').limit(5),
   supabase.from('v_today_appointments').select('*').order('scheduled_at',{ascending:true}).limit(10),
   supabase.from('treatment_requests').select('id,patient_name,contact_name,status,created_at',{count:'exact'}).in('status',['pending','contacted']).order('created_at',{ascending:false}).limit(5),
   loadDashboardArchive().catch(()=>null),
+  loadCallFollowUps(supabase).catch(()=>null),
  ]);
  const archived=searchParams.archive==='1';
  const visibleCases=allCases&&hidden?allCases.filter(row=>!hidden.has(row.id)):null;
@@ -46,6 +49,11 @@ export default async function DashboardPage({searchParams={}}:{searchParams?:{q?
    <Panel title="פגישות המכון היום" icon={<CalendarDays size={20}/>} href="/admin/appointments">
     <p className="mb-2 text-xs text-slate-500">עד 10 פגישות, לפי שעה. תורי הילדים ובקשות לרופא מוצגים ביומן המרפאה.</p>
     {todayAppointments.error?<ErrorRow text="לא ניתן לטעון את פגישות היום. נסו לרענן."/>:!todayAppointments.data?.length?<EmptyRow text="אין פגישות מכון מתוזמנות היום"/>:<ul className="divide-y divide-slate-100">{todayAppointments.data.map((row:any)=><li key={row.id} className="flex items-center gap-3 py-3"><time dateTime={row.scheduled_at} className="rounded-lg bg-teal-50 px-3 py-2 font-mono font-bold text-teal-800" dir="ltr">{new Date(row.scheduled_at).toLocaleTimeString('he-IL',{timeZone:'Asia/Jerusalem',hour:'2-digit',minute:'2-digit'})}</time><div className="min-w-0 flex-1"><b className="break-words text-sm text-slate-800">{row.child_name}</b><p className="text-xs text-slate-500">{appointmentLabel(row.appointment_type)}{row.duration_min?` · ${row.duration_min} דקות`:''}</p></div><Link href="/admin/appointments" aria-label={`פרטי הפגישה של ${row.child_name}`} className="p-2 text-teal-700"><ArrowLeft size={18}/></Link></li>)}</ul>}
+   </Panel>
+   <Panel title="שיחות שדורשות טיפול" icon={<PhoneCall size={20}/>} href="/admin/calls">
+    <p className="mb-2 text-xs text-slate-500">שיחות של שרה מ־14 הימים האחרונים: הסלמות, שגיאות, פעולות שנכשלו ובקשות להמשך.</p>
+    {callFollowUps===null?<ErrorRow text="לא ניתן לטעון את השיחות. אין בכך אישור שאין שיחות לטיפול."/>:!callFollowUps.length?<EmptyRow text="אין שיחות שממתינות לטיפול"/>:<ul className="divide-y divide-slate-100">{callFollowUps.slice(0,8).map(c=><li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div className="min-w-0 flex-1"><b className="text-sm text-slate-800">{c.child_name||c.caller_name||'מתקשר לא מזוהה'}</b> <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{c.reason}</span><p className="mt-1 text-xs text-slate-500">{new Date(c.call_started_at||c.created_at).toLocaleString('he-IL',{timeZone:'Asia/Jerusalem',dateStyle:'short',timeStyle:'short'})}{c.next_action?` · ${c.next_action}`:c.purpose?` · ${c.purpose}`:''}</p></div><div className="flex items-center gap-2">{c.linked_case_id&&<Link href={`/admin/sessions/${c.linked_case_id}#calls`} className="text-xs font-semibold text-teal-800 underline">תיק</Link>}<Link href={`/admin/calls/${c.id}`} className="text-xs font-semibold text-teal-800 underline">שיחה</Link><FollowUpButton callId={c.id}/></div></li>)}</ul>}
+    {callFollowUps&&callFollowUps.length>8&&<p className="mt-2 text-xs text-slate-500">ועוד {callFollowUps.length-8} שיחות ביומן השיחות.</p>}
    </Panel>
    <Panel title="פניות לטיפול — ממתינות לתיאום" icon={<Users size={20}/>} href="/admin/treatments">
     {treatmentRequests.error?<ErrorRow text="לא ניתן לטעון את הפניות לטיפול. נסו לרענן."/>:<><p className="mb-2 text-sm text-slate-500"><b className="text-lg text-slate-900">{treatmentRequests.count??0}</b> פניות ממתינות · מוצגות עד 5 פניות אחרונות</p>{!treatmentRequests.data?.length?<EmptyRow text="אין פניות שממתינות לתיאום"/>:<ul className="divide-y divide-slate-100">{treatmentRequests.data.map(row=><li key={row.id}><Link href="/admin/treatments" className="flex flex-wrap items-center justify-between gap-2 rounded py-3 hover:bg-slate-50"><div><b className="text-sm text-slate-800">{row.patient_name}</b><p className="text-xs text-slate-500">איש קשר: {row.contact_name}</p></div><span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.status==='pending'?'bg-amber-50 text-amber-800':'bg-blue-50 text-blue-800'}`}>{row.status==='pending'?'פנייה חדשה':'נוצר קשר'}</span></Link></li>)}</ul>}</>}
