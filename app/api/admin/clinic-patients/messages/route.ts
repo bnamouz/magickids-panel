@@ -1,0 +1,85 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { getCurrentStaff, isAdmin } from '@/lib/admin/auth';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { notifyOnce } from '@/lib/moxo/notification';
+import { applyFilters } from '@/lib/clinic-patients/query';
+import { buildRecipients, campaignId, isMobile, render, MAX_BROADCAST, BATCH } from '@/lib/clinic-patients/messaging';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } });
+const Text = z.string().trim().min(2).max(1000);
+const Filter = z.object({ f: z.string().max(20).optional(), q: z.string().max(100).optional() });
+
+async function audience(filter: { f?: string; q?: string }) {
+  const db = getSupabaseAdmin();
+  const r = await applyFilters(db.from('clinic_patients').select('id,first_name,phone1,phone2,extra'), filter).limit(10000);
+  if (r.error) throw new Error('unavailable');
+  return buildRecipients((r.data ?? []) as any);
+}
+async function alreadySent(cid: string) {
+  const r = await getSupabaseAdmin().from('clinic_notifications').select('id').like('id', `clinic-bc:${cid}:%`).limit(10000);
+  return new Set((r.data ?? []).map((x: any) => String(x.id).split(':')[2]));
+}
+
+export async function POST(req: NextRequest) {
+  if (req.headers.get('origin') !== req.nextUrl.origin) return reply({ error: 'forbidden' }, 403);
+  const staff = await getCurrentStaff();
+  if (!staff || !isAdmin(staff)) return reply({ error: 'forbidden' }, 403);
+  let b: any; try { b = await req.json(); } catch { return reply({ error: 'invalid_request' }, 400); }
+  const db = getSupabaseAdmin();
+
+  if (b.action === 'send_one') {
+    const p = z.object({ patient_id: z.string().uuid(), phone: z.enum(['phone1', 'phone2']), text: Text, request_id: z.string().uuid() }).safeParse(b);
+    if (!p.success) return reply({ error: 'invalid_request' }, 400);
+    const pt = await db.from('clinic_patients').select('id,first_name,phone1,phone2,extra').eq('id', p.data.patient_id).single();
+    if (pt.error || !pt.data) return reply({ error: 'not_found' }, 404);
+    const to = (pt.data as any)[p.data.phone] as string | null;
+    if (!isMobile(to)) return reply({ error: 'not_mobile' }, 400);
+    const state = await notifyOnce(`clinic-msg:${p.data.request_id}`, to, render(p.data.text, [pt.data.first_name]), { sender: 'institute' });
+    if (state !== 'accepted') return reply({ error: 'send_failed', state }, 502);
+    const extra = { ...((pt.data.extra as any) ?? {}), last_message_at: new Date().toISOString() };
+    await db.from('clinic_patients').update({ extra }).eq('id', pt.data.id);
+    await db.from('audit_log').insert({ actor_id: staff.id, actor_type: 'user', action: 'clinic_whatsapp_single', entity_type: 'clinic_patient', entity_id: pt.data.id, metadata: { phone_field: p.data.phone } });
+    return reply({ sent: true, to });
+  }
+
+  const filter = Filter.safeParse(b.filter ?? {});
+  const text = Text.safeParse(b.text);
+  if (!filter.success || !text.success) return reply({ error: 'invalid_request' }, 400);
+  if (filter.data.f === 'archived') return reply({ error: 'archived_not_allowed' }, 400);
+  const cid = campaignId(text.data, filter.data);
+
+  try {
+    if (b.action === 'preview') {
+      const a = await audience(filter.data); const done = await alreadySent(cid);
+      const pending = a.list.filter(r => !done.has(r.phone));
+      return reply({
+        patients: a.patients, phones: a.list.length, already_sent: a.list.length - pending.length, pending: pending.length,
+        this_round: Math.min(pending.length, MAX_BROADCAST), max_per_round: MAX_BROADCAST, no_mobile: a.noMobile, opted_out: a.optedOut,
+        sample: pending[0] ? render(text.data, pending[0].names) : null,
+      });
+    }
+
+    if (b.action === 'send_batch') {
+      const round = z.number().int().min(0).max(MAX_BROADCAST).safeParse(b.round_sent ?? 0);
+      if (!round.success || b.confirmed !== true) return reply({ error: 'invalid_request' }, 400);
+      const a = await audience(filter.data); const done = await alreadySent(cid);
+      const pending = a.list.filter(r => !done.has(r.phone));
+      const batch = pending.slice(0, Math.max(0, Math.min(BATCH, MAX_BROADCAST - round.data)));
+      let sent = 0, failed = 0, stop = '';
+      for (const r of batch) {
+        const s = await notifyOnce(`clinic-bc:${cid}:${r.phone}`, r.phone, render(text.data, r.names), { sender: 'institute' });
+        if (s === 'accepted') sent++; else failed++;
+        if (s === 'not_configured' || s === 'unavailable') { stop = s; break; }
+      }
+      if (round.data === 0 && batch.length) await db.from('audit_log').insert({ actor_id: staff.id, actor_type: 'user', action: 'clinic_whatsapp_broadcast', entity_type: 'clinic_patients', metadata: { campaign: cid, filter: filter.data, recipients: pending.length, text: text.data.slice(0, 300) } });
+      const processed = sent + failed;
+      const roundSent = round.data + processed;
+      return reply({ sent, failed, stop: stop || null, remaining_total: pending.length - processed, round_sent: roundSent,
+        round_done: !!stop || pending.length - processed <= 0 || roundSent >= MAX_BROADCAST });
+    }
+  } catch { return reply({ error: 'unavailable' }, 503); }
+  return reply({ error: 'invalid_request' }, 400);
+}

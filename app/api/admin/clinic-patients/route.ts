@@ -34,10 +34,11 @@ export async function POST(req: NextRequest) {
   if (b.action === 'save') {
     const p = patientSchema.safeParse(b.patient);
     if (!p.success) return reply({ error: p.error.issues[0]?.message ?? 'invalid' }, 400);
-    const { id, missing_height_weight, ...fields } = p.data;
+    const { id, missing_height_weight, whatsapp_opt_out, ...fields } = p.data;
     let extra: Record<string, unknown> = {};
     if (id) { const cur = await db.from('clinic_patients').select('extra').eq('id', id).single(); extra = (cur.data?.extra as any) ?? {}; }
     if (missing_height_weight !== undefined) extra = { ...extra, missing_height_weight };
+    if (whatsapp_opt_out !== undefined) extra = { ...extra, whatsapp_opt_out };
     const row = { ...fields, extra, needs_review: fields.needs_review ?? false, updated_at: now, updated_by: staff.id };
     const q = id ? db.from('clinic_patients').update(row).eq('id', id) : db.from('clinic_patients').insert({ ...row, source: 'manual' });
     const r = await q.select('id').single();
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
     const seen = new Set<string>(); const unique = ok.filter(p => !seen.has(p.national_id) && seen.add(p.national_id));
     let inserted = 0, skipped = ok.length - unique.length;
     for (let i = 0; i < unique.length; i += 500) {
-      const chunk = unique.slice(i, i + 500).map(({ id, missing_height_weight, ...p }) => ({ ...p, needs_review: p.needs_review ?? false, source: 'bulk', updated_by: staff.id }));
+      const chunk = unique.slice(i, i + 500).map(({ id, missing_height_weight, whatsapp_opt_out, ...p }) => ({ ...p, needs_review: p.needs_review ?? false, source: 'bulk', updated_by: staff.id }));
       const r = await db.from('clinic_patients').upsert(chunk, { onConflict: 'national_id', ignoreDuplicates: true }).select('id');
       if (r.error) return reply({ error: 'save_failed', inserted }, 409);
       inserted += r.data?.length ?? 0; skipped += chunk.length - (r.data?.length ?? 0);

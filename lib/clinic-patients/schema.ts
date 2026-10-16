@@ -48,6 +48,7 @@ export const patientSchema = z.object({
   notes: z.string().max(2000).optional().nullable().transform(v => v?.trim() || null),
   needs_review: z.boolean().optional(),
   missing_height_weight: z.boolean().optional(),
+  whatsapp_opt_out: z.boolean().optional(),
 });
 export type PatientInput = z.infer<typeof patientSchema>;
 
