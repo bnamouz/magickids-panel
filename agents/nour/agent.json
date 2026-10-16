@@ -2,6 +2,8 @@
   "name": "Nour - Personal Secretary",
   "language": "he",
   "llm": "gpt-5.6-sol",
+  "tts_model": "eleven_v3_conversational",
+  "voice_id": "rFDdsCQRZCUL8cPOWtnP",
   "temperature": 0.5,
   "tools": [
     {

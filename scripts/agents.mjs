@@ -53,6 +53,8 @@ function snapshot(d) {
       name: d.name,
       language: a.language,
       llm: p.llm,
+      tts_model: d.conversation_config?.tts?.model_id,
+      voice_id: d.conversation_config?.tts?.voice_id,
       temperature: p.temperature,
       tools: (p.tools ?? []).map((t) => ({ name: t.name, description: t.description, api_schema: t.api_schema })),
       post_call_webhook: d.platform_settings?.workspace_overrides?.webhooks ?? null,
