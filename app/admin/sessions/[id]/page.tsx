@@ -12,6 +12,7 @@ import AppointmentConfirmation from '@/components/admin/AppointmentConfirmation'
 import ReportsList from './ReportsList';
 import QuestionnaireLinks from '@/components/admin/QuestionnaireLinks';
 import CaseActions from '@/components/admin/CaseActions';
+import CaseCalls from '@/components/admin/CaseCalls';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,6 +90,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
         <div className="flex flex-wrap gap-4 text-sm text-teal-800">
           <a className="underline" href="#clinical-notes">ממצאים והערות קליניות</a>
           <a className="underline" href="#appointments">תורים והודעות להורה</a>
+          <a className="underline" href="#calls">שיחות טלפון</a>
         </div>
         <p className="text-xs text-slate-500">עריכת פרטים אינה משנה תשובות שאלונים או דוחות קיימים. מחיקה לצמיתות מתייחסת לתיק כולו, לא לממצא בודד.</p>
       </div>
@@ -200,6 +202,8 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               </ul>
             )}
           </div>
+
+          <CaseCalls sessionId={session.id} parentPhone={parent?.phone} />
 
           {/* Audit log */}
           <div className="card">

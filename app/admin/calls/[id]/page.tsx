@@ -92,6 +92,13 @@ export default async function CallDetailPage({ params }: { params: Promise<{ id:
             <p className="text-sm text-slate-500 mt-1">
               {formatDate(call.call_started_at || call.created_at)}
             </p>
+            {call.linked_case_id ? (
+              <Link href={`/admin/sessions/${call.linked_case_id}#calls`} className="text-sm text-teal-800 underline mt-1 inline-block">
+                פתיחת התיק המשויך
+              </Link>
+            ) : (
+              <p className="text-xs text-slate-400 mt-1">השיחה לא שויכה לתיק. ניתן לשייך מתוך התיק של ההורה.</p>
+            )}
           </div>
           <div className="text-left">
             <div className="text-xs text-slate-500 mb-1">משך שיחה</div>
