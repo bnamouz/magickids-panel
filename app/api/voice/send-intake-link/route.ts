@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertVoiceAuth, normalisePhone } from '@/lib/voice-auth';
-import { sendWhatsAppText } from '@/lib/whatsapp-ultramsg';
+import { sendInstituteWhatsAppText } from '@/lib/whatsapp-ultramsg';
 
 /**
  * POST /api/voice/send-intake-link
@@ -93,7 +93,8 @@ export async function POST(req: NextRequest) {
 
   const message = body.language === 'ar' ? arMsg : heMsg;
 
-  const waResult = await sendWhatsAppText({ toPhone: phone, body: message });
+  // Sent from the institute WhatsApp (0544020043), not the shared Nour/Marhaba instance.
+  const waResult = await sendInstituteWhatsAppText({ toPhone: phone, body: message });
   if (!waResult.ok) {
     return NextResponse.json(
       {
