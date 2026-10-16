@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertNourAuth } from '@/lib/nour-auth';
+import { sendInstituteWhatsAppText } from '@/lib/whatsapp-ultramsg';
 
 /**
  * POST /api/nour/send-summary
@@ -51,11 +52,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'invalid_body', details: e?.errors }, { status: 400 });
   }
 
-  const instanceId = process.env.ULTRAMSG_INSTANCE_ID;
-  const token = process.env.ULTRAMSG_TOKEN;
-  const drBaseemPhone = process.env.ESCALATION_WHATSAPP;
+  const drBaseemPhone = process.env.ESCALATION_WHATSAPP?.replace(/\\n/g, '').trim();
 
-  if (!instanceId || !token || !drBaseemPhone) {
+  if (!drBaseemPhone) {
     return NextResponse.json({
       success: false,
       error: 'whatsapp_not_configured',
@@ -92,33 +91,12 @@ export async function POST(req: NextRequest) {
   msg += `\n━━━━━━━━━━━━━━━━━━`;
 
   try {
-    const ultraUrl = `https://api.ultramsg.com/${instanceId}/messages/chat`;
-    const params = new URLSearchParams({
-      token,
-      to: drBaseemPhone,
-      body: msg,
-    });
-
-    const response = await fetch(ultraUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
-    });
-
-    const data = await response.json();
-
-    if (!data.sent) {
-      return NextResponse.json({
-        success: false,
-        error: 'whatsapp_send_failed',
-        details: data,
-      });
+    // Sent from the verified institute WhatsApp; the shared Nour/Marhaba instance is not used.
+    const data = await sendInstituteWhatsAppText({ toPhone: drBaseemPhone, body: msg });
+    if (!data.ok) {
+      return NextResponse.json({ success: false, error: 'whatsapp_send_failed', details: data.error });
     }
-
-    return NextResponse.json({
-      success: true,
-      whatsapp_message_id: String(data.id || ''),
-    });
+    return NextResponse.json({ success: true, whatsapp_message_id: data.id ?? '' });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: 'whatsapp_error', details: err.message });
   }
