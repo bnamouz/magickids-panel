@@ -334,7 +334,7 @@
           "Content-Type": "application/json"
         },
         "kind": "webhook",
-        "url": "https://magickids-panel.vercel.app/api/voice/book-appointment",
+        "url": "https://app.magickidsinstitute.com/api/voice/book-appointment",
         "method": "POST",
         "path_params_schema": {},
         "query_params_schema": null,
