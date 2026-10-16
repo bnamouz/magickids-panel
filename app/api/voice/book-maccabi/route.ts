@@ -19,7 +19,7 @@ export async function POST(req:NextRequest){
   const {session,parent,patient,progress}=await voiceCase(body.case_id,body.parent_phone,requestId);requireReady(progress);
   const result=await book('adhd',{requestId,start,childName:`${patient?.first_name??''} ${patient?.last_name??''}`.trim(),parentName:parent.full_name,phone:normalisePhone(parent.phone)!,parentToken:session.parent_token,consent:true,website:''},`voice:${body.case_id}`);
   const when=new Intl.DateTimeFormat('he-IL',{timeZone:'Asia/Jerusalem',dateStyle:'full',timeStyle:'short'}).format(new Date(start));
-  const notification=await notifyOnce(`assessment:${requestId}`,normalisePhone(parent.phone)!,`מכון ילדי הקסם / معهد أطفال السحر: אושר תור לאבחון / تم تأكيد موعد التشخيص: ${when} (שעון ישראל / توقيت إسرائيل). משך / المدة: 60 דקות / دقيقة. 0544020043`);
+  const notification=await notifyOnce(`assessment:${requestId}`,normalisePhone(parent.phone)!,`מכון ילדי הקסם / معهد أطفال السحر: אושר תור לאבחון / تم تأكيد موعد التشخيص: ${when} (שעון ישראל / توقيت إسرائيل). משך / المدة: 60 דקות / دقيقة. 0544020043`,{sender:'institute'});
   return NextResponse.json({success:true,...result,appointment_id:requestId,whatsapp_confirmation_sent:notification==='accepted',notification});
  }catch(error){return NextResponse.json({success:false,error:error instanceof BookingError?error.code:'invalid_request'},{status:error instanceof BookingError?error.status:400});}
 }
