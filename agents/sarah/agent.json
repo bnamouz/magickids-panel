@@ -1,7 +1,9 @@
 {
   "name": "Sarah - Magic Kids Reception (Arabic)",
   "language": "ar",
-  "llm": "gpt-4o-mini",
+  "llm": "gpt-4.1",
+  "tts_model": "eleven_v4_turbo",
+  "voice_id": "EXAVITQu4vr4xnSDxMaL",
   "temperature": 0.5,
   "tools": [
     {
@@ -405,6 +407,101 @@
               "allowed_values_dynamic_variable": "",
               "constant_value": "",
               "is_omitted": false
+            }
+          }
+        },
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    },
+    {
+      "name": "send_link",
+      "description": "Send the caller a WhatsApp from the institute number with one to three fixed institute links. Use when the caller asks for the institute app, website, or a booking/registration page. Never read URLs aloud; offer to send them instead. Keys: app_home (the institute app), adhd_registration (open ADHD file + questionnaires; prefer send_intake_link for ADHD intake), pediatrics_booking, moxo, treatments, development, classes, website, workshops, private_care. Call ONLY after the caller agreed and the number is settled (leave phone empty for the number they are calling from). Say the link was sent only after success:true; then read back sent_to_local digit by digit.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}",
+          "Content-Type": "application/json"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/voice/send-link",
+        "method": "POST",
+        "path_params_schema": {},
+        "query_params_schema": null,
+        "request_body_schema": {
+          "description": "",
+          "dynamic_variable": "",
+          "is_omitted": false,
+          "type": "object",
+          "required": [
+            "links",
+            "language"
+          ],
+          "properties": {
+            "phone": {
+              "type": "string",
+              "description": "Leave EMPTY if the parent wants the link on the number they are calling from (the server uses the caller ID). Otherwise the number the parent dictated and confirmed digit by digit, in Israeli local format with 10 digits, e.g. 0548800600. Do NOT convert to +972 and never add or remove digits.",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "parent_name": {
+              "type": "string",
+              "description": "Parent's name if collected",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "language": {
+              "type": "string",
+              "description": "'ar' if the caller speaks Arabic, 'he' if Hebrew",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "caller_id": {
+              "type": "string",
+              "description": "",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "system__caller_id",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "links": {
+              "description": "1-3 link keys from the allowed list",
+              "dynamic_variable": "",
+              "constant_value": null,
+              "is_omitted": false,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "One of: app_home, adhd_registration, pediatrics_booking, moxo, treatments, development, classes, website, workshops, private_care",
+                "enum": null,
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "allowed_values": null,
+                "allowed_values_dynamic_variable": "",
+                "constant_value": "",
+                "is_omitted": false
+              }
             }
           }
         },
