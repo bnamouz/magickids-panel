@@ -329,7 +329,7 @@
     },
     {
       "name": "book_clinic_appointment",
-      "description": "Books an appointment for Dr. Basim's pediatric clinic (not personal meetings). Use this whenever the caller wants a clinic appointment (بدهم موعد عند الدكتور باسم بالعيادة / רוצים תור בקליניקה של ד\"ר בסים). NOT for personal meetings — use book_meeting for those. Creates the event on the dedicated Pediatrics Clinic Appointments calendar and sends a WhatsApp confirmation in Arabic to the caller.",
+      "description": "Book a 10-minute appointment at Dr. Baseem Namouz's pediatric clinic (not personal meetings). Use ONLY a slot returned by get_clinic_slots that the caller explicitly confirmed. Say the appointment is booked only when success is true. If whatsapp_confirmation is accepted or duplicate, say a WhatsApp confirmation with a cancel link was sent. On slot_taken or invalid_slot call get_clinic_slots again and offer new times. On invalid_phone follow the returned instruction.",
       "api_schema": {
         "request_headers": {
           "Authorization": "Bearer ${VOICE_AGENT_TOKEN}",
@@ -347,8 +347,8 @@
           "type": "object",
           "required": [
             "patient_name",
-            "parent_phone",
-            "scheduled_at"
+            "scheduled_at",
+            "language"
           ],
           "properties": {
             "patient_name": {
@@ -375,7 +375,7 @@
             },
             "parent_phone": {
               "type": "string",
-              "description": "رقم التلفون للتواصل بصيغة E.164 مثال: +972501234567. لازم تأكدي الرقم مع اللي بحكي قبل تستعملي هالكلمة. Callback phone in E.164 format (must be confirmed with caller before calling this tool).",
+              "description": "Leave EMPTY to use the number the caller is calling from (default). Otherwise the number the caller dictated and confirmed digit by digit, as 10 local digits starting with 05, e.g. 0548800600. Do not convert to +972 and never add or remove digits.",
               "enum": null,
               "is_system_provided": false,
               "dynamic_variable": "",
@@ -386,7 +386,7 @@
             },
             "scheduled_at": {
               "type": "string",
-              "description": "تاريخ ووقت الموعد بصيغة ISO 8601 مع توقيت +03:00. مثال: 2026-09-10T09:30:00+03:00. Full ISO datetime with Israel timezone offset.",
+              "description": "The scheduled_at value of the slot the caller chose, copied unchanged from get_clinic_slots.",
               "enum": null,
               "is_system_provided": false,
               "dynamic_variable": "",
@@ -419,12 +419,88 @@
             },
             "language": {
               "type": "string",
-              "description": "لغة رسالة التأكيد ('ar' افتراضي، 'he' للعبرية، 'en' للإنجليزية). Language for WhatsApp confirmation.",
+              "description": "'ar' if the caller speaks Arabic, 'he' if Hebrew. The WhatsApp confirmation is sent in this language.",
               "enum": [
                 "ar",
                 "he",
                 "en"
               ],
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "caller_id": {
+              "type": "string",
+              "description": "",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "system__caller_id",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          }
+        },
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    },
+    {
+      "name": "get_clinic_slots",
+      "description": "Get REAL free appointment slots of Dr. Baseem Namouz's pediatric clinic (10-minute visits), from the same booking system as the website. Call this BEFORE offering any clinic time. Never use list_events for the clinic. Optional filters: date (YYYY-MM-DD in Israel time) and part_of_day. Offer only 2-3 returned slots by their label; when booking pass the chosen slot's scheduled_at unchanged.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}",
+          "Content-Type": "application/json"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/voice/clinic-slots",
+        "method": "POST",
+        "path_params_schema": {},
+        "query_params_schema": null,
+        "request_body_schema": {
+          "description": "",
+          "dynamic_variable": "",
+          "is_omitted": false,
+          "type": "object",
+          "required": [
+            "language"
+          ],
+          "properties": {
+            "date": {
+              "type": "string",
+              "description": "Optional. Specific day the caller asked for, YYYY-MM-DD in Israel time. Leave empty for the nearest free days.",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "part_of_day": {
+              "type": "string",
+              "description": "Optional: morning, afternoon, evening or any.",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "language": {
+              "type": "string",
+              "description": "'ar' if the caller speaks Arabic, 'he' if Hebrew. Labels come back in this language.",
+              "enum": null,
               "is_system_provided": false,
               "dynamic_variable": "",
               "allowed_values": null,
