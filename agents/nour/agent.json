@@ -1,0 +1,453 @@
+{
+  "name": "Nour - Personal Secretary",
+  "language": "he",
+  "llm": "gpt-5.6-sol",
+  "temperature": 0.5,
+  "tools": [
+    {
+      "name": "check_contact",
+      "description": "Look up caller identity by phone number. Returns their name, relationship (family/work/friend/patient), and whether they're a known contact. Call this ONCE at the start of every conversation.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/nour/check-contact",
+        "method": "GET",
+        "path_params_schema": {},
+        "query_params_schema": {
+          "properties": {
+            "phone": {
+              "type": "string",
+              "description": "Caller phone in E.164 format (e.g., +972501234567)",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          },
+          "required": [
+            "phone"
+          ]
+        },
+        "request_body_schema": null,
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    },
+    {
+      "name": "list_events",
+      "description": "List Dr. Baseem's Google Calendar events for a given date to check availability before booking. Only call if the caller wants to schedule a meeting.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/nour/list-events",
+        "method": "GET",
+        "path_params_schema": {},
+        "query_params_schema": {
+          "properties": {
+            "date_iso": {
+              "type": "string",
+              "description": "Date in ISO format YYYY-MM-DD, e.g., 2026-08-30",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          },
+          "required": [
+            "date_iso"
+          ]
+        },
+        "request_body_schema": null,
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    },
+    {
+      "name": "book_meeting",
+      "description": "Create a Google Calendar event for a meeting with Dr. Baseem. Only call AFTER confirming availability with list_events and getting explicit caller confirmation.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}",
+          "Content-Type": "application/json"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/nour/book-meeting",
+        "method": "POST",
+        "path_params_schema": {},
+        "query_params_schema": null,
+        "request_body_schema": {
+          "description": "",
+          "dynamic_variable": "",
+          "is_omitted": false,
+          "type": "object",
+          "required": [
+            "start_iso",
+            "title",
+            "caller_phone",
+            "caller_name"
+          ],
+          "properties": {
+            "start_iso": {
+              "type": "string",
+              "description": "Start time ISO 8601 with +03:00 timezone, e.g., 2026-08-30T14:00:00+03:00",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "duration_minutes": {
+              "type": "number",
+              "description": "Duration in minutes, default 30",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "title": {
+              "type": "string",
+              "description": "Meeting title in Hebrew or Arabic",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "description": {
+              "type": "string",
+              "description": "Brief description of meeting purpose",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "caller_phone": {
+              "type": "string",
+              "description": "Caller phone in E.164",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "caller_name": {
+              "type": "string",
+              "description": "Caller full name",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          }
+        },
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    },
+    {
+      "name": "create_task",
+      "description": "Create a Google Tasks item for Dr. Baseem — typically to remind him to call someone back or to note an important request. Use for callbacks, follow-ups, and reminders.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}",
+          "Content-Type": "application/json"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/nour/create-task",
+        "method": "POST",
+        "path_params_schema": {},
+        "query_params_schema": null,
+        "request_body_schema": {
+          "description": "",
+          "dynamic_variable": "",
+          "is_omitted": false,
+          "type": "object",
+          "required": [
+            "title",
+            "notes"
+          ],
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Task title, e.g., 'Call back Ahmad about meeting'",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "notes": {
+              "type": "string",
+              "description": "Details: caller phone, purpose, urgency, best time to call",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "due_date_iso": {
+              "type": "string",
+              "description": "Due date ISO 8601 with +03:00 (optional, use for urgent tasks)",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "urgent": {
+              "type": "boolean",
+              "description": "true if this is high-priority",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          }
+        },
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    },
+    {
+      "name": "escalate",
+      "description": "Send an urgent WhatsApp alert to Dr. Baseem's phone RIGHT NOW. Use only for genuine emergencies (medical, family crisis, urgent business decision needed within the hour).",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}",
+          "Content-Type": "application/json"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/nour/escalate",
+        "method": "POST",
+        "path_params_schema": {},
+        "query_params_schema": null,
+        "request_body_schema": {
+          "description": "",
+          "dynamic_variable": "",
+          "is_omitted": false,
+          "type": "object",
+          "required": [
+            "reason",
+            "caller_name",
+            "caller_phone"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "description": "Why this needs immediate attention",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "caller_name": {
+              "type": "string",
+              "description": "Caller name",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "caller_phone": {
+              "type": "string",
+              "description": "Caller phone E.164",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          }
+        },
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    },
+    {
+      "name": "book_clinic_appointment",
+      "description": "Books an appointment for Dr. Basim's pediatric clinic (not personal meetings). Use this whenever the caller wants a clinic appointment (بدهم موعد عند الدكتور باسم بالعيادة / רוצים תור בקליניקה של ד\"ר בסים). NOT for personal meetings — use book_meeting for those. Creates the event on the dedicated Pediatrics Clinic Appointments calendar and sends a WhatsApp confirmation in Arabic to the caller.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}",
+          "Content-Type": "application/json"
+        },
+        "kind": "webhook",
+        "url": "https://magickids-panel.vercel.app/api/voice/book-appointment",
+        "method": "POST",
+        "path_params_schema": {},
+        "query_params_schema": null,
+        "request_body_schema": {
+          "description": "",
+          "dynamic_variable": "",
+          "is_omitted": false,
+          "type": "object",
+          "required": [
+            "patient_name",
+            "parent_phone",
+            "scheduled_at"
+          ],
+          "properties": {
+            "patient_name": {
+              "type": "string",
+              "description": "الاسم الكامل للمريض (الطفل عادةً). Full name of the patient (usually the child).",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "parent_name": {
+              "type": "string",
+              "description": "اسم اللي بحكي (ولي الأمر) إذا كان غير المريض. Caller's name if different from patient.",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "parent_phone": {
+              "type": "string",
+              "description": "رقم التلفون للتواصل بصيغة E.164 مثال: +972501234567. لازم تأكدي الرقم مع اللي بحكي قبل تستعملي هالكلمة. Callback phone in E.164 format (must be confirmed with caller before calling this tool).",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "scheduled_at": {
+              "type": "string",
+              "description": "تاريخ ووقت الموعد بصيغة ISO 8601 مع توقيت +03:00. مثال: 2026-09-10T09:30:00+03:00. Full ISO datetime with Israel timezone offset.",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "duration_minutes": {
+              "type": "number",
+              "description": "طول الموعد بالدقائق. الافتراضي 30. Default is 30.",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "reason": {
+              "type": "string",
+              "description": "سبب الحجز باختصار (فحص، متابعة، لقاح، ...). Brief reason for the appointment.",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "language": {
+              "type": "string",
+              "description": "لغة رسالة التأكيد ('ar' افتراضي، 'he' للعبرية، 'en' للإنجليزية). Language for WhatsApp confirmation.",
+              "enum": [
+                "ar",
+                "he",
+                "en"
+              ],
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          }
+        },
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    }
+  ],
+  "post_call_webhook": {
+    "post_call_webhook_id": "d0922a1f379a46c2be276197d6e68256",
+    "events": [
+      "transcript"
+    ],
+    "transcript_format": "json",
+    "exclude_transcript": false,
+    "send_audio": false
+  }
+}

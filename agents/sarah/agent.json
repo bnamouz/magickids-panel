@@ -1,0 +1,429 @@
+{
+  "name": "Sarah - Magic Kids Reception (Arabic)",
+  "language": "ar",
+  "llm": "gpt-4o-mini",
+  "temperature": 0.5,
+  "tools": [
+    {
+      "name": "check_intake_status",
+      "description": "Check whether a Maccabi family has completed BOTH the parent AND teacher Vanderbilt questionnaires. Call this ONLY when the caller says they are a Maccabi member and wants an ADHD assessment appointment, BEFORE offering any slot.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/voice/intake-status",
+        "method": "GET",
+        "path_params_schema": {},
+        "query_params_schema": {
+          "properties": {
+            "phone": {
+              "type": "string",
+              "description": "Caller's phone in E.164 format, e.g. +972544020043",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          },
+          "required": [
+            "phone"
+          ]
+        },
+        "request_body_schema": null,
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    },
+    {
+      "name": "get_maccabi_slots",
+      "description": "Retrieve available one-hour ADHD assessment appointments on Wednesdays,\nstarting at 16:00, 17:00, 18:00 or 19:00, Israel time.\nCall only after check_intake_status returns ready_to_schedule=true.\nUse the returned case_id and the same verified parent phone.\nIf eligibility or availability cannot be verified, refer to institute staff.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/voice/maccabi-slots?max=4",
+        "method": "GET",
+        "path_params_schema": {},
+        "query_params_schema": {
+          "properties": {
+            "case_id": {
+              "type": "string",
+              "description": "מזהה התיק שהוחזר מהכלי check_intake_status. אין להמציא מזהה.",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "phone": {
+              "type": "string",
+              "description": "מספר הנייד שאומת מול ההורה ושימש בבדיקת מצב השאלונים, בפורמט בינלאומי.",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          },
+          "required": [
+            "case_id",
+            "phone"
+          ]
+        },
+        "request_body_schema": null,
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    },
+    {
+      "name": "book_maccabi_appointment",
+      "description": "Book a Maccabi ADHD assessment appointment. Call ONLY after the caller explicitly confirmed a specific slot from get_maccabi_slots. Server enforces: (1) Wednesday 16-20 Asia/Jerusalem, (2) both questionnaires complete, (3) slot still free.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}",
+          "Content-Type": "application/json"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/voice/book-maccabi",
+        "method": "POST",
+        "path_params_schema": {},
+        "query_params_schema": null,
+        "request_body_schema": {
+          "description": "",
+          "dynamic_variable": "",
+          "is_omitted": false,
+          "type": "object",
+          "required": [
+            "case_id",
+            "parent_name",
+            "parent_phone",
+            "child_name",
+            "slot_iso",
+            "language"
+          ],
+          "properties": {
+            "case_id": {
+              "type": "string",
+              "description": "case_id UUID from check_intake_status",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "parent_name": {
+              "type": "string",
+              "description": "Full name of the parent making the call",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "parent_phone": {
+              "type": "string",
+              "description": "Parent's phone in E.164 format",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "child_name": {
+              "type": "string",
+              "description": "Full name of the child",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "child_age": {
+              "type": "number",
+              "description": "Age of the child in years",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "slot_iso": {
+              "type": "string",
+              "description": "Exact ISO timestamp from get_maccabi_slots",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "language": {
+              "type": "string",
+              "description": "Set to 'ar'",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "notes": {
+              "type": "string",
+              "description": "Additional notes about the child's concerns",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          }
+        },
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    },
+    {
+      "name": "send_intake_link",
+      "description": "Send the parent a WhatsApp with the registration and questionnaire link. Call ONLY after the parent agreed and the target number is settled: either the number they are calling from (leave phone empty) or a number they dictated and confirmed digit by digit. On success, read back sent_to_local. On invalid_phone, follow the returned instruction; after a second failure use escalate_to_human.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}",
+          "Content-Type": "application/json"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/voice/send-intake-link",
+        "method": "POST",
+        "path_params_schema": {},
+        "query_params_schema": null,
+        "request_body_schema": {
+          "description": "",
+          "dynamic_variable": "",
+          "is_omitted": false,
+          "type": "object",
+          "required": [
+            "language"
+          ],
+          "properties": {
+            "phone": {
+              "type": "string",
+              "description": "Leave EMPTY if the parent wants the link on the number they are calling from (the server uses the caller ID). Otherwise the number the parent dictated and confirmed digit by digit, in Israeli local format with 10 digits, e.g. 0548800600. Do NOT convert to +972 and never add or remove digits.",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "parent_name": {
+              "type": "string",
+              "description": "Parent's name if collected",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "child_name": {
+              "type": "string",
+              "description": "Child's name if collected",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "language": {
+              "type": "string",
+              "description": "Set to 'ar'",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "reason": {
+              "type": "string",
+              "description": "One of: new_family, incomplete_intake, or maccabi_gate",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "caller_id": {
+              "type": "string",
+              "description": "",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "system__caller_id",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          }
+        },
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    },
+    {
+      "name": "escalate_to_human",
+      "description": "Send URGENT WhatsApp alert to Dr. Baseem. Use in emergencies, when the caller explicitly asks to speak with Dr. Baseem, or for complex cases.",
+      "api_schema": {
+        "request_headers": {
+          "Authorization": "Bearer ${VOICE_AGENT_TOKEN}",
+          "Content-Type": "application/json"
+        },
+        "kind": "webhook",
+        "url": "https://app.magickidsinstitute.com/api/voice/escalate",
+        "method": "POST",
+        "path_params_schema": {},
+        "query_params_schema": null,
+        "request_body_schema": {
+          "description": "",
+          "dynamic_variable": "",
+          "is_omitted": false,
+          "type": "object",
+          "required": [
+            "caller_phone",
+            "reason",
+            "summary",
+            "language"
+          ],
+          "properties": {
+            "caller_phone": {
+              "type": "string",
+              "description": "Caller's phone in E.164 format",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "caller_name": {
+              "type": "string",
+              "description": "Caller's name if collected",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "child_name": {
+              "type": "string",
+              "description": "Child's name if collected",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "reason": {
+              "type": "string",
+              "description": "One of: emergency, vip, complex, request_human, or other",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "summary": {
+              "type": "string",
+              "description": "2-3 sentence summary of what the caller wants",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            },
+            "language": {
+              "type": "string",
+              "description": "Set to 'ar'",
+              "enum": null,
+              "is_system_provided": false,
+              "dynamic_variable": "",
+              "allowed_values": null,
+              "allowed_values_dynamic_variable": "",
+              "constant_value": "",
+              "is_omitted": false
+            }
+          }
+        },
+        "response_body_schema": null,
+        "response_filter": null,
+        "content_type": "application/json",
+        "auth_resolved_params": [],
+        "auth_connection": null,
+        "mtls_auth_connection": null
+      }
+    }
+  ],
+  "post_call_webhook": {
+    "post_call_webhook_id": "86e155a8cc994b92b8816f142ab8a9fd",
+    "events": [
+      "transcript"
+    ],
+    "transcript_format": "json",
+    "exclude_transcript": false,
+    "send_audio": false
+  }
+}
