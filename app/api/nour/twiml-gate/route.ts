@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   // this endpoint NOT to be the primary handler.
   //
   // Instead, we <Redirect> to ElevenLabs' incoming call handler URL.
-  const agentId = process.env.NOUR_ELEVENLABS_AGENT_ID;
+  const agentId = process.env.NOUR_ELEVENLABS_AGENT_ID?.replace(/\\n/g, '').trim();
   if (!agentId) {
     console.error('[nour/twiml-gate] NOUR_ELEVENLABS_AGENT_ID not set — hanging up');
     return new Response(
