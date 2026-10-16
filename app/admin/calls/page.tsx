@@ -21,6 +21,7 @@ type VoiceCall = {
   outcome: string | null;
   next_action: string | null;
   transcript_url: string | null;
+  linked_case_id: string | null;
   raw_summary: Record<string, unknown> | null;
   agent_tool_calls: Record<string, unknown>[] | null;
   created_at: string;
@@ -182,6 +183,11 @@ export default async function CallsPage() {
                         {formatDuration(call.duration_seconds)}
                       </td>
                       <td className="p-3">
+                        {call.linked_case_id && (
+                          <Link href={`/admin/sessions/${call.linked_case_id}#calls`} className="block text-teal-800 hover:underline text-xs mb-1">
+                            לתיק ←
+                          </Link>
+                        )}
                         <Link
                           href={`/admin/calls/${call.id}`}
                           className="text-[#01696f] hover:underline text-xs font-medium"

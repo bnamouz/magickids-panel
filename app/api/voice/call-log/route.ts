@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { normalisePhone } from '@/lib/voice-auth';
+import { findCaseForCall } from '@/lib/voice/link-case';
 
 /**
  * POST /api/voice/call-log
@@ -150,6 +151,18 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = getSupabaseAdmin();
+
+  // Link the call to its case. A lookup failure must never lose the call itself.
+  let linkedCaseId: string | null = null;
+  let linkMethod: string | null = null;
+  try {
+    const link = await findCaseForCall(supabase, callerPhone, toolCalls);
+    linkedCaseId = link.caseId;
+    linkMethod = link.method;
+  } catch (e) {
+    console.error('[voice/call-log] case link failed', e);
+  }
+
   const { data: inserted, error } = await supabase
     .from('voice_calls')
     .insert({
@@ -166,8 +179,11 @@ export async function POST(req: NextRequest) {
       outcome: outcome || (durationSec && durationSec < 10 ? 'dropped' : 'info_only'),
       next_action: nextAction,
       transcript_url: transcriptUrl,
+      linked_case_id: linkedCaseId ?? undefined,
       raw_summary: {
         conversation_id: conversationId,
+        agent_id: data.agent_id || conv.agent_id,
+        case_link_method: linkMethod,
         transcript,
         summary: analysis.transcript_summary || conv.transcript_summary,
         title: analysis.call_summary_title || conv.call_summary_title,
@@ -186,5 +202,5 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ success: true, id: inserted?.id });
+  return NextResponse.json({ success: true, id: inserted?.id, linked_case: !!linkedCaseId });
 }
