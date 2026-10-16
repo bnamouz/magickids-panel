@@ -4,6 +4,8 @@ import { getCurrentStaff, isAdmin } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import ClinicPatients from '@/components/admin/ClinicPatients';
 import type { ClinicPatient } from '@/lib/clinic-patients/schema';
+import { applyFilters } from '@/lib/clinic-patients/query';
+import Broadcast from '@/components/admin/ClinicBroadcast';
 
 export const dynamic = 'force-dynamic';
 const PAGE = 100;
@@ -20,18 +22,7 @@ export default async function Page({ searchParams }: { searchParams: { q?: strin
   const f = searchParams.f ?? '';
   const [sortCol, asc] = SORTS[searchParams.s ?? ''] ?? SORTS.last_visit;
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
-  let q = db.from('clinic_patients').select(COLS, { count: 'exact' });
-  q = f === 'archived' ? q.not('archived_at', 'is', null) : q.is('archived_at', null);
-  if (f === 'upcoming') q = q.gte('next_visit', today);
-  if (f === 'review') q = q.eq('needs_review', true);
-  if (f === 'hw') q = q.eq('extra->>missing_height_weight', 'true');
-  const words = (searchParams.q ?? '').replace(/[^\p{L}\p{N}' \-]/gu, ' ').trim().split(/\s+/).filter(Boolean).slice(0, 4);
-  for (const w of words) {
-    const digits = w.replace(/\D/g, '');
-    q = /^\d+$/.test(w)
-      ? q.or(`national_id.ilike.%${digits}%,phone1.ilike.%${digits}%,phone2.ilike.%${digits}%`)
-      : q.or(`first_name.ilike.%${w}%,last_name.ilike.%${w}%`);
-  }
+  const q = applyFilters(db.from('clinic_patients').select(COLS, { count: 'exact' }), { f, q: searchParams.q });
   const r = await q.order(f === 'upcoming' ? 'next_visit' : sortCol, { ascending: f === 'upcoming' ? true : asc, nullsFirst: false }).order('last_name').range(page * PAGE, page * PAGE + PAGE - 1);
 
   // Siblings: other active patients sharing a phone number.
@@ -74,6 +65,7 @@ export default async function Page({ searchParams }: { searchParams: { q?: strin
       <button className="btn-primary">חיפוש</button>
       {searchParams.q && <Link href={link({ q: undefined })} className="self-center underline">ניקוי</Link>}
     </form>
+    {f !== 'archived' && <Broadcast filter={{ f, q: searchParams.q ?? '' }} />}
     {r.error ? <p role="alert" className="card">לא ניתן לטעון את המטופלים. נסו שוב.</p>
       : <ClinicPatients patients={rows} siblings={siblings} archived={f === 'archived'} />}
     <div className="flex items-center justify-between text-sm text-slate-600">
