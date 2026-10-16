@@ -31,7 +31,8 @@ import { cancellationToken } from '@/lib/booking/server';
 const BodySchema = z.object({
   patient_name: z.string().min(1),
   parent_name: z.string().optional(),
-  parent_phone: z.string().min(1),
+  parent_phone: z.string().optional(),
+  caller_id: z.string().optional(),
   scheduled_at: z.string().min(1),
   duration_minutes: z.number().int().positive().max(240).optional(),
   reason: z.string().optional(),
@@ -67,10 +68,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const phone = normalisePhone(body.parent_phone);
+  // Default to the caller's own number (caller ID) when no other number was dictated.
+  const phone = normalisePhone(body.parent_phone || '') || normalisePhone(body.caller_id || '');
   if (!phone) {
     return NextResponse.json(
-      { success: false, error: 'invalid_phone' },
+      { success: false, error: 'invalid_phone', instruction: 'Ask for the number again, repeat it digit by digit, and pass it as 10 local digits starting with 05.' },
       { status: 400 },
     );
   }
