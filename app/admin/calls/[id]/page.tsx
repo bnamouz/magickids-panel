@@ -2,6 +2,8 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCurrentStaff } from '@/lib/admin/auth';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
+import FollowUpButton from '@/components/admin/FollowUpButton';
+import { followUpReason } from '@/lib/voice/follow-up';
 import { ArrowRight, Phone, Clock, User, Baby, Building2, Target, MessageSquare, Wrench } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -99,6 +101,11 @@ export default async function CallDetailPage({ params }: { params: Promise<{ id:
             ) : (
               <p className="text-xs text-slate-400 mt-1">השיחה לא שויכה לתיק. ניתן לשייך מתוך התיק של ההורה.</p>
             )}
+            {(rawSummary as any)?.follow_up_done_at ? (
+              <div className="mt-2 flex items-center gap-2 text-xs text-emerald-800">סומנה כטופלה <FollowUpButton callId={call.id} done={false} /></div>
+            ) : followUpReason(call as any) ? (
+              <div className="mt-2 flex items-center gap-2 text-xs text-amber-800">ממתינה לטיפול: {followUpReason(call as any)} <FollowUpButton callId={call.id} /></div>
+            ) : null}
           </div>
           <div className="text-left">
             <div className="text-xs text-slate-500 mb-1">משך שיחה</div>
