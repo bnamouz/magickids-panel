@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { assertVoiceAuth, normalisePhone } from '@/lib/voice-auth';
 import {book,BookingError} from '@/lib/booking/server';
 import {createHash} from 'node:crypto';
-import { sendWhatsAppText } from '@/lib/whatsapp-ultramsg';
+import { notifyOnce } from '@/lib/moxo/notification';
+import { cancellationToken } from '@/lib/booking/server';
 
 /**
  * POST /api/voice/book-appointment
@@ -89,38 +90,40 @@ export async function POST(req: NextRequest) {
   const start=when.toISOString();
   const hash=createHash('sha256').update(JSON.stringify([phone,start,body.patient_name])).digest('hex');
   const requestId=`${hash.slice(0,8)}-${hash.slice(8,12)}-4${hash.slice(13,16)}-a${hash.slice(17,20)}-${hash.slice(20,32)}`;
+  let reference=requestId;
   try{
-    await book('pediatrics',{requestId,start,childName:body.patient_name,parentName:body.parent_name||body.patient_name,phone,consent:true,website:''},`voice:${phone}`);
-  }catch(error){return NextResponse.json({success:false,error:error instanceof BookingError?error.code:'unavailable'},{status:error instanceof BookingError?error.status:503});}
+    const result:any=await book('pediatrics',{requestId,start,childName:body.patient_name,parentName:body.parent_name||body.patient_name,phone,consent:true,website:''},`voice:${phone}`);
+    if(result?.reference)reference=result.reference;
+  }catch(error){
+    const code=error instanceof BookingError?error.code:'unavailable';
+    return NextResponse.json({success:false,error:code,
+      instruction:code==='invalid_slot'||code==='slot_taken'?'This time is not free. Call get_clinic_slots again and offer only returned slots.':'Booking failed. Do not say it was booked.'},
+      {status:error instanceof BookingError?error.status:503});
+  }
   const eventInfo={eventId:'mk'+requestId.replaceAll('-',''),htmlLink:undefined};
 
-  // Send WhatsApp confirmation (default: yes)
-  const shouldConfirm = body.send_confirmation !== false;
-  let whatsappId: string | undefined;
-  if (shouldConfirm) {
-    const lang = body.language || 'ar';
-    const when_str = formatDateForMessage(body.scheduled_at, lang);
-
+  // WhatsApp confirmation from the verified institute number, sent at most once per booking.
+  let notification:string='not_requested';
+  if (body.send_confirmation !== false) {
+    const lang = body.language === 'he' ? 'he' : body.language === 'en' ? 'en' : 'ar';
+    const when_str = formatDateForMessage(start, lang);
+    const cancel=`https://app.magickidsinstitute.com/book/cancel?lang=${lang==='en'?'he':lang}#id=${reference}&token=${cancellationToken(reference)}`;
     const patient = body.patient_name;
-    const msgAr = `أهلاً، هذا تأكيد لموعد ${patient} عند الدكتور باسم نمّور:\n\n📅 ${when_str}\n📍 عيادة د. باسم نمّور\n\nلأي تعديل أو استفسار، تواصلوا معنا. يعطيكم العافية 🙏`;
-    const msgHe = `שלום, זהו אישור לתור של ${patient} אצל ד"ר בסים נמור:\n\n📅 ${when_str}\n📍 מרפאת ד"ר בסים\n\nלכל שינוי או שאלה, ניתן ליצור קשר. תודה 🙏`;
-    const msgEn = `Hello, this confirms the appointment for ${patient} with Dr. Basim Namour:\n\n📅 ${when_str}\n📍 Dr. Basim's Clinic\n\nFor any changes or questions, please contact us. Thank you 🙏`;
-
-    const msg = lang === 'he' ? msgHe : lang === 'en' ? msgEn : msgAr;
-
-    try {
-      const result = await sendWhatsAppText({ toPhone: phone, body: msg });
-      whatsappId = result.id;
-    } catch (e: any) {
-      console.error('[book-appointment] WhatsApp send failed:', e);
-      // Don't fail the booking if WhatsApp fails
-    }
+    const msg = lang === 'he'
+      ? [`שלום, אושר תור במרפאת הילדים של ד״ר בסים נמוז עבור ${patient}.`,'',`מועד: ${when_str} (10 דקות)`,'מקום: רחוב תופיק זיאד 21, שפרעם','',`לביטול התור: ${cancel}`,'וואטסאפ מרפאת הילדים: 0543496656'].join('\n')
+      : lang === 'en'
+      ? [`Hello, an appointment at Dr. Baseem Namouz's pediatric clinic is confirmed for ${patient}.`,'',`When: ${when_str} (10 minutes)`,'Where: 21 Tawfiq Ziad St., Shefa-Amr','',`To cancel: ${cancel}`,'Pediatric clinic WhatsApp: 0543496656'].join('\n')
+      : [`مرحبًا، تأكّد دور ${patient} في عيادة الأطفال عند الدكتور بسيم نموز.`,'',`الموعد: ${when_str} (10 دقائق)`,'المكان: شارع توفيق زياد 21، شفاعمرو','',`لإلغاء الدور: ${cancel}`,'واتساب عيادة الأطفال: 0543496656'].join('\n');
+    notification = await notifyOnce(`pediatrics-voice:${reference}`, phone, msg, { sender: 'institute' }).catch(() => 'unknown');
   }
+  const whatsappId = notification === 'accepted' ? 'accepted' : undefined;
 
   return NextResponse.json({
     success: true,
     event_id: eventInfo.eventId,
     calendar_link: eventInfo.htmlLink,
     whatsapp_message_id: whatsappId,
+    whatsapp_confirmation: notification,
+    scheduled_at: start,
   });
 }

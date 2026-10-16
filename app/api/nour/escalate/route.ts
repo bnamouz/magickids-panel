@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertNourAuth, normalisePhone } from '@/lib/nour-auth';
+import { sendInstituteWhatsAppText } from '@/lib/whatsapp-ultramsg';
 
 /**
  * POST /api/nour/escalate
@@ -15,28 +16,12 @@ const Schema = z.object({
   caller_phone: z.string().min(6),
 });
 
+// Sent from the verified institute WhatsApp; the shared Nour/Marhaba instance is not used.
 async function sendUrgentWhatsApp(text: string) {
-  const instance = process.env.ULTRAMSG_INSTANCE_ID;
-  const token = process.env.ULTRAMSG_TOKEN;
-  const to = process.env.ESCALATION_WHATSAPP || '+972544020043';
-  if (!instance || !token) throw new Error('ultramsg_not_configured');
-
-  const url = `https://api.ultramsg.com/${instance}/messages/chat`;
-  const body = new URLSearchParams({
-    token,
-    to,
-    body: text,
-    priority: '1',
-  });
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-
-  if (!res.ok) throw new Error(`ultramsg_${res.status}`);
-  return res.json();
+  const to = process.env.ESCALATION_WHATSAPP?.replace(/\\n/g, '').trim() || '+972544020043';
+  const result = await sendInstituteWhatsAppText({ toPhone: to, body: text });
+  if (!result.ok) throw new Error(result.error || 'whatsapp_send_failed');
+  return result;
 }
 
 export async function POST(req: NextRequest) {
