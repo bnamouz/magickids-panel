@@ -7,7 +7,7 @@ import type { ClinicPatient } from '@/lib/clinic-patients/schema';
 
 export const dynamic = 'force-dynamic';
 const PAGE = 100;
-const COLS = 'id,national_id,first_name,last_name,phone1,phone2,birth_date,last_visit,next_visit,notes,needs_review,source,updated_at';
+const COLS = 'id,national_id,first_name,last_name,phone1,phone2,birth_date,last_visit,next_visit,notes,needs_review,source,updated_at,extra';
 const SORTS: Record<string, [string, boolean]> = { last_visit: ['last_visit', false], next_visit: ['next_visit', true], name: ['last_name', true] };
 
 export default async function Page({ searchParams }: { searchParams: { q?: string; f?: string; p?: string; s?: string } }) {
@@ -24,6 +24,7 @@ export default async function Page({ searchParams }: { searchParams: { q?: strin
   q = f === 'archived' ? q.not('archived_at', 'is', null) : q.is('archived_at', null);
   if (f === 'upcoming') q = q.gte('next_visit', today);
   if (f === 'review') q = q.eq('needs_review', true);
+  if (f === 'hw') q = q.eq('extra->>missing_height_weight', 'true');
   const words = (searchParams.q ?? '').replace(/[^\p{L}\p{N}' \-]/gu, ' ').trim().split(/\s+/).filter(Boolean).slice(0, 4);
   for (const w of words) {
     const digits = w.replace(/\D/g, '');
@@ -45,10 +46,11 @@ export default async function Page({ searchParams }: { searchParams: { q?: strin
       siblings[p.id] = (s.data ?? []).filter(o => o.id !== p.id && (mine.has(o.phone1) || mine.has(o.phone2))).length;
     }
   }
-  const [total, review, upcoming] = await Promise.all([
+  const [total, review, upcoming, hw] = await Promise.all([
     db.from('clinic_patients').select('id', { count: 'exact', head: true }).is('archived_at', null),
     db.from('clinic_patients').select('id', { count: 'exact', head: true }).is('archived_at', null).eq('needs_review', true),
     db.from('clinic_patients').select('id', { count: 'exact', head: true }).is('archived_at', null).gte('next_visit', today),
+    db.from('clinic_patients').select('id', { count: 'exact', head: true }).is('archived_at', null).eq('extra->>missing_height_weight', 'true'),
   ]);
   const link = (o: Record<string, string | number | undefined>) => {
     const sp = new URLSearchParams();
@@ -64,7 +66,7 @@ export default async function Page({ searchParams }: { searchParams: { q?: strin
       <div><h1 className="text-3xl font-bold text-teal-800">מטופלי המרפאה</h1><p className="text-slate-600">מאגר מטופלי מרפאת הילדים של ד״ר בסים נמוז. נפרד מתיקי הקשב. גלוי למנהל בלבד.</p></div>
       <a href="/api/admin/clinic-patients" className="btn-ghost">ייצוא לאקסל (CSV)</a>
     </div>
-    <div className="flex flex-wrap gap-2">{tab('', 'כל המטופלים', total.count)}{tab('upcoming', 'ביקור קרוב', upcoming.count)}{tab('review', 'לבדיקה', review.count)}{tab('archived', 'מוסתרים')}</div>
+    <div className="flex flex-wrap gap-2">{tab('', 'כל המטופלים', total.count)}{tab('upcoming', 'ביקור קרוב', upcoming.count)}{tab('hw', 'חסרי גובה ומשקל', hw.count)}{tab('review', 'לבדיקה', review.count)}{tab('archived', 'מוסתרים')}</div>
     <form className="flex flex-wrap gap-3" action="/admin/clinic-patients">
       {f && <input type="hidden" name="f" value={f} />}
       <input className=" rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-200 min-w-[16rem] flex-1" name="q" aria-label="חיפוש" placeholder="חיפוש לפי שם, ת.ז או טלפון" defaultValue={searchParams.q} />
