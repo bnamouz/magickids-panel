@@ -47,6 +47,7 @@ export const patientSchema = z.object({
   next_visit: date,
   notes: z.string().max(2000).optional().nullable().transform(v => v?.trim() || null),
   needs_review: z.boolean().optional(),
+  missing_height_weight: z.boolean().optional(),
 });
 export type PatientInput = z.infer<typeof patientSchema>;
 
@@ -54,7 +55,7 @@ export type ClinicPatient = {
   id: string; national_id: string; first_name: string; last_name: string;
   phone1: string | null; phone2: string | null; birth_date: string | null;
   last_visit: string | null; next_visit: string | null; notes: string | null;
-  needs_review: boolean; source: string; updated_at: string;
+  needs_review: boolean; source: string; updated_at: string; extra?: Record<string, unknown> | null;
 };
 
 /** Column order for pasted rows (Excel/Sheets copy = tab separated). */
