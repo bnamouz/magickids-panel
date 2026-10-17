@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getCurrentStaff, isAdmin } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { notifyOnce } from '@/lib/moxo/notification';
+import { clinicWhatsAppIdentity } from '@/lib/whatsapp-clinic';
 import { applyFilters } from '@/lib/clinic-patients/query';
 import { buildRecipients, campaignId, isMobile, render, MAX_BROADCAST, BATCH } from '@/lib/clinic-patients/messaging';
 
@@ -45,6 +46,8 @@ export async function POST(req: NextRequest) {
   if (!staff || !isAdmin(staff)) return reply({ error: 'forbidden' }, 403);
   let b: any; try { b = await req.json(); } catch { return reply({ error: 'invalid_request' }, 400); }
   const db = getSupabaseAdmin();
+  if (b.action === 'status') return reply({ clinic_whatsapp: await clinicWhatsAppIdentity(true) });
+  if ((b.action === 'send_one' || b.action === 'send_batch') && (await clinicWhatsAppIdentity(true)) !== 'verified') return reply({ error: 'clinic_whatsapp_not_connected' }, 409);
 
   if (b.action === 'send_one') {
     const p = z.object({ patient_id: z.string().uuid(), phone: z.enum(['phone1', 'phone2']), text: Text, request_id: z.string().uuid() }).safeParse(b);
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest) {
     if (pt.error || !pt.data) return reply({ error: 'not_found' }, 404);
     const to = (pt.data as any)[p.data.phone] as string | null;
     if (!isMobile(to)) return reply({ error: 'not_mobile' }, 400);
-    const state = await notifyOnce(`clinic-msg:${p.data.request_id}`, to, render(p.data.text, [pt.data.first_name]), { sender: 'institute' });
+    const state = await notifyOnce(`clinic-msg:${p.data.request_id}`, to, render(p.data.text, [pt.data.first_name]), { sender: 'clinic' });
     if (state !== 'accepted') return reply({ error: 'send_failed', state }, 502);
     const extra = { ...((pt.data.extra as any) ?? {}), last_message_at: new Date().toISOString() };
     await db.from('clinic_patients').update({ extra }).eq('id', pt.data.id);
@@ -72,6 +75,7 @@ export async function POST(req: NextRequest) {
       const a = await audience(filter.data); const done = await alreadySent(cid);
       const pending = a.list.filter(r => !done.has(r.phone));
       return reply({
+        clinic_whatsapp: await clinicWhatsAppIdentity(),
         failed_before: await failedCount(cid),
         patients: a.patients, phones: a.list.length, already_sent: a.list.length - pending.length, pending: pending.length,
         this_round: Math.min(pending.length, MAX_BROADCAST), max_per_round: MAX_BROADCAST, no_mobile: a.noMobile, opted_out: a.optedOut,
@@ -87,7 +91,7 @@ export async function POST(req: NextRequest) {
       const batch = pending.slice(0, Math.max(0, Math.min(BATCH, MAX_BROADCAST - round.data)));
       let sent = 0, failed = 0, stop = '', streak = 0;
       for (const r of batch) {
-        const s = await notifyOnce(`clinic-bc:${cid}:${r.phone}`, r.phone, render(text.data, r.names), { sender: 'institute' });
+        const s = await notifyOnce(`clinic-bc:${cid}:${r.phone}`, r.phone, render(text.data, r.names), { sender: 'clinic' });
         if (s === 'accepted') { sent++; streak = 0; } else { failed++; streak++; }
         if (s === 'not_configured' || s === 'unavailable') { stop = s; break; }
         // Three rejections in a row = the WhatsApp connection is down or limited. Stop instead of burning the list.

@@ -1,3 +1,4 @@
+import { clinicWhatsAppIdentity } from '@/lib/whatsapp-clinic';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import { getPediatricsCalendarId } from '@/lib/pediatrics-calendar';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -53,6 +54,11 @@ export async function runSystemHealth(): Promise<Check[]> {
       const s = await ownerWhatsAppIdentity();
       return s === 'verified' ? ['ok', 'מחובר, זהות השולח אומתה']
         : s === 'not_configured' ? ['fail', 'לא מוגדר'] : s === 'identity_mismatch' ? ['fail', 'זהות השולח אינה תואמת'] : ['warn', 'לא ניתן לאמת כרגע'];
+    }),
+    safe('wa_clinic', 'וואטסאפ', 'וואטסאפ המרפאה 050-995-5137 (הודעות למטופלים)', async () => {
+      const s = await clinicWhatsAppIdentity(true);
+      return s === 'verified' ? ['ok', 'מחובר, זהות השולח אומתה']
+        : s === 'not_configured' ? ['fail', 'עוד לא חובר. יש לסרוק QR ב־UltraMsg מהטלפון 050-995-5137'] : s === 'identity_mismatch' ? ['fail', 'החיבור שייך למספר אחר'] : ['warn', 'לא ניתן לאמת כרגע'];
     }),
     safe('wa_voice', 'וואטסאפ', 'וואטסאפ קישורי שרה', async () => {
       const instance = process.env.ULTRAMSG_INSTANCE_ID, token = process.env.ULTRAMSG_TOKEN;
