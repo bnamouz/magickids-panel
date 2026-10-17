@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getCurrentStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { notifyOnce } from '@/lib/moxo/notification';
+import {sendAppointmentMessage} from '@/lib/appointment-messages/server';
 import {getCalendarId} from '@/lib/google-calendar';
 import { syncMoxoCalendar } from '@/lib/moxo/calendar';
 export const maxDuration=60;
@@ -22,10 +22,8 @@ export async function POST(req:NextRequest){
   const stored=await db.from('moxo_requests').select('*').eq('id',body.id).eq('status','approved').single();
   if(stored.error||!stored.data)return NextResponse.json({error:'unavailable'},{status:503});
   const row=stored.data;
-  const when=new Intl.DateTimeFormat(row.language==='en'?'en-GB':`${row.language}-IL`,{timeZone:'Asia/Jerusalem',dateStyle:'full',timeStyle:'short'}).format(new Date(row.scheduled_at));
-  const text=row.language==='ar'?`مرحبًا ${row.contact_name}، معهد أطفال السحر يؤكد موعد فحص MOXO: ${when} (توقيت إسرائيل). للاستفسار: 0544020043.`:row.language==='en'?`Hello ${row.contact_name}, Magic Kids Institute confirms your MOXO appointment: ${when} (Israel time). Questions: 0544020043.`:`שלום ${row.contact_name}, מכון ילדי הקסם מאשר את מועד מבדק MOXO: ${when} (שעון ישראל). לבירורים: 0544020043.`;
   const calendar=await syncMoxoCalendar(row.id).catch(()=>'unavailable');
-  const notification=calendar==='synced'?await notifyOnce(`moxo:${row.id}`,row.phone,text).catch(()=>'unknown'):'not_sent';
+  const notification=calendar==='synced'?await sendAppointmentMessage('moxo_requests',row.id).catch(()=>'unknown'):'not_sent';
   return NextResponse.json({approved:true,notification,calendar},{headers:{'Cache-Control':'no-store'}});
  }catch{return NextResponse.json({error:'invalid_request'},{status:400});}
 }

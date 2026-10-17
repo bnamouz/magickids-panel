@@ -1,3 +1,4 @@
+import {sendAppointmentMessage} from '@/lib/appointment-messages/server';
 import { getCurrentStaff } from '@/lib/admin/auth';
 import { intakeProgress } from '@/lib/intake/progress';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -189,6 +190,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
   }
   const saved = await db.from('website_bookings').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', body.requestId).eq('attempt_id', attemptId).neq('status', 'released').select('id').single();
   if (saved.error || !saved.data) throw new BookingError('processing', 503);
+  await sendAppointmentMessage('website_bookings',body.requestId).catch(()=>null);
   return confirmed(clinic, start, body.requestId, visitType);
 }
 

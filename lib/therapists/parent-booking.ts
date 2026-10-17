@@ -1,3 +1,4 @@
+import {sendAppointmentMessage} from '@/lib/appointment-messages/server';
 import { createHmac, randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarClient } from '@/lib/google-calendar';
@@ -155,7 +156,9 @@ export async function decideBooking(id:string,therapistId:string,action:'approve
       }
       if(event.status==='cancelled'||!isOwnEvent(event,r))throw new BookingError('event_mismatch');
     }
-    return {status:await finish('confirmed')};
+    const status=await finish('confirmed');
+    if(status==='confirmed')await sendAppointmentMessage('therapist_booking_requests',id).catch(()=>null);
+    return {status};
   }catch(e){
     if(e instanceof BookingError&&e.message==='slot_taken')throw e;
     await finish('failed').catch(()=>null);

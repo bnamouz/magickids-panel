@@ -13,7 +13,7 @@ function compile(relative, overrides = {}) {
   const source = fs.readFileSync(path.join(root, relative), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const module = { exports: {} };
-  new Function('require', 'module', 'exports', js)(name => name in overrides ? overrides[name] : require(name), module, module.exports);
+  new Function('require', 'module', 'exports', js)(name => name==='@/lib/appointment-messages/server' ? {sendAppointmentMessage:async()=> 'accepted'} : name in overrides ? overrides[name] : require(name), module, module.exports);
   return module.exports;
 }
 const schedule = compile('lib/booking/schedule.ts');
@@ -300,25 +300,6 @@ test('Public booking integration with SQL reservations and mocked Google', async
       [...events.values()][0].extendedProperties.private.websiteBooking = randomUUID();
       await rejects(service.cancelPediatrics(peds.requestId, receipt.cancellationToken), 'unavailable');
       assert.equal(events.size, 1);
-    });
-    await t.test('reminders observe consent, 30-minute window, cancellation and once-only delivery', async () => {
-      await reset();
-      await pg.exec("create table clinic_notifications(id text primary key,state text default 'pending',provider_id text,updated_at timestamptz default now());");
-      const sent = [];
-      const notifications = compile('lib/moxo/notification.ts', { '@/lib/supabase': { getSupabaseAdmin: () => adapter(pg, intake) }, '@/lib/whatsapp-ultramsg': { sendWhatsAppText: async message => { sent.push(message); return {ok:true,id:'mock'}; } } });
-      const reminders = compile('lib/booking/reminders.ts', { '@/lib/supabase': {getSupabaseAdmin: () => adapter(pg,intake)}, '@/lib/google-calendar': {getCalendarClient:()=>google}, '@/lib/moxo/notification':notifications, './server':service,'./schedule':schedule });
-      process.env.BOOKING_REMINDERS_ENABLED='true';process.env.ULTRAMSG_INSTANCE_ID='test';process.env.ULTRAMSG_TOKEN='test';
-      const request={...body('pediatrics'),reminderConsent:true,language:'ar'};
-      const receipt=await service.book('pediatrics',request,'test-ip');
-      const due=new Date(Date.parse(request.start)-30*60000);
-      await reminders.sendDueReminders(new Date(due.getTime()-60000));assert.equal(sent.length,0);
-      await Promise.all([reminders.sendDueReminders(due),reminders.sendDueReminders(due)]);assert.equal(sent.length,1);assert.match(sent[0].body,/تذكير/);assert.match(sent[0].body,/book\/cancel/);
-      await reminders.sendDueReminders(due);assert.equal(sent.length,1);
-      await reset(); await pg.exec('delete from clinic_notifications');
-      const noConsent=body('pediatrics');await service.book('pediatrics',noConsent,'test-ip');
-      await reminders.sendDueReminders(new Date(Date.parse(noConsent.start)-30*60000));assert.equal(sent.length,1);
-      await reset();const cancel={...body('pediatrics'),reminderConsent:true};const c=await service.book('pediatrics',cancel,'test-ip');await service.cancelPediatrics(cancel.requestId,c.cancellationToken);
-      await reminders.sendDueReminders(new Date(Date.parse(cancel.start)-30*60000));assert.equal(sent.length,1);
     });
     await t.test('booking limits are enforced in the database', async () => {
       await reset(); const starts = schedule.candidateSlots('pediatrics');

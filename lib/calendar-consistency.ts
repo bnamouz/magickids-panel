@@ -1,3 +1,4 @@
+import {sendAppointmentMessage} from '@/lib/appointment-messages/server';
 import {getCalendarClient,getCalendarId} from '@/lib/google-calendar';
 import {getPediatricsCalendarId} from '@/lib/pediatrics-calendar';
 import {getSupabaseAdmin} from '@/lib/supabase';
@@ -55,6 +56,7 @@ export async function syncAppointment(id:string){
    description:'פרטי הפגישה בתיק המאובטח במערכת המכון.',start:{dateTime:start,timeZone:'Asia/Jerusalem'},end:{dateTime:end,timeZone:'Asia/Jerusalem'},
    extendedProperties:{private:{appointmentId:id}}},ids);
   const saved=await db.from('appointments').update({calendar_sync:'synced',calendar_checked_at:new Date().toISOString()}).eq('id',id).eq('scheduled_at',r.scheduled_at).in('status',['scheduled','confirmed']);
+  if(!saved.error)await sendAppointmentMessage('appointments',id).catch(()=>null);
   return saved.error?'failed':'synced';
  }catch(error){
   const state=error instanceof CalendarConflict||String((error as any)?.message).includes('slot_taken')?'conflict':'failed';

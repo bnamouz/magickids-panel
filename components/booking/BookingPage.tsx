@@ -165,7 +165,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
 
               <label>{t.child}<input name="childName" required minLength={2} maxLength={100} autoComplete="off" /></label><label>{t.patientId}<input name="childId" type="text" inputMode="numeric" dir="ltr" required minLength={9} maxLength={9} pattern="[0-9]{9}" autoComplete="off" /></label><label>{t.parent}<input name="parentName" required minLength={2} maxLength={100} autoComplete="name" /></label><label>{t.phone}<input name="phone" type="tel" dir="ltr" autoComplete="tel" required minLength={7} maxLength={25} /></label>
               <div className={styles.honeypot} aria-hidden="true"><label>Website<input name="website" tabIndex={-1} autoComplete="off" /></label></div>
-              <label className={styles.consent}><input type="checkbox" name="consent" required /><span>{t.consent}</span></label><p className={styles.muted}>{t.noMedical}</p>{clinic === 'pediatrics' && remindersEnabled && <label className={styles.consent}><input type="checkbox" name="reminderConsent" /><span>{t.reminderConsent}</span></label>}
+              <label className={styles.consent}><input type="checkbox" name="consent" required /><span>{t.consent}</span></label><p className={styles.muted}>{t.noMedical}</p>{remindersEnabled && <label className={styles.consent}><input type="checkbox" name="reminderConsent" /><span>{t.reminderConsent}</span></label>}
             </fieldset>
             {error && <p role="alert" className={styles.error}>{errorText}</p>}
             {start && <div className={styles.selection}><strong>{t[clinic]}</strong><span>{displayDate(start)} · {displayTime(start)}</span></div>}

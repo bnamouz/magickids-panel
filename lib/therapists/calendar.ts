@@ -1,3 +1,4 @@
+import {sendAppointmentMessage} from '@/lib/appointment-messages/server';
 import {ensureCalendarEvent} from '@/lib/calendar-consistency';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
@@ -24,6 +25,6 @@ export async function syncTreatment(id:string){
    const event={summary:`טיפול במכון · ${r.therapist}`,description:`פרטי הפנייה זמינים לצוות בלבד: https://app.magickidsinstitute.com/admin/treatments`,visibility:'private',start:{dateTime:r.scheduled_at,timeZone:'Asia/Jerusalem'},end:{dateTime:new Date(Date.parse(r.scheduled_at)+r.duration_minutes*60000).toISOString(),timeZone:'Asia/Jerusalem'},reminders:{useDefault:false,overrides:[{method:'popup',minutes:120},{method:'email',minutes:120}]},extendedProperties:{private:{treatmentRequest:r.id}}};
    await ensureCalendarEvent(c,calendarId,eventId,event,[calendarId],true);
   }
-  const saved=await db.from('treatment_requests').update({calendar_id:calendarId,calendar_event_id:eventId,calendar_sync:'synced',calendar_synced_at:new Date().toISOString()}).eq('id',id).eq('calendar_sync','syncing');return saved.error?'failed':'synced';
+  const saved=await db.from('treatment_requests').update({calendar_id:calendarId,calendar_event_id:eventId,calendar_sync:'synced',calendar_synced_at:new Date().toISOString()}).eq('id',id).eq('calendar_sync','syncing');if(!saved.error&&r.status==='scheduled')await sendAppointmentMessage('treatment_requests',id).catch(()=>null);return saved.error?'failed':'synced';
  }catch{await db.from('treatment_requests').update({calendar_sync:'failed'}).eq('id',id);return 'failed';}
 }
