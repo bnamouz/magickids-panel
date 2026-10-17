@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { requireStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import SessionFilters from './SessionFilters';
+import CaseWhatsAppButton from '@/components/admin/CaseWhatsAppButton';
 import { ArrowLeft, Search, Plus } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -122,6 +123,7 @@ export default async function SessionsPage({
                       <Link href={`/admin/sessions/${s.id}`} className="hover:text-[#01696f]">
                         {childName}
                       </Link>
+                      <span className="mr-2 align-middle"><CaseWhatsAppButton sessionId={s.id} parentName={parent?.full_name} childName={childName} phone={parent?.phone} /></span>
                       {child?.birth_date && (
                         <div className="text-xs text-slate-500 font-normal">
                           {calcAge(child.birth_date)} · {new Date(child.birth_date).toLocaleDateString('he-IL')}
