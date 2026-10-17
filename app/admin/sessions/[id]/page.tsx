@@ -1,4 +1,5 @@
 import { firstRelated, intakeProgress, INTAKE_STAGES } from '@/lib/intake/progress';
+import CaseWhatsAppButton from '@/components/admin/CaseWhatsAppButton';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { requireStaff } from '@/lib/admin/auth';
@@ -70,7 +71,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
         </Link>
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800">{childName}</h1>
+            <h1 className="text-3xl font-bold text-slate-800">{childName} <span className="align-middle text-base"><CaseWhatsAppButton sessionId={session.id} parentName={parent?.full_name} childName={childName} phone={parent?.phone} /></span></h1>
             <p className="text-slate-500 mt-1">
               {patient?.birth_date && `${calcAge(patient.birth_date)} · נולד/ה ${new Date(patient.birth_date).toLocaleDateString('he-IL')}`}
               {patient?.school && ` · ${patient.school}`}
