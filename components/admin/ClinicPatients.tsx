@@ -13,7 +13,7 @@ const ERR: Record<string, string> = {
 const fmt = (d: string | null) => d ? d.split('-').reverse().join('/') : '';
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
 
-export default function ClinicPatients({ patients, siblings, archived }: { patients: ClinicPatient[]; siblings: Record<string, number>; archived: boolean }) {
+export default function ClinicPatients({ patients, siblings, archived, sender, connected }: { patients: ClinicPatient[]; siblings: Record<string, number>; archived: boolean; sender: string; connected: boolean }) {
   const router = useRouter();
   const [editing, setEditing] = useState<any>(null), [bulk, setBulk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [msg, setMsg] = useState<any>(null);
@@ -58,12 +58,12 @@ export default function ClinicPatients({ patients, siblings, archived }: { patie
     </div>}
 
     {msg && <div role="dialog" aria-modal="true" aria-label="שליחת הודעת וואטסאפ" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <form className="card w-full max-w-lg space-y-3" onSubmit={e => { e.preventDefault(); setBusy(true); setMessage(''); fetch('/api/admin/clinic-patients/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'send_one', patient_id: msg.patient.id, phone: msg.phone, text: msg.text, request_id: msg.request_id }) }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error === 'not_mobile' ? 'המספר אינו מספר נייד.' : 'ההודעה לא נשלחה. בדקו שהוואטסאפ של המכון מחובר ונסו שוב.'); setMessage(`ההודעה נשלחה ל־${d.to}.`); setMsg(null); router.refresh(); }).catch(err => setMessage(err.message)).finally(() => setBusy(false)); }}>
+      <form className="card w-full max-w-lg space-y-3" onSubmit={e => { e.preventDefault(); setBusy(true); setMessage(''); fetch('/api/admin/clinic-patients/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'send_one', patient_id: msg.patient.id, phone: msg.phone, text: msg.text, request_id: msg.request_id }) }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error === 'not_mobile' ? 'המספר אינו מספר נייד.' : (d.error === 'clinic_whatsapp_not_connected' ? `הוואטסאפ של ${sender} לא מחובר.` : 'ההודעה לא נשלחה. בדקו שהוואטסאפ פתוח בטלפון ונסו שוב.')); setMessage(`ההודעה נשלחה ל־${d.to}.`); setMsg(null); router.refresh(); }).catch(err => setMessage(err.message)).finally(() => setBusy(false)); }}>
         <h2 className="text-xl font-bold">הודעת וואטסאפ ל{msg.patient.first_name} {msg.patient.last_name}</h2>
-        <p className="text-sm text-slate-600">נשלח מהוואטסאפ של המכון 054-402-0043.</p>
+        <p className="text-sm text-slate-600">נשלח מהוואטסאפ שלך {sender}.{!connected && <b className="block text-amber-800">השליחה חסומה עד שהמספר יחובר.</b>}</p>
         <fieldset className="flex flex-wrap gap-4 text-sm">{(['phone1', 'phone2'] as const).filter(k => isMobile(msg.patient[k])).map(k => <label key={k} className="flex items-center gap-2"><input type="radio" name="phone" checked={msg.phone === k} onChange={() => setMsg({ ...msg, phone: k })} /><span dir="ltr" className="font-mono">{msg.patient[k]}</span></label>)}</fieldset>
         <textarea dir="auto" required minLength={2} maxLength={1000} rows={5} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2" value={msg.text} onChange={e => setMsg({ ...msg, text: e.target.value })} />
-        <div className="flex gap-3"><button disabled={busy} className="btn-primary">שליחה</button><button type="button" className="btn-ghost" onClick={() => setMsg(null)}>ביטול</button></div>
+        <div className="flex gap-3"><button disabled={busy || !connected} className="btn-primary">שליחה</button><button type="button" className="btn-ghost" onClick={() => setMsg(null)}>ביטול</button></div>
       </form>
     </div>}
 

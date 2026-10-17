@@ -6,6 +6,7 @@ import ClinicPatients from '@/components/admin/ClinicPatients';
 import type { ClinicPatient } from '@/lib/clinic-patients/schema';
 import { applyFilters } from '@/lib/clinic-patients/query';
 import Broadcast from '@/components/admin/ClinicBroadcast';
+import { clinicWhatsAppIdentity, CLINIC_SENDER_LOCAL } from '@/lib/whatsapp-clinic';
 
 export const dynamic = 'force-dynamic';
 const PAGE = 100;
@@ -18,6 +19,7 @@ export default async function Page({ searchParams }: { searchParams: { q?: strin
   if (!isAdmin(staff)) return <section className="card"><h1 className="text-2xl font-bold text-teal-800">מטופלי המרפאה</h1><p className="mt-2">הדף זמין למנהל המערכת בלבד.</p></section>;
 
   const db = getSupabaseAdmin();
+  const wa = await clinicWhatsAppIdentity();
   const page = Math.max(0, Number(searchParams.p) || 0);
   const f = searchParams.f ?? '';
   const [sortCol, asc] = SORTS[searchParams.s ?? ''] ?? SORTS.last_visit;
@@ -65,9 +67,10 @@ export default async function Page({ searchParams }: { searchParams: { q?: strin
       <button className="btn-primary">חיפוש</button>
       {searchParams.q && <Link href={link({ q: undefined })} className="self-center underline">ניקוי</Link>}
     </form>
-    {f !== 'archived' && <Broadcast filter={{ f, q: searchParams.q ?? '' }} />}
+    {wa !== 'verified' && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><b>הוואטסאפ של {CLINIC_SENDER_LOCAL} עוד לא מחובר למערכת.</b> הודעות למטופלי המרפאה יוצאות רק מהמספר הזה, ולכן השליחה חסומה עד שיחובר. {wa === 'identity_mismatch' ? 'החיבור הקיים שייך למספר אחר.' : ''}</p>}
+    {f !== 'archived' && <Broadcast filter={{ f, q: searchParams.q ?? '' }} sender={CLINIC_SENDER_LOCAL} connected={wa === 'verified'} />}
     {r.error ? <p role="alert" className="card">לא ניתן לטעון את המטופלים. נסו שוב.</p>
-      : <ClinicPatients patients={rows} siblings={siblings} archived={f === 'archived'} />}
+      : <ClinicPatients patients={rows} siblings={siblings} archived={f === 'archived'} sender={CLINIC_SENDER_LOCAL} connected={wa === 'verified'} />}
     <div className="flex items-center justify-between text-sm text-slate-600">
       <span>{count ? `מוצגים ${page * PAGE + 1}–${Math.min(count, page * PAGE + rows.length)} מתוך ${count}` : 'אין תוצאות'}</span>
       <span className="flex gap-3">{page > 0 && <Link className="underline" href={link({ p: page - 1 })}>הקודם</Link>}{(page + 1) * PAGE < count && <Link className="underline" href={link({ p: page + 1 })}>הבא</Link>}</span>
