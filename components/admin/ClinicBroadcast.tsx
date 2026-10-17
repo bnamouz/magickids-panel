@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 
-type Preview = { patients: number; phones: number; already_sent: number; pending: number; this_round: number; max_per_round: number; no_mobile: number; opted_out: number; sample: string | null };
+type Preview = { failed_before: number; patients: number; phones: number; already_sent: number; pending: number; this_round: number; max_per_round: number; no_mobile: number; opted_out: number; sample: string | null };
 const FILTER_LABEL: Record<string, string> = { '': 'כל המטופלים', upcoming: 'מטופלים עם ביקור קרוב', hw: 'חסרי גובה ומשקל', review: 'מטופלים לבדיקה' };
 
 export default function ClinicBroadcast({ filter }: { filter: { f: string; q: string } }) {
@@ -20,7 +20,7 @@ export default function ClinicBroadcast({ filter }: { filter: { f: string; q: st
       for (;;) {
         const d = await call({ action: 'send_batch', filter, text, round_sent: round, confirmed: true });
         round = d.round_sent; sent += d.sent; failed += d.failed; setProgress({ sent, failed, total: preview.this_round });
-        if (d.stop) { setStatus('השליחה נעצרה: הוואטסאפ של המכון לא זמין כרגע. אפשר להמשיך אחר כך באותה הודעה, ומי שכבר קיבל לא יקבל שוב.'); break; }
+        if (d.stop) { setStatus('השליחה נעצרה אוטומטית: הוואטסאפ של המכון דחה כמה הודעות ברצף (ייתכן שהחיבור התנתק או שהמספר הוגבל). בדקו בדף "בריאות המערכת" ובטלפון של המכון. אחר כך אפשר להמשיך באותה הודעה — מי שכבר קיבל לא יקבל שוב, ומי שנכשל יקבל בניסיון הבא.'); break; }
         if (d.round_done) { setStatus(d.remaining_total > 0 ? `נשלחו ${sent} הודעות בסבב הזה. נותרו ${d.remaining_total} מספרים. כדי להמשיך, לחצו שוב "בדיקת נמענים" עם אותה הודעה (מומלץ סבב אחד ביום).` : `הסתיים. נשלחו ${sent} הודעות${failed ? `, ${failed} לא אושרו` : ''}.`); break; }
       }
     } catch { setStatus(`השליחה נקטעה אחרי ${sent} הודעות. לחצו שוב "בדיקת נמענים" עם אותה הודעה כדי להמשיך. מי שכבר קיבל לא יקבל שוב.`); }
@@ -39,6 +39,7 @@ export default function ClinicBroadcast({ filter }: { filter: { f: string; q: st
     <textarea dir="auto" rows={5} maxLength={1000} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2" value={text} onChange={e => { setText(e.target.value); setPreview(null); }} />
     {preview && <div className="rounded-lg bg-slate-50 p-3 text-sm">
       <p><b>{preview.this_round}</b> הודעות יישלחו בסבב הזה · {preview.phones} מספרים ניידים מתוך {preview.patients} מטופלים{preview.already_sent ? ` · ${preview.already_sent} כבר קיבלו` : ''}{preview.no_mobile ? ` · ${preview.no_mobile} בלי נייד` : ''}{preview.opted_out ? ` · ${preview.opted_out} ביקשו הסרה` : ''}</p>
+      {preview.failed_before > 0 && <p className="mt-1 text-amber-800">{preview.failed_before} הודעות נכשלו בניסיון קודם ולא הגיעו. הן כלולות בסבב הזה.</p>}
       {preview.sample && <p className="mt-2 whitespace-pre-wrap rounded bg-white p-2 text-slate-800">דוגמה: {preview.sample}</p>}
     </div>}
     {progress && <p role="status" className="text-sm">נשלחו {progress.sent} מתוך {progress.total}{progress.failed ? ` · ${progress.failed} לא אושרו` : ''}</p>}

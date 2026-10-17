@@ -13,14 +13,30 @@ const Text = z.string().trim().min(2).max(1000);
 const Filter = z.object({ f: z.string().max(20).optional(), q: z.string().max(100).optional() });
 
 async function audience(filter: { f?: string; q?: string }) {
-  const db = getSupabaseAdmin();
-  const r = await applyFilters(db.from('clinic_patients').select('id,first_name,phone1,phone2,extra'), filter).limit(10000);
-  if (r.error) throw new Error('unavailable');
-  return buildRecipients((r.data ?? []) as any);
+  const db = getSupabaseAdmin(); const rows: any[] = [];
+  // PostgREST returns at most 1000 rows per request, so page through all patients.
+  for (let from = 0; from < 20000; from += 1000) {
+    const r = await applyFilters(db.from('clinic_patients').select('id,first_name,phone1,phone2,extra'), filter).order('id').range(from, from + 999);
+    if (r.error) throw new Error('unavailable');
+    rows.push(...(r.data ?? []));
+    if ((r.data?.length ?? 0) < 1000) break;
+  }
+  return buildRecipients(rows);
 }
+/** Numbers that already got (or may have got) this campaign. Definite failures can be retried. */
 async function alreadySent(cid: string) {
-  const r = await getSupabaseAdmin().from('clinic_notifications').select('id').like('id', `clinic-bc:${cid}:%`).limit(10000);
-  return new Set((r.data ?? []).map((x: any) => String(x.id).split(':')[2]));
+  const db = getSupabaseAdmin(); const done = new Set<string>();
+  for (let from = 0; from < 20000; from += 1000) {
+    const r = await db.from('clinic_notifications').select('id').like('id', `clinic-bc:${cid}:%`).neq('state', 'failed').order('id').range(from, from + 999);
+    if (r.error) throw new Error('unavailable');
+    for (const x of r.data ?? []) done.add(String(x.id).split(':')[2]);
+    if ((r.data?.length ?? 0) < 1000) break;
+  }
+  return done;
+}
+async function failedCount(cid: string) {
+  const r = await getSupabaseAdmin().from('clinic_notifications').select('id', { count: 'exact', head: true }).like('id', `clinic-bc:${cid}:%`).eq('state', 'failed');
+  return r.count ?? 0;
 }
 
 export async function POST(req: NextRequest) {
@@ -56,6 +72,7 @@ export async function POST(req: NextRequest) {
       const a = await audience(filter.data); const done = await alreadySent(cid);
       const pending = a.list.filter(r => !done.has(r.phone));
       return reply({
+        failed_before: await failedCount(cid),
         patients: a.patients, phones: a.list.length, already_sent: a.list.length - pending.length, pending: pending.length,
         this_round: Math.min(pending.length, MAX_BROADCAST), max_per_round: MAX_BROADCAST, no_mobile: a.noMobile, opted_out: a.optedOut,
         sample: pending[0] ? render(text.data, pending[0].names) : null,
@@ -68,11 +85,13 @@ export async function POST(req: NextRequest) {
       const a = await audience(filter.data); const done = await alreadySent(cid);
       const pending = a.list.filter(r => !done.has(r.phone));
       const batch = pending.slice(0, Math.max(0, Math.min(BATCH, MAX_BROADCAST - round.data)));
-      let sent = 0, failed = 0, stop = '';
+      let sent = 0, failed = 0, stop = '', streak = 0;
       for (const r of batch) {
         const s = await notifyOnce(`clinic-bc:${cid}:${r.phone}`, r.phone, render(text.data, r.names), { sender: 'institute' });
-        if (s === 'accepted') sent++; else failed++;
+        if (s === 'accepted') { sent++; streak = 0; } else { failed++; streak++; }
         if (s === 'not_configured' || s === 'unavailable') { stop = s; break; }
+        // Three rejections in a row = the WhatsApp connection is down or limited. Stop instead of burning the list.
+        if (streak >= 3) { stop = 'whatsapp_failing'; break; }
       }
       if (round.data === 0 && batch.length) await db.from('audit_log').insert({ actor_id: staff.id, actor_type: 'user', action: 'clinic_whatsapp_broadcast', entity_type: 'clinic_patients', metadata: { campaign: cid, filter: filter.data, recipients: pending.length, text: text.data.slice(0, 300) } });
       const processed = sent + failed;
