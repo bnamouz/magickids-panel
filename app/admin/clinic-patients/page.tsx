@@ -6,6 +6,7 @@ import ClinicPatients from '@/components/admin/ClinicPatients';
 import type { ClinicPatient } from '@/lib/clinic-patients/schema';
 import { applyFilters } from '@/lib/clinic-patients/query';
 import Broadcast from '@/components/admin/ClinicBroadcast';
+import ClinicCampaignStatus from '@/components/admin/ClinicCampaignStatus';
 import { clinicWhatsAppIdentity, CLINIC_SENDER_LOCAL } from '@/lib/whatsapp-clinic';
 
 export const dynamic = 'force-dynamic';
@@ -68,6 +69,7 @@ export default async function Page({ searchParams }: { searchParams: { q?: strin
       {searchParams.q && <Link href={link({ q: undefined })} className="self-center underline">ניקוי</Link>}
     </form>
     {wa !== 'verified' && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><b>הוואטסאפ של {CLINIC_SENDER_LOCAL} עוד לא מחובר למערכת.</b> הודעות למטופלי המרפאה יוצאות רק מהמספר הזה, ולכן השליחה חסומה עד שיחובר. {wa === 'identity_mismatch' ? 'החיבור הקיים שייך למספר אחר.' : ''}</p>}
+    <ClinicCampaignStatus />
     {f !== 'archived' && <Broadcast filter={{ f, q: searchParams.q ?? '' }} sender={CLINIC_SENDER_LOCAL} connected={wa === 'verified'} />}
     {r.error ? <p role="alert" className="card">לא ניתן לטעון את המטופלים. נסו שוב.</p>
       : <ClinicPatients patients={rows} siblings={siblings} archived={f === 'archived'} sender={CLINIC_SENDER_LOCAL} connected={wa === 'verified'} />}
