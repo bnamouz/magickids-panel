@@ -1,4 +1,5 @@
 'use client';
+import { track } from '@/lib/analytics/client';
 
 import { useState } from 'react';
 
@@ -80,7 +81,7 @@ export default function RegisterPage() {
         }
         setError(msg);
       } else {
-        setResult({ parent_url: data.parent_url });
+        setResult({ parent_url: data.parent_url }); track('step', 'registered');
       }
     } catch (e: any) {
       setError('שגיאה בחיבור לשרת. בדוק את החיבור לאינטרנט ונסה שוב.');

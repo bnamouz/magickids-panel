@@ -1,4 +1,5 @@
 'use client';
+import { track } from '@/lib/analytics/client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { bookingCopy, type BookingLanguage } from '@/lib/booking/copy';
@@ -134,7 +135,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
       const response = await fetch(`/api/booking/${clinic}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' });
       const result = await response.json();
       if (response.ok && result.confirmed === true && result.clinic === clinic && result.reference === body.requestId) {
-        setConfirmation(result); setUncertain(false); retryBody.current = null; return;
+        setConfirmation(result); setUncertain(false); retryBody.current = null; track('step', `booked_${clinic}_${visitType}`); return;
       }
       const code = result.error || 'processing';
       setError(code);
@@ -168,7 +169,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
           {payError && <p role="alert" className={styles.error}>{p.errors[payError] ?? p.errors.invalid_payment}</p>}
           {payReady ? <p className={styles.paidBanner} role="status">✓ {p.paidReady} · {p.funds[fund as Fund]}</p> : <>
             <h3>{p.fundTitle}</h3><p className={styles.muted}>{p.fundHint}</p>
-            <div className={styles.fundGrid} role="group" aria-label={p.fundTitle}>{FUNDS.map(f => <button key={f} type="button" disabled={sending || uncertain} aria-pressed={fund === f} onClick={() => { setFund(f); setError(''); }}>{p.funds[f]}</button>)}</div>
+            <div className={styles.fundGrid} role="group" aria-label={p.fundTitle}>{FUNDS.map(f => <button key={f} type="button" disabled={sending || uncertain} aria-pressed={fund === f} onClick={() => { setFund(f); setError(''); track('step', `fund_${f}`); }}>{p.funds[f]}</button>)}</div>
             {fund === 'maccabi' && <div className={styles.fundNote}><p>{p.maccabiNote}</p>
               <label><input type="checkbox" checked={sheli} onChange={e => setSheli(e.target.checked)} />{p.sheli}</label>
               {visitType === 'assessment' && <label><input type="checkbox" checked={moxo} onChange={e => setMoxo(e.target.checked)} />{p.moxoAsk}</label>}

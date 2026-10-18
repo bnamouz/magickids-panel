@@ -1,4 +1,5 @@
 'use client';
+import { track } from '@/lib/analytics/client';
 import { useState, type FormEvent } from 'react';
 import type { BookingLanguage } from '@/lib/booking/copy';
 import { paymentCopy } from '@/lib/booking/payment-copy';
@@ -29,7 +30,7 @@ export default function PaymentRequest({ language, visitType, fund, labels }: Pr
     try {
       const r = await fetch('/api/booking/adhd/payment', { method: 'POST', body: data, cache: 'no-store' });
       const j = await r.json().catch(() => ({}));
-      if (r.ok && j.received) { setDone(j.reference); return; }
+      if (r.ok && j.received) { setDone(j.reference); track('step', `payment_${visitType}`); return; }
       setError(j.error || 'unavailable');
     } catch { setError('unavailable'); }
     finally { setSending(false); }
