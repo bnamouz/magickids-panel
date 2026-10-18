@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import { getPediatricsCalendarId } from '@/lib/pediatrics-calendar';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { FUND_HE, type Fund } from './payments';
+import { isBookingToken, tokenHash } from './payment-tokens';
 import { candidateSlots, leadMinutesFor, durationFor, freeSlots, overlaps, parseFreeBusy, TIME_ZONE, type Clinic, type VisitType } from './schedule';
 
 export class BookingError extends Error {
@@ -25,6 +27,10 @@ export const bookingSchema = z.object({
   reminderConsent: z.boolean().optional(),
   language: z.enum(['he', 'ar', 'en']).optional(),
   website: z.literal('').default(''),
+  fund: z.enum(['maccabi', 'clalit', 'meuhedet', 'leumit', 'private']).optional(),
+  maccabiSheli: z.boolean().optional(),
+  moxo: z.boolean().optional(),
+  payToken: z.string().regex(/^[0-9a-f]{48}$/).optional(),
 }).strict();
 // Public/staff HTTP routes require the ID through bookingSchema.
 // The authenticated legacy voice workflow uses an existing case and retains its contract.
@@ -128,6 +134,17 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
   await ensureWritable(Object.values(ids));
   if (!prior && (!candidateSlots(clinic, staffBooking ? new Date(Date.now()-leadMinutesFor(clinic)*60000) : new Date(), visitType).includes(start) || (staffBooking && Date.parse(start)<=Date.now()))) throw new BookingError('invalid_slot', 400);
   const eventId = `mk${body.requestId.replaceAll('-', '')}`; // Calendar-compatible, stable across retries.
+  // Outside Maccabi, an ADHD visit is booked only with the personal link issued after the payment proof was approved.
+  let payment: { id: string; status: string } | null = null;
+  if (clinic === 'adhd' && body.fund && body.fund !== 'maccabi') {
+    if (!isBookingToken(body.payToken)) throw new BookingError('payment_required', 402);
+    const pr = await db.from('adhd_payment_requests').select('id,status,visit_type,booking_id').eq('booking_token_hash', tokenHash(body.payToken)).maybeSingle();
+    if (pr.error) throw new BookingError('unavailable');
+    if (!pr.data || pr.data.visit_type !== visitType) throw new BookingError('invalid_payment', 403);
+    if (pr.data.status === 'booked' && pr.data.booking_id !== body.requestId) throw new BookingError('payment_used', 409);
+    if (pr.data.status !== 'approved' && pr.data.status !== 'booked') throw new BookingError('invalid_payment', 403);
+    payment = pr.data;
+  }
   const intake = clinic === 'adhd' && visitType === 'assessment' ? await checkIntake(body.parentToken ?? '', prior ? eventId : undefined) : null;
   const attemptId = randomUUID();
   const { data: reservation, error: reservationError } = await db.rpc('reserve_website_booking', {
@@ -164,7 +181,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
       event = (await calendar.events.insert({ calendarId, sendUpdates: 'none', requestBody: {
         id: eventId,
         summary: `${clinic === 'adhd' ? (visitType === 'followup' ? 'מעקב קשב וריכוז' : 'אבחון קשב וריכוז') : 'מרפאת ילדים'} — ${intake?.childName || body.childName}`,
-        description: `${body.childId ? `תעודת זהות המטופל/ת: ${body.childId}\n` : ''}הורה: ${body.parentName}\nטלפון: ${phone}\n${staffBooking ? 'נקבע בדאשבורד המרפאה' : 'נקבע באתר המכון'}\nאסמכתא: ${body.requestId}`,
+        description: `${body.childId ? `תעודת זהות המטופל/ת: ${body.childId}\n` : ''}הורה: ${body.parentName}\nטלפון: ${phone}\n${fundLines(clinic, body, visitType)}${staffBooking ? 'נקבע בדאשבורד המרפאה' : 'נקבע באתר המכון'}\nאסמכתא: ${body.requestId}`,
         location: 'תופיק זיאד 21, שפרעם',
         start: { dateTime: start, timeZone: TIME_ZONE }, end: { dateTime: end, timeZone: TIME_ZONE },
         visibility: 'private', transparency: 'opaque',
@@ -189,7 +206,18 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
   }
   const saved = await db.from('website_bookings').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', body.requestId).eq('attempt_id', attemptId).neq('status', 'released').select('id').single();
   if (saved.error || !saved.data) throw new BookingError('processing', 503);
+  if (payment && payment.status === 'approved') {
+    await db.from('adhd_payment_requests').update({ status: 'booked', booking_id: body.requestId, booked_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', payment.id).eq('status', 'approved');
+  }
   return confirmed(clinic, start, body.requestId, visitType);
+}
+function fundLines(clinic: Clinic, body: BookingBody, visitType: VisitType) {
+  if (clinic !== 'adhd' || !body.fund) return '';
+  const f = body.fund as Fund;
+  const lines = [`קופה: ${FUND_HE[f]}${f === 'maccabi' ? (body.maccabiSheli ? ' (מכבי שלי)' : ' (ללא מכבי שלי)') : ''}`];
+  if (visitType === 'assessment') lines.push(`מבדק MOXO: ${body.moxo ? 'מבוקש' : 'לא מבוקש'}${f === 'maccabi' && body.moxo && !body.maccabiSheli ? ' — ללא מכבי שלי: בתשלום 944 ₪' : ''}`);
+  lines.push(f === 'maccabi' ? 'תשלום: העברת כרטיס מכבי בביקור' : 'תשלום: שולם מראש — אסמכתה אושרה בפאנל');
+  return lines.join('\n') + '\n';
 }
 
 // The booking UUID is a reference, never authorization to cancel a patient's visit.

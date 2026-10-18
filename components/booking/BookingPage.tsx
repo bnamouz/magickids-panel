@@ -7,6 +7,9 @@ import { localParts, TIME_ZONE, type Clinic } from '@/lib/booking/schedule';
 import styles from './booking.module.css';
 import WorkdayRequest from './WorkdayRequest';
 import DoctorRequest from './DoctorRequest';
+import PaymentRequest from './PaymentRequest';
+import { paymentCopy } from '@/lib/booking/payment-copy';
+import { FUNDS, type Fund } from '@/lib/booking/payments';
 
 type Confirmation = { confirmed: true; clinic: Clinic; start: string; durationMinutes: number; reference: string; cancellationToken?: string };
 const origin = 'https://magickidsinstitute.com';
@@ -22,6 +25,13 @@ function extractToken(value: string) {
 export default function BookingPage({ clinic, initialLanguage }: { clinic: Clinic; initialLanguage: BookingLanguage }) {
   const [language, setLanguage] = useState(initialLanguage);
   const t = bookingCopy[language];
+  const p = paymentCopy[language];
+  const [fund, setFund] = useState<Fund | ''>('');
+  const [sheli, setSheli] = useState(false);
+  const [moxo, setMoxo] = useState(false);
+  const [payToken, setPayToken] = useState('');
+  const [payReady, setPayReady] = useState(false);
+  const [payError, setPayError] = useState('');
   const locale = bookingLocale(language);
   const [visitType, setVisitType] = useState<'assessment' | 'followup'>('assessment');
   const [slots, setSlots] = useState<string[]>([]);
@@ -64,7 +74,15 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
   useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [load]);
   useEffect(() => {
     if (clinic === 'adhd' && new URLSearchParams(window.location.search).get('visitType') === 'followup') setVisitType('followup');
-    const token = new URLSearchParams(window.location.hash.slice(1)).get('token');
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const pay = hash.get('pay');
+    if (pay && clinic === 'adhd' && /^[0-9a-f]{48}$/.test(pay)) {
+      setPayToken(pay);
+      fetch('/api/booking/adhd/payment/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ payToken: pay }), cache: 'no-store' })
+        .then(r => r.json()).then(d => { if (d.ok) { setFund(d.fund); setMoxo(d.moxo === true); setVisitType(d.visitType); setPayReady(true); } else setPayError(d.error || 'invalid_payment'); })
+        .catch(() => setPayError('invalid_payment'));
+    }
+    const token = hash.get('token');
     if (token && clinic === 'adhd') {
       setIntakeLink(token); setCheckedToken(extractToken(token));
       history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -86,7 +104,9 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
   const monthIndex = months.indexOf(month);
   const displayTime = (iso: string) => new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
   const displayDate = (iso: string) => new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso));
-  const errorText = t.errors[error as keyof typeof t.errors] ?? t.errors.unavailable;
+  const errorText = t.errors[error as keyof typeof t.errors] ?? p.errors[error] ?? t.errors.unavailable;
+  const needsPayment = clinic === 'adhd' && !!fund && fund !== 'maccabi' && !payReady;
+  const gated = clinic === 'adhd' && (!fund || needsPayment);
   const phoneContacts = clinic === 'pediatrics' ? [
     { href: 'https://wa.me/972543496656', number: '054-349-6656', label: t.clinicPhone },
     { href: 'tel:+97248717911', number: '04-871-7911', label: t.clinicSecretary },
@@ -106,6 +126,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
       language, reminderConsent: fields.get('reminderConsent') === 'on',
       phone: String(fields.get('phone') ?? '').trim(), consent: fields.get('consent') === 'on', website: String(fields.get('website') ?? ''),
       ...(clinic === 'adhd' && visitType === 'assessment' ? { parentToken: token } : {}),
+      ...(clinic === 'adhd' && fund ? { fund, ...(fund === 'maccabi' ? { maccabiSheli: sheli } : {}), ...(visitType === 'assessment' ? { moxo } : {}), ...(fund !== 'maccabi' && payToken ? { payToken } : {}) } : {}),
     };
     retryBody.current = body;
     setSending(true); setError('');
@@ -141,9 +162,22 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
         {!confirmation && <><nav className={styles.clinics} aria-label={t.available}>{(['pediatrics', 'adhd'] as const).map(value => <a key={value} aria-current={value === clinic ? 'page' : undefined} href={`/book/${value}?lang=${language}`}>{t[value]}</a>)}</nav><h2>{t[clinic]}</h2><p className={styles.muted}>{clinic === 'adhd' ? (visitType === 'followup' ? t.followupIntro : t.adhdIntro) : t.pedsIntro}</p></>}
         {!confirmation && clinic === 'pediatrics' && <DoctorRequest language={language} />}
         {!confirmation && clinic === 'adhd' && <div className={styles.times} role="group" aria-label={t.visitType}>
-          {(['assessment', 'followup'] as const).map(kind => <button key={kind} type="button" disabled={sending || uncertain} aria-pressed={visitType === kind} onClick={() => { if (kind === visitType) return; setVisitType(kind); setIntakeReady(false); setCheckedToken(''); setSlots([]); setStart(''); setError(''); setLoading(true); }}>{t[kind]}</button>)}
+          {(['assessment', 'followup'] as const).map(kind => <button key={kind} type="button" disabled={sending || uncertain || payReady} aria-pressed={visitType === kind} onClick={() => { if (kind === visitType) return; setVisitType(kind); setIntakeReady(false); setCheckedToken(''); setSlots([]); setStart(''); setError(''); setLoading(true); }}>{t[kind]}</button>)}
         </div>}
-        {confirmation ? <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{t.confirmed}</h2><p>{t.saved}</p><div className={styles.receipt}><h3>{t[confirmation.clinic]}</h3><strong>{displayDate(confirmation.start)}</strong><b>{displayTime(confirmation.start)}</b><p>{t.address}</p><small>{t.reference}</small><code dir="ltr">{confirmation.reference}</code></div>{confirmation.cancellationToken ? <><p>{t.keepCancel}</p><a className={styles.primary} href={`/book/cancel?lang=${language}#id=${confirmation.reference}&token=${confirmation.cancellationToken}`}>{t.cancelLink}</a></> : <p>{t.change}</p>}<a className={styles.primary} href={`${origin}/index.html?lang=${language}`}>{t.another}</a></div> : clinic === 'adhd' && visitType === 'assessment' && !intakeReady ? <form onSubmit={event => { event.preventDefault(); const token = extractToken(intakeLink); if (!token) { setError('invalid_intake'); return; } setError(''); setCheckedToken(token); setIntakeAttempt(value => value + 1); }}>
+        {!confirmation && clinic === 'adhd' && <div className={styles.fundBox}>
+          {payError && <p role="alert" className={styles.error}>{p.errors[payError] ?? p.errors.invalid_payment}</p>}
+          {payReady ? <p className={styles.paidBanner} role="status">✓ {p.paidReady} · {p.funds[fund as Fund]}</p> : <>
+            <h3>{p.fundTitle}</h3><p className={styles.muted}>{p.fundHint}</p>
+            <div className={styles.fundGrid} role="group" aria-label={p.fundTitle}>{FUNDS.map(f => <button key={f} type="button" disabled={sending || uncertain} aria-pressed={fund === f} onClick={() => { setFund(f); setError(''); }}>{p.funds[f]}</button>)}</div>
+            {fund === 'maccabi' && <div className={styles.fundNote}><p>{p.maccabiNote}</p>
+              <label><input type="checkbox" checked={sheli} onChange={e => setSheli(e.target.checked)} />{p.sheli}</label>
+              {visitType === 'assessment' && <label><input type="checkbox" checked={moxo} onChange={e => setMoxo(e.target.checked)} />{p.moxoAsk}</label>}
+              {visitType === 'assessment' && moxo && !sheli && <p className={styles.muted}>{p.moxoMaccabiNote}</p>}
+            </div>}
+          </>}
+        </div>}
+        {!confirmation && needsPayment && <PaymentRequest key={`${fund}-${visitType}`} language={language} visitType={visitType} fund={fund as Exclude<Fund, 'maccabi'>} labels={{ child: t.child, patientId: t.patientId, parent: t.parent, phone: t.phone, institute: t.institute }} />}
+        {confirmation ? <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{t.confirmed}</h2><p>{t.saved}</p><div className={styles.receipt}><h3>{t[confirmation.clinic]}</h3><strong>{displayDate(confirmation.start)}</strong><b>{displayTime(confirmation.start)}</b><p>{t.address}</p><small>{t.reference}</small><code dir="ltr">{confirmation.reference}</code></div>{confirmation.cancellationToken ? <><p>{t.keepCancel}</p><a className={styles.primary} href={`/book/cancel?lang=${language}#id=${confirmation.reference}&token=${confirmation.cancellationToken}`}>{t.cancelLink}</a></> : <p>{t.change}</p>}<a className={styles.primary} href={`${origin}/index.html?lang=${language}`}>{t.another}</a></div> : gated ? null : clinic === 'adhd' && visitType === 'assessment' && !intakeReady ? <form onSubmit={event => { event.preventDefault(); const token = extractToken(intakeLink); if (!token) { setError('invalid_intake'); return; } setError(''); setCheckedToken(token); setIntakeAttempt(value => value + 1); }}>
           <div className={styles.intake}><p>{t.intakeHint}</p><p>{t.newFamily} <a href="/register">{t.register}</a></p><label>{t.intake}<input value={intakeLink} onChange={event => setIntakeLink(event.target.value)} required maxLength={300} autoComplete="off" dir="ltr" /></label></div>
           {error && <p role="alert" className={styles.error}>{errorText}</p>}
           <button type="submit" disabled={loading} className={styles.primary}>{loading ? t.loading : t.checkIntake}</button>

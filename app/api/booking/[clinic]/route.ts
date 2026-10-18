@@ -32,6 +32,9 @@ export async function POST(req: NextRequest, { params }: { params: { clinic: str
     try { input = JSON.parse(raw); } catch { return reply({ error: 'invalid_body' }, 400); }
     const parsed = bookingSchema.safeParse(input);
     if (!parsed.success) return reply({ error: 'invalid_body' }, 400);
+    // The public ADHD form must state the health fund; payment rules depend on it.
+    if (params.clinic === 'adhd' && !parsed.data.fund) return reply({ error: 'fund_required' }, 400);
+    if (params.clinic !== 'adhd' && (parsed.data.fund || parsed.data.payToken)) return reply({ error: 'invalid_body' }, 400);
     return reply(await book(params.clinic, parsed.data, req.ip || 'unknown'));
   } catch (error) { return failure(error); }
 }

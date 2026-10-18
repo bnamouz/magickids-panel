@@ -8,3 +8,13 @@
 .doctorRequest{margin:20px 0;border:2px solid #b42318;border-radius:14px;padding:18px;background:#fff5f5}.doctorRequest summary{font-weight:700;color:#991b1b;cursor:pointer}.doctorRequest>p{font-size:14px;margin:12px 0 18px}
 
 .newService{display:inline-block;background:#b42318;color:#fff;border-radius:6px;padding:3px 9px;margin-inline-end:8px;font-size:13px}.doctorRequest summary:focus-visible{outline:2px solid #991b1b;outline-offset:5px}
+
+.fundBox{margin:22px 0 6px;border:1px solid #dbe8e0;border-radius:18px;padding:18px;background:#fbfdfb}.fundBox h3{margin:0 0 4px;font-size:18px;font-weight:800}.fundGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:12px}.fundGrid button{min-height:46px;border:1px solid #b8d0c5;border-radius:12px;background:#fff;cursor:pointer;font-weight:700;padding:8px}.fundGrid button[aria-pressed=true]{background:var(--teal);color:#fff;border-color:var(--teal)}
+.fundNote{margin-top:14px;border-radius:14px;padding:14px 16px;background:var(--mint);font-size:15px}.fundNote label{display:flex;gap:10px;align-items:flex-start;margin-top:10px;font-weight:600}.fundNote input{width:20px;height:20px;margin-top:4px;flex-shrink:0}
+.linkButton{border:0;background:none;color:var(--teal);text-decoration:underline;cursor:pointer;padding:0;font-weight:700}
+.priceTable{width:100%;border-collapse:collapse;margin:12px 0;font-size:15px}.priceTable td{padding:9px 4px;border-bottom:1px solid #e3ede8}.priceTable td:last-child{text-align:end;font-weight:700;white-space:nowrap}.priceTable tr.total td{border-bottom:0;font-size:17px;font-weight:800;color:var(--teal)}
+.methods{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:12px 0}.methods>div{border:1px solid #dbe8e0;border-radius:14px;padding:14px;background:#fff}.methods strong{display:block;font-size:16px}.methods b{display:block;font-size:18px;letter-spacing:.5px}
+.radioRow{display:flex;flex-wrap:wrap;gap:16px;margin:6px 0 10px}.radioRow label{display:flex;gap:8px;align-items:center;font-weight:600}.radioRow input{width:20px;height:20px}
+.paidBanner{margin:18px 0 0;border-radius:14px;padding:14px 16px;background:#e7f6ec;border:1px solid #9fd3b1;color:#145a32;font-weight:700}
+
+.radioRow label{white-space:nowrap;display:flex!important}.moxoPick{display:flex;gap:10px;align-items:flex-start;cursor:pointer}.moxoPick input{width:20px;height:20px;margin-top:4px;flex-shrink:0}.moxoPick small{display:block;color:#55716b;font-size:13px}
