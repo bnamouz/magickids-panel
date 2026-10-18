@@ -5,7 +5,7 @@ export const paymentCopy: Record<BookingLanguage, {
   maccabiNote: string; sheli: string; moxoAsk: string; moxoMaccabiNote: string; changeFund: string;
   paidTitle: string; paidIntro: string; priceAssessment: string; priceMoxo: string; vatNote: string; total: string; followupPrice: string; priceFollowup: string; moxoOptional: string;
   methods: string; bank: string; bankAccount: string; beneficiary: string; bit: string; bitTo: string; cardSoon: string; transferNote: string;
-  method: string; proof: string; submit: string; sending: string; received: string; receivedText: string; paidReady: string; consent: string; currency: string;
+  method: string; proof: string; submit: string; sending: string; received: string; receivedText: string; paidReady: string; intakeNeeded: string; openFile: string; consent: string; currency: string;
   errors: Record<string, string>;
 }> = {
   he: {
@@ -26,6 +26,7 @@ export const paymentCopy: Record<BookingLanguage, {
     method: 'איך שילמתם?', proof: 'אסמכתת התשלום: צילום מסך או PDF, עד 5MB', submit: 'שליחת האסמכתה', sending: 'שולחים…',
     received: 'האסמכתה התקבלה', receivedText: 'נבדוק את התשלום ונשלח לכם בוואטסאפ קישור אישי לבחירת מועד. אין צורך לשלוח שוב.',
     paidReady: 'התשלום אושר. אפשר לבחור מועד לביקור.',
+    intakeNeeded: 'חשוב: לא ניתן לקבוע את האבחון לפני השלמת שאלון ההורה ושאלון המורה. כדאי להתחיל למלא אותם כבר עכשיו, בזמן שאנחנו בודקים את התשלום.', openFile: 'פתיחת תיק ומילוי השאלונים',
     consent: 'אני ההורה או האפוטרופוס, ומאשר/ת שמירת הפרטים והאסמכתה לצורך אימות התשלום וקביעת התור.', currency: '₪',
     errors: {
       invalid_proof: 'צרפו צילום או PDF של אסמכתת התשלום (JPG, PNG או PDF, עד 5MB).', too_large: 'הקובץ גדול מדי. אפשר לצרף עד 5MB.',
@@ -51,6 +52,7 @@ export const paymentCopy: Record<BookingLanguage, {
     method: 'كيف دفعتم؟', proof: 'إثبات الدفع: لقطة شاشة أو PDF، حتى 5MB', submit: 'إرسال إثبات الدفع', sending: 'جارٍ الإرسال…',
     received: 'تم استلام إثبات الدفع', receivedText: 'سنتحقق من الدفع ونرسل لكم عبر واتساب رابطًا شخصيًا لاختيار الموعد. لا حاجة للإرسال مرة أخرى.',
     paidReady: 'تم تأكيد الدفع. يمكنكم اختيار موعد الزيارة.',
+    intakeNeeded: 'مهم: لا يمكن تحديد موعد التشخيص قبل إكمال استبيان الأهل واستبيان المعلم. يُفضّل البدء بتعبئتهما الآن أثناء التحقق من الدفع.', openFile: 'فتح ملف وتعبئة الاستبيانات',
     consent: 'أنا الوالد/ة أو الوصي، وأوافق على حفظ التفاصيل وإثبات الدفع لغرض التحقق من الدفع وتحديد الموعد.', currency: '₪',
     errors: {
       invalid_proof: 'أرفقوا صورة أو PDF لإثبات الدفع (JPG أو PNG أو PDF حتى 5MB).', too_large: 'الملف كبير جدًا. الحد الأقصى 5MB.',
@@ -76,6 +78,7 @@ export const paymentCopy: Record<BookingLanguage, {
     method: 'How did you pay?', proof: 'Payment confirmation: screenshot or PDF, up to 5MB', submit: 'Send confirmation', sending: 'Sending…',
     received: 'Confirmation received', receivedText: 'We will verify the payment and send you a personal WhatsApp link to choose a time. No need to send it again.',
     paidReady: 'Payment approved. You can now choose a time.',
+    intakeNeeded: 'Important: the assessment cannot be booked until the parent and teacher questionnaires are completed. Start filling them in now while we verify the payment.', openFile: 'Open a file and fill in the questionnaires',
     consent: 'I am the parent or guardian and agree to the storage of these details and the confirmation for payment verification and booking.', currency: '₪',
     errors: {
       invalid_proof: 'Attach a screenshot or PDF of the payment confirmation (JPG, PNG or PDF, up to 5MB).', too_large: 'The file is too large (max 5MB).',

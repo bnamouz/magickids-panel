@@ -35,10 +35,11 @@ export default function PaymentRequest({ language, visitType, fund, labels }: Pr
     finally { setSending(false); }
   }
 
-  if (done) return <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{p.received}</h2><p>{p.receivedText}</p><div className={styles.receipt}><small>{p.funds[fund]}</small><code dir="ltr">{done}</code></div></div>;
+  if (done) return <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{p.received}</h2><p>{p.receivedText}</p>{visitType === 'assessment' && <><p className={styles.fundNote}>{p.intakeNeeded}</p><a className={styles.primary} href="/register">{p.openFile}</a></>}<div className={styles.receipt}><small>{p.funds[fund]}</small><code dir="ltr">{done}</code></div></div>;
   return <div>
     <h3 className={styles.step}><span>₪</span>{p.paidTitle}</h3>
     <p className={styles.muted}>{p.paidIntro}</p>
+    {visitType === 'assessment' && <p className={styles.fundNote}>{p.intakeNeeded} <a href="/register">{p.openFile}</a></p>}
     {visitType === 'assessment' ? <>
       <table className={styles.priceTable}><tbody>
         <tr><td>{p.priceAssessment}</td><td>{fmt(assessment)} {p.currency}</td></tr>

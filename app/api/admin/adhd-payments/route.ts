@@ -11,9 +11,9 @@ const body = z.object({ action: z.enum(['proof', 'approve', 'reject']), id: z.st
 
 function approvedText(lang: string, visitType: string, link: string) {
   const assess = visitType === 'assessment';
-  if (lang === 'ar') return `مرحبًا، تم تأكيد الدفع في معهد أطفال السحر. لاختيار موعد ${assess ? 'تشخيص الانتباه والتركيز' : 'زيارة المتابعة'} افتحوا الرابط الشخصي:\n${link}${assess ? '\nقبل التشخيص يجب إكمال استبيان الأهل واستبيان المعلم؛ سيُطلب منكم لصق رابط الاستبيان.' : ''}`;
-  if (lang === 'en') return `Hello, your payment to Magic Kids Institute was confirmed. To choose a time for the ${assess ? 'ADHD assessment' : 'follow-up visit'}, open your personal link:\n${link}${assess ? '\nBefore the assessment, the parent and teacher questionnaires must be completed; you will be asked to paste the questionnaire link.' : ''}`;
-  return `שלום, התשלום למכון ילדי הקסם אושר. לבחירת מועד ל${assess ? 'אבחון קשב וריכוז' : 'ביקור המעקב'} פתחו את הקישור האישי:\n${link}${assess ? '\nלפני האבחון יש להשלים את שאלון ההורה ושאלון המורה; בקישור תתבקשו להדביק את קישור השאלון.' : ''}`;
+  if (lang === 'ar') return `مرحبًا، تم تأكيد الدفع في معهد أطفال السحر. لاختيار موعد ${assess ? 'تشخيص الانتباه والتركيز' : 'زيارة المتابعة'} افتحوا الرابط الشخصي:\n${link}${assess ? '\nلا يمكن تحديد موعد التشخيص قبل إكمال استبيان الأهل واستبيان المعلم؛ سيُطلب منكم لصق رابط الاستبيان. إذا لم يكن لديكم ملف بعد، افتحوا ملفًا واملؤوا الاستبيانات هنا:\nhttps://app.magickidsinstitute.com/register' : ''}`;
+  if (lang === 'en') return `Hello, your payment to Magic Kids Institute was confirmed. To choose a time for the ${assess ? 'ADHD assessment' : 'follow-up visit'}, open your personal link:\n${link}${assess ? '\nThe assessment cannot be booked until the parent and teacher questionnaires are completed; you will be asked to paste the questionnaire link. No file yet? Open one and fill in the questionnaires here:\nhttps://app.magickidsinstitute.com/register' : ''}`;
+  return `שלום, התשלום למכון ילדי הקסם אושר. לבחירת מועד ל${assess ? 'אבחון קשב וריכוז' : 'ביקור המעקב'} פתחו את הקישור האישי:\n${link}${assess ? '\nלא ניתן לקבוע את האבחון לפני השלמת שאלון ההורה ושאלון המורה; בקישור תתבקשו להדביק את קישור השאלון. אם עדיין אין לכם תיק, פתחו תיק ומלאו את השאלונים כאן:\nhttps://app.magickidsinstitute.com/register' : ''}`;
 }
 function rejectedText(lang: string, note?: string) {
   if (lang === 'ar') return `مرحبًا، لم نتمكن من تأكيد الدفع لمعهد أطفال السحر.${note ? ` ${note}` : ''} للاستفسار: واتساب 054-402-0043.`;
