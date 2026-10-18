@@ -160,7 +160,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
       </aside>
       <section className={styles.panel} aria-label={t.available}>
         {!confirmation && <><nav className={styles.clinics} aria-label={t.available}>{(['pediatrics', 'adhd'] as const).map(value => <a key={value} aria-current={value === clinic ? 'page' : undefined} href={`/book/${value}?lang=${language}`}>{t[value]}</a>)}</nav><h2>{t[clinic]}</h2><p className={styles.muted}>{clinic === 'adhd' ? (visitType === 'followup' ? t.followupIntro : t.adhdIntro) : t.pedsIntro}</p></>}
-        {!confirmation && <DoctorRequest key={clinic} language={language} clinic={clinic} />}
+        {!confirmation && clinic === 'pediatrics' && <DoctorRequest key={clinic} language={language} clinic={clinic} />}
         {!confirmation && clinic === 'adhd' && <div className={styles.times} role="group" aria-label={t.visitType}>
           {(['assessment', 'followup'] as const).map(kind => <button key={kind} type="button" disabled={sending || uncertain || payReady} aria-pressed={visitType === kind} onClick={() => { if (kind === visitType) return; setVisitType(kind); setIntakeReady(false); setCheckedToken(''); setSlots([]); setStart(''); setError(''); setLoading(true); }}>{t[kind]}</button>)}
         </div>}
@@ -206,6 +206,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
             <button type="submit" disabled={!start || sending} className={styles.primary}>{sending ? t.submitting : t.submit}</button>
           </form>
         </>}
+        {!confirmation && clinic === 'adhd' && <DoctorRequest key={clinic} language={language} clinic={clinic} />}
       </section>
     </main>
     <footer className={styles.footer}><span>{t.institute} · {t.address}</span><a href="mailto:magickids@magickidsinstitute.com" dir="ltr">magickids@magickidsinstitute.com</a></footer>
