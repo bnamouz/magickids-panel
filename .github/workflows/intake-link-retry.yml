@@ -1,0 +1,24 @@
+name: intake-link-retry
+# Nightly safety net (20:00 Israel time): resend Sarah's registration links that failed because of a WhatsApp/provider outage.
+# Two UTC slots cover summer and winter clocks; the server only acts when it is 20:00–21:59 in Israel.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 17 * * *'
+    - cron: '0 18 * * *'
+concurrency:
+  group: intake-link-retry
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run the check
+        env:
+          SECRET: ${{ secrets.CLINIC_CAMPAIGN_SECRET }}
+        run: |
+          out=$(curl -s -m 60 -X POST -H "x-campaign-secret: $SECRET" https://app.magickidsinstitute.com/api/cron/intake-link-retry)
+          echo "$out" | sed -E 's/\+9725[0-9]{8}/+9725********/g'

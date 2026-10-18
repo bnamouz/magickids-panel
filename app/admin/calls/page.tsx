@@ -88,9 +88,16 @@ export default async function CallsPage() {
   const booked = calls?.filter((c) => c.outcome === 'booked').length || 0;
   const escalated = calls?.filter((c) => c.outcome === 'escalated').length || 0;
   const intakeSent = calls?.filter((c) => c.outcome === 'intake_sent').length || 0;
+  const lastRetry = await supabase.from('audit_log').select('created_at,metadata').eq('action', 'intake_link_retry').order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const failedLinks = await supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('template', 'voice_intake_link').eq('status', 'failed').gt('created_at', new Date(Date.now() - 72 * 3600e3).toISOString());
 
   return (
     <div className="space-y-6">
+      <div className={`rounded-lg border p-3 text-sm ${(failedLinks.count ?? 0) > 0 ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
+        <b>בדיקת קישורי הרשמה (כל יום ב-20:00):</b>{' '}
+        {lastRetry.data ? <>בדיקה אחרונה {formatDate(lastRetry.data.created_at)} — נבדקו {(lastRetry.data.metadata as any)?.checked ?? 0}, נשלחו מחדש {(lastRetry.data.metadata as any)?.resent ?? 0}, עדיין נכשלים {(lastRetry.data.metadata as any)?.still_failing ?? 0}.</> : <>עדיין לא רצה.</>}
+        {(failedLinks.count ?? 0) > 0 && <> כרגע {failedLinks.count} שליחות שנכשלו ב-72 השעות האחרונות ממתינות לשליחה חוזרת.</>}
+      </div>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

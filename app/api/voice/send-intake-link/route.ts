@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertVoiceAuth, normalisePhone } from '@/lib/voice-auth';
-import { sendInstituteWhatsAppText } from '@/lib/whatsapp-ultramsg';
+import { sendIntakeLink } from '@/lib/voice/intake-link';
 
 /**
  * POST /api/voice/send-intake-link
@@ -58,53 +58,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_BASE_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    'https://app.magickidsinstitute.com';
-  const link = `${baseUrl}/onboarding/public?utm_source=voice&utm_medium=whatsapp&lang=${body.language}`;
-
-  const greetingName = body.parent_name ? ` ${body.parent_name}` : '';
-  const childRef = body.child_name;
-
-  const heMsg = [
-    `שלום${greetingName}, זו שרה ממכון Magic Kids.`,
-    childRef
-      ? `בהמשך לשיחה שלנו לגבי ${childRef}, שולחת לך את הקישור להרשמה ולשאלונים:`
-      : `בהמשך לשיחה שלנו, שולחת לך את הקישור להרשמה ולשאלונים:`,
-    link,
-    ``,
-    `שאלון ההורה לוקח 10-15 דקות.`,
-    `אחרי שסיימת – תקבל/י קישור נפרד למורה של הילד/ה.`,
-    `לאחר ששני השאלונים מולאו – מוזמנים להתקשר ונקבע תור לאבחון.`,
-  ].join('\n');
-
-  const arMsg = [
-    `مرحبًا${greetingName}, هاي سارة من معهد ماجيك كيدز.`,
-    childRef
-      ? `بعد الحكي عن ${childRef}، هاد الرابط للتسجيل والاستمارات:`
-      : `متابعة لحكينا، هاد الرابط للتسجيل والاستمارات:`,
-    link,
-    ``,
-    `استمارة الأهل بتاخد 10-15 دقيقة.`,
-    `بعد ما تخلصو، بتوصلكم استمارة تانية لمعلم/ة الولد.`,
-    `لما تخلصوا التنتين — رنّونا ومنحدد موعد للفحص.`,
-  ].join('\n');
-
-  const message = body.language === 'ar' ? arMsg : heMsg;
-
-  // Sent from the institute WhatsApp (0544020043), not the shared Nour/Marhaba instance.
-  const waResult = await sendInstituteWhatsAppText({ toPhone: phone, body: message });
-  if (!waResult.ok) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'whatsapp_send_failed',
-        details: waResult.error,
-      },
-      { status: 502 },
-    );
+  const sent = await sendIntakeLink({ phone, language: body.language, parentName: body.parent_name, childName: body.child_name, reason: body.reason ?? null, source: 'voice' });
+  if (!sent.ok) {
+    return NextResponse.json({ success: false, error: 'whatsapp_send_failed', details: sent.error }, { status: 502 });
   }
+  const link = sent.link;
+  const waResult = { id: sent.id };
 
   return NextResponse.json({
     success: true,
