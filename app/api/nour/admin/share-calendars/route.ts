@@ -73,6 +73,12 @@ export async function POST(req: NextRequest) {
         (r) => r.scope?.type === 'user' && r.scope?.value === grant_to
       );
 
+      const rank: Record<string, number> = { freeBusyReader: 0, reader: 1, writer: 2, owner: 3 };
+      if (existing && existing.id && (rank[existing.role ?? ''] ?? 0) < (rank[role] ?? 0) && existing.role !== 'owner') {
+        const patched = await cal.acl.patch({ calendarId: calendar_id, ruleId: existing.id, sendNotifications: false, requestBody: { role } });
+        results.push({ owner, grant_to, calendar_id, action: 'role_upgraded', from: existing.role, role: patched.data.role });
+        continue;
+      }
       if (existing) {
         results.push({
           owner,
