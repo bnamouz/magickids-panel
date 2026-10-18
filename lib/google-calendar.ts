@@ -1,4 +1,5 @@
 import { google, calendar_v3 } from 'googleapis';
+import { eventTitle } from '@/lib/calendar-title';
 
 /**
  * Google Calendar integration using Service Account
@@ -98,7 +99,7 @@ export async function createCalendarEvent(args: CreateEventArgs): Promise<{
     calendarId,
     sendUpdates: attendees.length > 0 ? 'all' : 'none',
     requestBody: {
-      summary: `${typeLabel} — ${args.childName}`,
+      summary: args.appointmentType === 'moxo' || args.appointmentType === 'assessment' || args.appointmentType === 'followup' ? eventTitle(args.childName, args.appointmentType) : `${args.childName} · ${typeLabel}`,
       description,
       location: args.location,
       start: { dateTime: start.toISOString(), timeZone: 'Asia/Jerusalem' },

@@ -2,12 +2,13 @@ import {ensureCalendarEvent} from '@/lib/calendar-consistency';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import type { calendar_v3 } from 'googleapis';
+import { eventTitle } from '@/lib/calendar-title';
 
 type MoxoRow={id:string;scheduled_at:string;duration_minutes:number;patient_name?:string|null;contact_name?:string|null;phone?:string|null};
 // Same level of detail as assessment events, so staff can read the visit from Google Calendar.
 export function moxoEventText(row:MoxoRow){
  const name=(row.patient_name??'').trim();
- return {summary:`מבדק MOXO · ילדי הקסם${name?` — ${name}`:''}`,
+ return {summary:eventTitle(name,'moxo'),
   description:`${name?`ילד/ה: ${name}\n`:''}${row.contact_name?`הורה: ${row.contact_name}\n`:''}${row.phone?`טלפון: ${row.phone}\n`:''}משך: ${row.duration_minutes} דקות\nפרטים נוספים במערכת המכון, בעמוד בקשות MOXO. מזהה: ${row.id}`};
 }
 export async function writeMoxoEvent(calendar:calendar_v3.Calendar, calendarId:string, row:MoxoRow) {
