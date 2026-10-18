@@ -160,7 +160,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
       </aside>
       <section className={styles.panel} aria-label={t.available}>
         {!confirmation && <><nav className={styles.clinics} aria-label={t.available}>{(['pediatrics', 'adhd'] as const).map(value => <a key={value} aria-current={value === clinic ? 'page' : undefined} href={`/book/${value}?lang=${language}`}>{t[value]}</a>)}</nav><h2>{t[clinic]}</h2><p className={styles.muted}>{clinic === 'adhd' ? (visitType === 'followup' ? t.followupIntro : t.adhdIntro) : t.pedsIntro}</p></>}
-        {!confirmation && clinic === 'pediatrics' && <DoctorRequest language={language} />}
+        {!confirmation && <DoctorRequest key={clinic} language={language} clinic={clinic} />}
         {!confirmation && clinic === 'adhd' && <div className={styles.times} role="group" aria-label={t.visitType}>
           {(['assessment', 'followup'] as const).map(kind => <button key={kind} type="button" disabled={sending || uncertain || payReady} aria-pressed={visitType === kind} onClick={() => { if (kind === visitType) return; setVisitType(kind); setIntakeReady(false); setCheckedToken(''); setSlots([]); setStart(''); setError(''); setLoading(true); }}>{t[kind]}</button>)}
         </div>}
