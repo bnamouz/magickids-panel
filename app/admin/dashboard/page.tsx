@@ -40,6 +40,7 @@ export default async function DashboardPage({searchParams={}}:{searchParams?:{q?
   <section aria-labelledby="quick-actions"><h2 id="quick-actions" className="mb-3 text-sm font-bold text-slate-600">פעולות נפוצות</h2><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
    <QuickLink href="/admin/pediatrics-calendar" title="יומן מרפאת הילדים" detail="צפייה בתורים וקביעת תור חדש" icon={<CalendarDays size={22}/>}/>
    <QuickLink href="/admin/pediatrics-calendar#doctor-requests" title="בקשות לרופא ללא תור" detail="בקשות היום ביומן המרפאה" icon={<MessageSquare size={22}/>}/>
+   <QuickLink href="/admin/adhd-requests" title="בקשות לרופא — קשב" detail="בקשות ללא תור במרפאת הקשב" icon={<MessageSquare size={22}/>}/>
    <QuickLink href="/admin/intake" title="קליטה וזימון לקשב" detail="השלמת שאלונים ותיאום פגישה" icon={<CheckCircle2 size={22}/>}/>
    <QuickLink href="/onboarding/public" title="פתיחת תיק חדש" detail="מעבר לטופס ההרשמה להורים" icon={<FilePlus2 size={22}/>}/>
   </div></section>
