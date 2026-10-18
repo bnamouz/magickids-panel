@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import type { BookingLanguage } from '@/lib/booking/copy';
 import { paymentCopy } from '@/lib/booking/payment-copy';
-import { PAYMENT, PRICES, withVat } from '@/lib/booking/payments';
+import { FOLLOWUP_PRICE, PAYMENT, PRICES, withVat } from '@/lib/booking/payments';
 import styles from './booking.module.css';
 
 type Props = { language: BookingLanguage; visitType: 'assessment' | 'followup'; fund: 'clalit' | 'meuhedet' | 'leumit' | 'private'; labels: { child: string; patientId: string; parent: string; phone: string; institute: string }; };
@@ -44,6 +44,11 @@ export default function PaymentRequest({ language, visitType, fund, labels }: Pr
         <tr><td>{p.priceAssessment}</td><td>{fmt(assessment)} {p.currency}</td></tr>
         <tr><td><label className={styles.moxoPick}><input type="checkbox" checked={moxo} onChange={e => setMoxo(e.target.checked)} /><span>{p.priceMoxo}<small>{p.moxoOptional}</small></span></label></td><td>{moxo ? `${fmt(moxoPrice)} ${p.currency}` : '—'}</td></tr>
         <tr className={styles.total}><td>{p.total}</td><td>{fmt(total)} {p.currency}</td></tr>
+      </tbody></table>
+      <p className={styles.muted}>{p.vatNote}</p>
+    </> : FOLLOWUP_PRICE !== null ? <>
+      <table className={styles.priceTable}><tbody>
+        <tr className={styles.total}><td>{p.priceFollowup}</td><td>{fmt(withVat(FOLLOWUP_PRICE))} {p.currency}</td></tr>
       </tbody></table>
       <p className={styles.muted}>{p.vatNote}</p>
     </> : <p className={styles.fundNote}>{p.followupPrice}</p>}

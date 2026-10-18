@@ -6,8 +6,8 @@ export const FUND_HE: Record<Fund, string> = { maccabi: 'מכבי', clalit: 'כ�
 export const VAT = 0.18;
 export const PRICES = { assessment: 1200, moxo: 800 } as const;   // before VAT
 export const withVat = (n: number) => Math.round(n * (1 + VAT));
-/** Follow-up price for non-Maccabi patients is set by the secretary until a fixed price is configured. */
-export const FOLLOWUP_PRICE: number | null = null;
+/** Follow-up visit for non-Maccabi patients, before VAT. */
+export const FOLLOWUP_PRICE: number | null = 500;
 export function amountFor(visitType: 'assessment' | 'followup', moxo: boolean): number | null {
   if (visitType === 'followup') return FOLLOWUP_PRICE === null ? null : withVat(FOLLOWUP_PRICE);
   return withVat(PRICES.assessment) + (moxo ? withVat(PRICES.moxo) : 0);
