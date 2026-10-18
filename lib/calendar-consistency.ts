@@ -1,3 +1,4 @@
+import { eventTitle } from '@/lib/calendar-title';
 import {getCalendarClient,getCalendarId} from '@/lib/google-calendar';
 import {getPediatricsCalendarId} from '@/lib/pediatrics-calendar';
 import {getSupabaseAdmin} from '@/lib/supabase';
@@ -39,6 +40,12 @@ export async function ensureCalendarEvent(calendar:calendar_v3.Calendar,calendar
   return found;
  }
 }
+export async function appointmentTitle(patientId:string|null|undefined,type:string|null|undefined){
+ let name='';
+ if(patientId){const p=await getSupabaseAdmin().from('patients').select('first_name,last_name').eq('id',patientId).maybeSingle();name=`${p.data?.first_name??''} ${p.data?.last_name??''}`.trim();}
+ const kind=type==='assessment'||type==='followup'||type==='moxo'?type:'institute';
+ return eventTitle(name,kind);
+}
 export async function syncAppointment(id:string){
  const db=getSupabaseAdmin();
  const found=await db.from('appointments').update({calendar_sync:'syncing',calendar_sync_started_at:new Date().toISOString()}).eq('id',id).in('status',['scheduled','confirmed']).in('calendar_sync',['pending','failed','conflict']).select('*').maybeSingle();
@@ -51,9 +58,11 @@ export async function syncAppointment(id:string){
   if(bound.error)throw bound.error;
   const start=new Date(r.scheduled_at).toISOString(),end=new Date(Date.parse(start)+r.duration_minutes*60000).toISOString();
   const ids=r.appointment_type==='moxo'?[calendarId]:[calendarId,getPediatricsCalendarId()];
-  await ensureCalendarEvent(getCalendarClient(),calendarId,eventId,{summary:'פגישה במכון ילדי הקסם',visibility:'private',
+  const title=await appointmentTitle(r.patient_id,r.appointment_type);
+  const existing=await ensureCalendarEvent(getCalendarClient(),calendarId,eventId,{summary:title,visibility:'private',
    description:'פרטי הפגישה בתיק המאובטח במערכת המכון.',start:{dateTime:start,timeZone:'Asia/Jerusalem'},end:{dateTime:end,timeZone:'Asia/Jerusalem'},
    extendedProperties:{private:{appointmentId:id}}},ids);
+  if(existing&&existing.summary!==title) await getCalendarClient().events.patch({calendarId,eventId,sendUpdates:'none',requestBody:{summary:title}},{timeout:10000,retry:false});
   const saved=await db.from('appointments').update({calendar_sync:'synced',calendar_checked_at:new Date().toISOString()}).eq('id',id).eq('scheduled_at',r.scheduled_at).in('status',['scheduled','confirmed']);
   return saved.error?'failed':'synced';
  }catch(error){

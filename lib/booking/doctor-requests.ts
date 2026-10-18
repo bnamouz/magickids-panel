@@ -5,6 +5,7 @@ import { getCalendarClient } from '@/lib/google-calendar';
 import { BookingError, bookingSettings } from './server';
 import { clinicHours, localParts, TIME_ZONE, type Clinic } from './schedule';
 import { FUND_HE, type Fund } from './payments';
+import { eventTitle } from '@/lib/calendar-title';
 
 const name = z.string().trim().min(2).max(100).refine(v => !/[\x00-\x1f\x7f]/.test(v));
 export const doctorRequestSchema = z.object({
@@ -57,7 +58,7 @@ export async function submitDoctorRequest(input: unknown, ip: string) {
   if (!event) {
     try {
       event = (await calendar.events.insert({calendarId:target,sendUpdates:'none',requestBody:{
-        id:eventId,summary:`בקשה ללא תור${adhd?' — קשב וריכוז':''} — ${body.childName}`,
+        id:eventId,summary:eventTitle(body.childName, adhd?'doctor_request_adhd':'doctor_request_pediatrics'),
         description:`בקשה מהרופא ללא תור${adhd?' (מרפאת קשב וריכוז)':''} — אינה פגישה\nילד/ה: ${body.childName}\nתעודת זהות הילד/ה: ${body.childId}\n${adhd?`קופה: ${FUND_HE[body.fund as Fund]}\n`:''}${body.cardlessVisitConfirmed?'אישור ביקור ללא כרטיס: סומן כבוצע על ידי ההורה (דיווח עצמי)\n':''}הורה: ${body.parentName}\nטלפון: ${phone}\n\n${body.message}\n\nאסמכתא: ${body.requestId}`,
         start:{date:day},end:{date:nextDay(day)},visibility:'private',transparency:'transparent',
         reminders:{useDefault:false},

@@ -1,4 +1,5 @@
 import { google, calendar_v3 } from 'googleapis';
+import { eventTitle } from '@/lib/calendar-title';
 
 /**
  * Pediatrics Clinic Calendar integration
@@ -62,7 +63,7 @@ export async function createPediatricsAppointment(
   const start = new Date(args.scheduledAt);
   const end = new Date(start.getTime() + duration * 60 * 1000);
 
-  const summary = `${args.patientName} - תור אצל ד"ר בסים`;
+  const summary = eventTitle(args.patientName, 'pediatrics');
 
   const descLines = [
     `מטופל: ${args.patientName}`,

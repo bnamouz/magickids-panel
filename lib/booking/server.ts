@@ -6,6 +6,7 @@ import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import { getPediatricsCalendarId } from '@/lib/pediatrics-calendar';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { FUND_HE, type Fund } from './payments';
+import { eventTitle } from '@/lib/calendar-title';
 import { isBookingToken, tokenHash } from './payment-tokens';
 import { candidateSlots, leadMinutesFor, durationFor, freeSlots, overlaps, parseFreeBusy, TIME_ZONE, type Clinic, type VisitType } from './schedule';
 
@@ -180,7 +181,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
     try {
       event = (await calendar.events.insert({ calendarId, sendUpdates: 'none', requestBody: {
         id: eventId,
-        summary: `${clinic === 'adhd' ? (visitType === 'followup' ? 'מעקב קשב וריכוז' : 'אבחון קשב וריכוז') : 'מרפאת ילדים'} — ${intake?.childName || body.childName}`,
+        summary: eventTitle(intake?.childName || body.childName, clinic === 'adhd' ? visitType : 'pediatrics'),
         description: `${body.childId ? `תעודת זהות המטופל/ת: ${body.childId}\n` : ''}הורה: ${body.parentName}\nטלפון: ${phone}\n${fundLines(clinic, body, visitType)}${staffBooking ? 'נקבע בדאשבורד המרפאה' : 'נקבע באתר המכון'}\nאסמכתא: ${body.requestId}`,
         location: 'תופיק זיאד 21, שפרעם',
         start: { dateTime: start, timeZone: TIME_ZONE }, end: { dateTime: end, timeZone: TIME_ZONE },
