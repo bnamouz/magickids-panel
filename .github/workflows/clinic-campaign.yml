@@ -1,0 +1,29 @@
+name: clinic-campaign
+# Drives the paced clinic WhatsApp campaign: one tick every 30 s while a campaign is running.
+# The server enforces the 30 s gap, the sending hours and the stop rules; this job only knocks.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/20 5-18 * * *'
+concurrency:
+  group: clinic-campaign
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  drive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - name: Tick every 30 seconds
+        env:
+          SECRET: ${{ secrets.CLINIC_CAMPAIGN_SECRET }}
+        run: |
+          end=$((SECONDS + 330*60))
+          while [ $SECONDS -lt $end ]; do
+            out=$(curl -s -m 25 -X POST -H "x-campaign-secret: $SECRET" https://app.magickidsinstitute.com/api/internal/clinic-campaign/tick || echo '{"status":"network"}')
+            status=$(echo "$out" | sed -n 's/.*"status":"\([a-z_]*\)".*/\1/p')
+            echo "$(date -u +%H:%M:%S) $status"
+            case "$status" in idle|done|stopped|outside_hours) exit 0;; esac
+            sleep 30
+          done
