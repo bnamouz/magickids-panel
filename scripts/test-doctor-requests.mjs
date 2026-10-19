@@ -1,3 +1,4 @@
+import path from 'node:path';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -6,9 +7,12 @@ import { test } from 'node:test';
 import ts from 'typescript';
 import { PGlite } from '@electric-sql/pglite';
 const require=createRequire(import.meta.url);
+const root=path.resolve(path.dirname(new URL(import.meta.url).pathname),'..');
 function compile(file,overrides={}){
  const js=ts.transpileModule(fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
- const mod={exports:{}};new Function('require','module','exports',js)(n=>n in overrides?overrides[n]:require(n),mod,mod.exports);return mod.exports;
+ const local=n=>n.startsWith('@/')?n.slice(2):n.startsWith('./')||n.startsWith('../')?path.relative(root,path.resolve(root,path.dirname(file),n)):null;
+ const load=n=>{const rel=local(n);if(!rel)return require(n);const f=['.ts','.tsx','/index.ts'].map(e=>rel+e).find(f=>fs.existsSync(path.join(root,f)));return f?compile(f,overrides):require(n);};
+ const mod={exports:{}};new Function('require','module','exports',js)(n=>n in overrides?overrides[n]:load(n),mod,mod.exports);return mod.exports;
 }
 const schedule=compile('lib/booking/schedule.ts');
 test('15-minute cutoff is inclusive, 14:59 is closed; ADHD remains two hours',()=>{

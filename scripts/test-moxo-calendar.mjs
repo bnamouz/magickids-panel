@@ -4,7 +4,9 @@ const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.Common
 const helperSource=fs.readFileSync('lib/calendar-consistency.ts','utf8').replace(/^import .*;$/gm,'');
 const helperJs=ts.transpileModule(helperSource,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 const helper={};new Function('exports',helperJs)(helper);
-const exports={};new Function('exports','ensureCalendarEvent',js)(exports,helper.ensureCalendarEvent);
+const titleSource=fs.readFileSync('lib/calendar-title.ts','utf8').replace(/^import .*;$/gm,'');
+const title={};new Function('exports',ts.transpileModule(titleSource,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(title);
+const exports={};new Function('exports','ensureCalendarEvent','eventTitle',js)(exports,helper.ensureCalendarEvent,title.eventTitle);
 const row={id:'12345678-abcd-1234-abcd-123456789012',scheduled_at:'2099-01-06T07:00:00Z',duration_minutes:60};
 const events=new Map();let patches=0;
 const calendar={events:{async get(p){if(!events.has(p.eventId))throw {code:404};return {data:events.get(p.eventId)};},async list(){return {data:{items:[]}};},async insert(p){if(events.has(p.requestBody.id))throw {code:409};events.set(p.requestBody.id,p.requestBody);return {data:p.requestBody};},async patch(p){patches++;events.set(p.eventId,{id:p.eventId,...p.requestBody});}}};

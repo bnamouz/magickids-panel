@@ -13,7 +13,10 @@ function compile(relative, overrides = {}) {
   const source = fs.readFileSync(path.join(root, relative), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const module = { exports: {} };
-  new Function('require', 'module', 'exports', js)(name => name in overrides ? overrides[name] : require(name), module, module.exports);
+  // Project modules that are not explicitly mocked are compiled from source (same overrides), so new internal imports never break the harness.
+  const local = name => name.startsWith('@/') ? name.slice(2) : name.startsWith('./') || name.startsWith('../') ? path.relative(root, path.resolve(root, path.dirname(relative), name)) : null;
+  const load = name => { const rel = local(name); if (!rel) return require(name); const file = ['.ts', '.tsx', '/index.ts'].map(ext => rel + ext).find(f => fs.existsSync(path.join(root, f))); return file ? compile(file, overrides) : require(name); };
+  new Function('require', 'module', 'exports', js)(name => name in overrides ? overrides[name] : load(name), module, module.exports);
   return module.exports;
 }
 const schedule = compile('lib/booking/schedule.ts');
@@ -97,6 +100,7 @@ function adapter(pg, intake) {
       const q = {
         select(v = '*') { columns = v; return q; },
         eq(key,v) { filters.push([key,'=',v]); return q; }, neq(key,v) { filters.push([key,'<>',v]); return q; },
+        in(key,v) { filters.push([key,'=any(',v]); return q; }, is(key,v) { filters.push([key, v === null ? ' is ' : '=', v]); return q; },
         lte(key,v) { filters.push([key,'<=',v]); return q; },
         gt(key,v) { filters.push([key,'>',v]); return q; }, gte(key,v) { filters.push([key,'>=',v]); return q; }, lt(key,v) { filters.push([key,'<',v]); return q; },
         limit(v) { limit = v; return q; },
@@ -113,7 +117,7 @@ function adapter(pg, intake) {
             if (action === 'select') sql = `select ${columns} from ${table}`;
             if (action === 'update') sql = `update ${table} set ${Object.entries(values).map(([key,v]) => `${key}=${param(v)}`).join(',')}`;
             if (action === 'insert') sql = `insert into ${table}(${Object.keys(values).join(',')}) values(${Object.values(values).map(param).join(',')})${ignore ? ' on conflict (id) do nothing' : ''}`;
-            if (filters.length) sql += ` where ${filters.map(([key,op,v]) => `${key}${op}${param(v)}`).join(' and ')}`;
+            if (filters.length) sql += ` where ${filters.map(([key,op,v]) => `${key}${op}${param(v)}${op.endsWith('(') ? ')' : ''}`).join(' and ')}`;
             if (action === 'select' && limit) sql += ` limit ${limit}`;
             if (action !== 'select') sql += ` returning ${columns}`;
             try { const result = await pg.query(sql, params); return { data: single ? result.rows[0] ?? null : result.rows, error: null }; }

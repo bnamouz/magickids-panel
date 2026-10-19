@@ -77,8 +77,8 @@ test('MOXO approval requires staff and explicit phone verification; never sends 
 test('notification retries do not blindly resend after provider acceptance or uncertain result',async()=>{
  process.env.ULTRAMSG_INSTANCE_ID='synthetic';process.env.ULTRAMSG_TOKEN='synthetic';
  let state=null,sends=0,ok=true;
- const db={from(){let update,claim=false;const q={upsert(){state??='pending';return Promise.resolve({error:null});},select(){return q;},eq(k,v){if(k==='state'&&v==='pending')claim=true;return q;},update(v){update=v;return q;},maybeSingle(){return q;},then(resolve){let data;if(update){if(!claim||state==='pending'){state=update.state;data={id:'id'};}else data=null;}else data={state};return Promise.resolve({data,error:null}).then(resolve);}};return q;}};
- const notify=compile('lib/moxo/notification.ts',{'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/whatsapp-ultramsg':{sendWhatsAppText:async()=>{sends++;return {ok,id:ok?'synthetic':undefined};}}}).notifyOnce;
+ const db={from(){let update,claim=false;const q={upsert(){state??='pending';return Promise.resolve({error:null});},select(){return q;},eq(k,v){if(k==='state'&&v==='pending')claim=true;return q;},in(k,v){if(k==='state'&&v.includes('pending'))claim=true;return q;},update(v){update=v;return q;},maybeSingle(){return q;},then(resolve){let data;if(update){if(!claim||state==='pending'){state=update.state;data={id:'id'};}else data=null;}else data={state};return Promise.resolve({data,error:null}).then(resolve);}};return q;}};
+ const notify=compile('lib/moxo/notification.ts',{'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/whatsapp-ultramsg':{sendWhatsAppText:async()=>{sends++;return ok?{ok,id:'synthetic'}:{ok,error:'send_uncertain'};}}}).notifyOnce;
  assert.equal(await notify('id','+972500000001','Synthetic'),'accepted');assert.equal(await notify('id','+972500000001','Synthetic'),'accepted');assert.equal(sends,1);
  state=null;ok=false;assert.equal(await notify('id2','+972500000001','Synthetic'),'unknown');assert.equal(await notify('id2','+972500000001','Synthetic'),'unknown');assert.equal(sends,2);
  delete process.env.ULTRAMSG_INSTANCE_ID;delete process.env.ULTRAMSG_TOKEN;
