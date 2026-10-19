@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { book, bookingSchema, BookingError, getSlots } from '@/lib/booking/server';
+import { sendBookingConfirmation } from '@/lib/booking/confirmation-whatsapp';
 import { isClinic, TIME_ZONE, durationFor } from '@/lib/booking/schedule';
 
 export const runtime = 'nodejs';
@@ -35,6 +36,13 @@ export async function POST(req: NextRequest, { params }: { params: { clinic: str
     // The public ADHD form must state the health fund; payment rules depend on it.
     if (params.clinic === 'adhd' && !parsed.data.fund) return reply({ error: 'fund_required' }, 400);
     if (params.clinic !== 'adhd' && (parsed.data.fund || parsed.data.payToken)) return reply({ error: 'invalid_body' }, 400);
-    return reply(await book(params.clinic, parsed.data, req.ip || 'unknown'));
+    const result = await book(params.clinic, parsed.data, req.ip || 'unknown');
+    // WhatsApp confirmation with the personal cancellation link; never fails the booking itself.
+    let whatsapp = 'not_sent';
+    if (result.confirmed) {
+      const lang = parsed.data.language === 'he' || parsed.data.language === 'en' ? parsed.data.language : 'ar';
+      whatsapp = (await sendBookingConfirmation({ clinic: result.clinic, visitType: parsed.data.visitType ?? 'assessment', start: result.start, durationMinutes: result.durationMinutes, childName: parsed.data.childName, parentName: parsed.data.parentName, phone: parsed.data.phone, reference: result.reference, lang }).catch(() => ({ state: 'unknown' }))).state;
+    }
+    return reply({ ...result, whatsapp });
   } catch (error) { return failure(error); }
 }

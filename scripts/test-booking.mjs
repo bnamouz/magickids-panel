@@ -298,8 +298,13 @@ test('Public booking integration with SQL reservations and mocked Google', async
     });
     await t.test('cancellation cannot touch another clinic or an unrelated Google event', async () => {
       await reset(); const request = body('adhd'); const result = await service.book('adhd', request, 'test-ip');
-      assert.equal(result.cancellationToken, undefined);
-      await rejects(service.cancelPediatrics(request.requestId, service.cancellationToken(request.requestId)), 'invalid_link');
+      // ADHD bookings now carry their own cancellation token; it must not open the pediatrics cancellation path, and vice versa.
+      assert.match(result.cancellationToken, /^[a-f0-9]{64}$/);
+      assert.notEqual(result.cancellationToken, service.cancellationToken(request.requestId, 'pediatrics'));
+      await rejects(service.cancelPediatrics(request.requestId, service.cancellationToken(request.requestId, 'adhd')), 'invalid_link');
+      await rejects(service.cancelBooking('adhd', request.requestId, service.cancellationToken(request.requestId, 'pediatrics')), 'invalid_link');
+      const cancelled = await service.cancelBooking('adhd', request.requestId, result.cancellationToken);
+      assert.equal(cancelled.cancelled, true); assert.equal(events.size, 0);
       await reset(); const peds = body('pediatrics'); const receipt = await service.book('pediatrics', peds, 'test-ip');
       [...events.values()][0].extendedProperties.private.websiteBooking = randomUUID();
       await rejects(service.cancelPediatrics(peds.requestId, receipt.cancellationToken), 'unavailable');
