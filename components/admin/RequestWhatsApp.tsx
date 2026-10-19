@@ -25,9 +25,10 @@ export default function RequestWhatsApp({ clinic, eventId, phone, parent, child,
     try {
       const res = await fetch('/api/admin/doctor-requests/whatsapp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ clinic, eventId, phone: '+' + intl, text, templateTitle: template.title }) });
       const data = await res.json().catch(() => ({}));
-      if (data.status === 'sent') setSent({ ok: true, message: 'נשלח להורה מהמספר של המכון (054-402-0043). נרשמה הערה על הבקשה ביומן.' });
+      if (data.status === 'sent') setSent({ ok: true, message: 'נשלח להורה מהמספר שלך (050-995-5137). נרשמה הערה על הבקשה ביומן.' });
+      else if (data.status === 'sender_unavailable') setSent({ ok: false, message: data.message });
       else if (data.status === 'duplicate') setSent({ ok: true, message: data.message });
-      else if (data.status === 'unknown') setSent({ ok: false, message: 'תוצאת השליחה אינה ודאית. לא לשלוח שוב לפני בדיקה בוואטסאפ של המכון.' });
+      else if (data.status === 'unknown') setSent({ ok: false, message: 'תוצאת השליחה אינה ודאית. לא לשלוח שוב לפני בדיקה בוואטסאפ שלך.' });
       else setSent({ ok: false, message: data.error === 'unauthorized' ? 'אין הרשאה. התחברו מחדש.' : `השליחה נכשלה (${data.error ?? res.status}). אפשר לשלוח מהטלפון האישי.` });
     } catch { setSent({ ok: false, message: 'אין תקשורת עם השרת. אפשר לשלוח מהטלפון האישי.' }); }
     finally { setSending(false); setConfirm(false); }
@@ -39,7 +40,7 @@ export default function RequestWhatsApp({ clinic, eventId, phone, parent, child,
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.6.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.1.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.2c0-.1-.2-.2-.4-.3Z"/></svg>
         וואטסאפ להורה <span dir="ltr" className="font-normal opacity-90">0{intl.slice(3)}</span>
       </button>
-      <span className="text-xs text-slate-500">בחירת תבנית ואז: פתיחה בוואטסאפ האישי שלך, או שליחה ישירה מהמספר של המכון.</span>
+      <span className="text-xs text-slate-500">בחירת תבנית ואז: פתיחה בוואטסאפ בטלפון שלך, או שליחה ישירה מהמערכת מהמספר 050-995-5137.</span>
     </div>
     {open && <div className="mt-2 rounded-lg border bg-white p-3 space-y-2 text-sm">
       <div className="flex flex-wrap gap-2 items-center">
@@ -50,11 +51,11 @@ export default function RequestWhatsApp({ clinic, eventId, phone, parent, child,
       </div>
       <textarea className="w-full border rounded p-2 min-h-[7rem]" dir="auto" value={text} onChange={e => setCustom(e.target.value)} aria-label="נוסח ההודעה" />
       <div className="flex flex-wrap gap-2 items-center">
-        <a href={href} target="_blank" rel="noreferrer" className="rounded-lg bg-green-600 text-white px-4 py-1.5 font-semibold hover:bg-green-700">פתיחה בוואטסאפ האישי</a>
+        <a href={href} target="_blank" rel="noreferrer" className="rounded-lg bg-green-600 text-white px-4 py-1.5 font-semibold hover:bg-green-700">פתיחה בוואטסאפ בטלפון</a>
         {!confirm
-          ? <button type="button" disabled={sending || sent?.ok} onClick={() => setConfirm(true)} className="rounded-lg bg-teal-700 text-white px-4 py-1.5 font-semibold hover:bg-teal-800 disabled:opacity-50">שליחה מהמספר של המכון</button>
+          ? <button type="button" disabled={sending || sent?.ok} onClick={() => setConfirm(true)} className="rounded-lg bg-teal-700 text-white px-4 py-1.5 font-semibold hover:bg-teal-800 disabled:opacity-50">שליחה מהמערכת מ־050-995-5137</button>
           : <span className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-teal-700 bg-teal-50 px-3 py-1.5">
-              <span>לשלוח עכשיו אל <b dir="ltr">0{intl.slice(3)}</b> מ־054-402-0043?</span>
+              <span>לשלוח עכשיו אל <b dir="ltr">0{intl.slice(3)}</b> מהמספר 050-995-5137?</span>
               <button type="button" disabled={sending} onClick={sendFromInstitute} className="rounded bg-teal-700 text-white px-3 py-1 font-semibold disabled:opacity-50">{sending ? 'שולח…' : 'כן, לשלוח'}</button>
               <button type="button" disabled={sending} onClick={() => setConfirm(false)} className="underline">ביטול</button>
             </span>}

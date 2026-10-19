@@ -5,7 +5,7 @@ import { getCurrentStaff } from '@/lib/admin/auth';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import { getPediatricsCalendarId } from '@/lib/pediatrics-calendar';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { sendInstituteWhatsAppText } from '@/lib/whatsapp-ultramsg';
+import { sendClinicWhatsAppText, clinicWhatsAppIdentity, CLINIC_SENDER_LOCAL } from '@/lib/whatsapp-clinic';
 import { TIME_ZONE } from '@/lib/booking/schedule';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +18,7 @@ const schema = z.object({
   templateTitle: z.string().trim().max(80).optional(),
 }).strict();
 
-/** Sends a staff-written update about a doctor request to the parent from the institute WhatsApp (054-402-0043).
+/** Sends a staff-written update about a doctor request to the parent from Dr. Namouz's own WhatsApp (050-995-5137); no fallback to another number.
  *  One send per request+text; every attempt is logged in `notifications`, and the calendar event gets a note. */
 export async function POST(req: NextRequest) {
   const staff = await getCurrentStaff();
@@ -39,6 +39,10 @@ export async function POST(req: NextRequest) {
   const eventPhone = (event.description ?? '').match(/טלפון:\s*(\+?[\d\s()-]{7,20})/)?.[1]?.replace(/\D/g, '') ?? '';
   if (!eventPhone || eventPhone !== phone.slice(1)) return NextResponse.json({ error: 'המספר אינו תואם למספר שבבקשה' }, { status: 409 });
 
+  // The sender must be the doctor's own number, verified against the provider right now; never silently another number.
+  const identity = await clinicWhatsAppIdentity(true);
+  if (identity !== 'verified') return NextResponse.json({ status: 'sender_unavailable', error: identity, message: `המספר ${CLINIC_SENDER_LOCAL} אינו מחובר כרגע (${identity === 'not_configured' ? 'לא מוגדר' : identity === 'identity_mismatch' ? 'מחובר מספר אחר' : 'אין תשובה מהספק'}). לא נשלח. אפשר לשלוח מהטלפון האישי.` }, { status: 503 });
+
   // Once per request+text (protects against a double click); a different text later is a new message.
   const key = `doctor-request:${eventId}:${createHash('sha256').update(text).digest('hex').slice(0, 16)}`;
   const db = getSupabaseAdmin();
@@ -48,13 +52,13 @@ export async function POST(req: NextRequest) {
   if (claim.error) return NextResponse.json({ error: 'המערכת אינה זמינה כרגע' }, { status: 503 });
   if (!claim.data) return NextResponse.json({ status: 'duplicate', message: 'הודעה זהה כבר נשלחה להורה עבור בקשה זו.' });
 
-  const wa = await sendInstituteWhatsAppText({ toPhone: phone, body: text });
+  const wa = await sendClinicWhatsAppText({ toPhone: phone, body: text });
   const state = wa.ok ? 'accepted' : wa.error === 'send_uncertain' ? 'unknown' : 'failed';
   await db.from('clinic_notifications').update({ state, provider_id: wa.ok ? wa.id ?? null : `error:${String(wa.error ?? 'unknown').slice(0, 60)}`, updated_at: new Date().toISOString() }).eq('id', key).eq('state', 'sending');
   const now = new Date();
   await db.from('notifications').insert({
     recipient_type: 'parent', recipient_phone: phone, channel: 'whatsapp', template: 'doctor_request_reply',
-    payload: { clinic, event_id: eventId, template_title: templateTitle ?? null, staff_id: staff.id, sender: 'institute', text_length: text.length },
+    payload: { clinic, event_id: eventId, template_title: templateTitle ?? null, staff_id: staff.id, sender: 'clinic', text_length: text.length },
     scheduled_for: now.toISOString(), sent_at: wa.ok ? now.toISOString() : null, status: wa.ok ? 'sent' : 'failed',
     delivery_id: wa.ok ? wa.id ?? null : null, error_message: wa.ok ? null : wa.error ?? 'unknown', retry_count: 0,
   }).then(() => null, () => null);
@@ -62,7 +66,7 @@ export async function POST(req: NextRequest) {
   if (wa.ok) {
     // Leave a trace on the request itself so whoever opens it next sees the parent was updated.
     const stamp = now.toLocaleString('he-IL', { timeZone: TIME_ZONE, dateStyle: 'short', timeStyle: 'short' });
-    const note = `\n\n✔ עודכן להורה בוואטסאפ מהמכון ${stamp}${templateTitle ? ` — ${templateTitle}` : ''}`;
+    const note = `\n\n✔ עודכן להורה בוואטסאפ מ־${CLINIC_SENDER_LOCAL} ${stamp}${templateTitle ? ` — ${templateTitle}` : ''}`;
     await getCalendarClient().events.patch({ calendarId, eventId, sendUpdates: 'none', requestBody: { description: `${event.description ?? ''}${note}` } }, { timeout: 10000 }).catch(() => null);
   }
   return NextResponse.json(wa.ok ? { status: 'sent', id: wa.id ?? null } : { status: state, error: wa.error ?? 'unknown' }, { status: wa.ok ? 200 : 502 });
