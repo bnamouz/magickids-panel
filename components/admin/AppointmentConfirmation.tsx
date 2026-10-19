@@ -14,7 +14,7 @@ export function ConfirmationFields({ value, onChange, email, phone, start, locat
   return <fieldset disabled={disabled} className="border border-slate-200 rounded-lg p-3 space-y-3 text-sm">
     <legend className="font-semibold px-1">אישור להורה במייל ובוואטסאפ</legend>
     <p>נמען מתוך התיק: <bdi>{email || 'חסר מייל'}</bdi> · <bdi>{phone || 'חסר טלפון'}</bdi></p>
-    <p className="text-slate-500">השליחה תתאפשר רק אחרי הפעלת השירות ואימות הסנכרון ליומן. פרטים חסרים לא יושלמו אוטומטית.</p>
+    <p className="text-slate-500">ההודעה נשלחת מהוואטסאפ של המכון (054-402-0043) ומהמייל של המכון, רק אחרי שהפגישה סונכרנה ליומן. פרטים חסרים לא יושלמו אוטומטית.</p>
     <div className="flex flex-wrap gap-4">
       <label><input type="checkbox" checked={value.email} onChange={e => onChange({ ...value, email: e.target.checked })} /> מייל</label>
       <label><input type="checkbox" checked={value.whatsapp} onChange={e => onChange({ ...value, whatsapp: e.target.checked })} /> וואטסאפ</label>
