@@ -2,7 +2,7 @@ export const bookingCopy = {
   he: {
     checkIntake: 'בדיקת השלמת השאלונים ופתיחת לוח התורים',
     visitType: 'סוג הביקור', assessment: 'אבחון ראשון', followup: 'מעקב / ביקורת', followupIntro: 'למטופלים חוזרים: ביקורת של 15 דקות בימי רביעי, 16:00–20:00. אין צורך ברישום מחדש או במילוי שאלונים. מלאו רק פרטי קשר לתיאום התור.',
-    cancelLink: 'קישור אישי לביטול התור', keepCancel: 'שמרו את הקישור האישי כדי שתוכלו לבטל גם בהמשך. אין להעביר אותו לאחרים.', reminderConsent: 'אני מאשר/ת קבלת תזכורת בוואטסאפ למספר זה כחצי שעה לפני התור.',
+    whatsappSent: 'אישור עם מועד התור וקישור הביטול נשלח אליכם גם בוואטסאפ.', cancelLink: 'קישור אישי לביטול התור', keepCancel: 'שמרו את הקישור האישי כדי שתוכלו לבטל גם בהמשך. אין להעביר אותו לאחרים.', reminderConsent: 'אני מאשר/ת קבלת תזכורת בוואטסאפ למספר זה כחצי שעה לפני התור.',
     institute: 'מכון ילדי הקסם', doctor: 'ד״ר בסים נמוז', home: 'לאתר המכון', language: 'שפה',
     clinicPhone: 'טלפון מרפאת הילדים', clinicSecretary: 'מזכירה בשעות פעילות המרפאה',
     pediatrics: 'מרפאת ילדים', adhd: 'מרפאת קשב וריכוז', heading: 'קובעים תור, בקלות.',
@@ -28,7 +28,7 @@ export const bookingCopy = {
   ar: {
     checkIntake: 'التحقق من اكتمال الاستبيانات وعرض المواعيد',
     visitType: 'نوع الزيارة', assessment: 'تشخيص أولي', followup: 'متابعة / مراجعة', followupIntro: 'للمراجعين السابقين: متابعة لمدة 15 دقيقة أيام الأربعاء، 16:00–20:00، دون تسجيل جديد أو تعبئة استبيانات. أدخلوا فقط تفاصيل التواصل لحجز الموعد.',
-    cancelLink: 'رابط شخصي لإلغاء الموعد', keepCancel: 'احفظوا الرابط الشخصي للإلغاء لاحقًا. لا تشاركوه مع الآخرين.', reminderConsent: 'أوافق على تلقي تذكير عبر واتساب لهذا الرقم قبل الموعد بحوالي نصف ساعة.',
+    whatsappSent: 'تم إرسال تأكيد مع موعد الدور ورابط الإلغاء إلى واتساب أيضًا.', cancelLink: 'رابط شخصي لإلغاء الموعد', keepCancel: 'احفظوا الرابط الشخصي للإلغاء لاحقًا. لا تشاركوه مع الآخرين.', reminderConsent: 'أوافق على تلقي تذكير عبر واتساب لهذا الرقم قبل الموعد بحوالي نصف ساعة.',
     institute: 'معهد أطفال السحر', doctor: 'د. بسيم نموز', home: 'موقع المعهد', language: 'اللغة',
     clinicPhone: 'هاتف عيادة الأطفال', clinicSecretary: 'السكرتيرة خلال ساعات عمل العيادة',
     pediatrics: 'عيادة طب الأطفال', adhd: 'عيادة الانتباه والتركيز', heading: 'احجزوا موعدًا بكل سهولة.',
@@ -54,7 +54,7 @@ export const bookingCopy = {
   en: {
     checkIntake: 'Verify completed questionnaires and view appointments',
     visitType: 'Visit type', assessment: 'Initial assessment', followup: 'Follow-up', followupIntro: 'Returning patients: 15-minute follow-ups on Wednesdays, 16:00–20:00. No new registration or questionnaires. Enter only contact details to book.',
-    cancelLink: 'Personal cancellation link', keepCancel: 'Save this personal link to cancel later. Do not share it with others.', reminderConsent: 'I agree to receive a WhatsApp reminder at this number about 30 minutes before my visit.',
+    whatsappSent: 'A confirmation with the time and your cancellation link was also sent to you on WhatsApp.', cancelLink: 'Personal cancellation link', keepCancel: 'Save this personal link to cancel later. Do not share it with others.', reminderConsent: 'I agree to receive a WhatsApp reminder at this number about 30 minutes before my visit.',
     institute: 'Magic Kids Institute', doctor: 'Dr. Basim Namouz', home: 'Institute website', language: 'Language',
     clinicPhone: 'Pediatrics clinic phone', clinicSecretary: 'Secretary during clinic opening hours',
     pediatrics: 'Pediatrics clinic', adhd: 'ADHD clinic', heading: 'Your next visit, made simple.',

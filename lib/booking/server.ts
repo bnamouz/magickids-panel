@@ -112,7 +112,7 @@ function isMissing(error: unknown) {
   return [404, 410].includes(Number((error as { code?: number })?.code));
 }
 function confirmed(clinic: Clinic, start: string, reference: string, visitType: VisitType = 'assessment') {
-  return { confirmed: true, clinic, start, durationMinutes: durationFor(clinic, visitType), reference, ...(clinic === 'pediatrics' ? { cancellationToken: cancellationToken(reference) } : {}) };
+  return { confirmed: true, clinic, start, durationMinutes: durationFor(clinic, visitType), reference, cancellationToken: cancellationToken(reference, clinic) };
 }
 
 export async function book(clinic: Clinic, body: BookingBody, clientIp: string, staffBooking = false) {
@@ -222,15 +222,17 @@ function fundLines(clinic: Clinic, body: BookingBody, visitType: VisitType) {
 }
 
 // The booking UUID is a reference, never authorization to cancel a patient's visit.
-export function cancellationToken(id: string) {
+export function cancellationToken(id: string, clinic: Clinic = 'pediatrics') {
   if ((process.env.BOOKING_HASH_SECRET?.length ?? 0) < 32) throw new BookingError('unavailable');
-  return digest(`cancel-pediatrics:v1:${id}`);
+  return digest(`cancel-${clinic}:v1:${id}`); // pediatrics links issued before ADHD support keep working
 }
-export async function cancelPediatrics(id: string, token: string, preview = false) {
+export const cancelPediatrics = (id: string, token: string, preview = false) => cancelBooking('pediatrics', id, token, preview);
+/** Self-service cancellation from the personal link in the confirmation message; releases the slot for other families. */
+export async function cancelBooking(clinic: Clinic, id: string, token: string, preview = false) {
   if (!z.string().uuid().safeParse(id).success || !/^[a-f0-9]{64}$/.test(token)) throw new BookingError('invalid_link', 403);
-  if (!timingSafeEqual(Buffer.from(token, 'hex'), Buffer.from(cancellationToken(id), 'hex'))) throw new BookingError('invalid_link', 403);
+  if (!timingSafeEqual(Buffer.from(token, 'hex'), Buffer.from(cancellationToken(id, clinic), 'hex'))) throw new BookingError('invalid_link', 403);
   const db = getSupabaseAdmin();
-  const { data: row, error } = await db.from('website_bookings').select('*').eq('id', id).eq('clinic', 'pediatrics').maybeSingle();
+  const { data: row, error } = await db.from('website_bookings').select('*').eq('id', id).eq('clinic', clinic).maybeSingle();
   if (error) throw new BookingError('unavailable');
   if (!row) throw new BookingError('invalid_link', 403);
   if (row.status === 'released') return { cancelled: true };
@@ -241,7 +243,7 @@ export async function cancelPediatrics(id: string, token: string, preview = fals
   try { event = (await calendar.events.get({ calendarId: row.calendar_id, eventId: row.event_id })).data; }
   catch (error) { if (!isMissing(error)) throw new BookingError('unavailable'); }
   if (event && event.status !== 'cancelled') {
-    if (event.extendedProperties?.private?.websiteBooking !== id || event.extendedProperties?.private?.clinic !== 'pediatrics') throw new BookingError('unavailable');
+    if (event.extendedProperties?.private?.websiteBooking !== id || event.extendedProperties?.private?.clinic !== clinic) throw new BookingError('unavailable');
     if (Date.parse(event.start?.dateTime ?? '') <= Date.now()) throw new BookingError('past_appointment', 409);
     if (preview) return { cancelled: false, start: event.start?.dateTime };
     try { await calendar.events.delete({ calendarId: row.calendar_id, eventId: row.event_id, sendUpdates: 'none' }); }
@@ -249,5 +251,7 @@ export async function cancelPediatrics(id: string, token: string, preview = fals
   }
   const released = await db.from('website_bookings').update({ status: 'released', updated_at: new Date().toISOString() }).eq('id', id).eq('status', 'confirmed');
   if (released.error) throw new BookingError('processing');
+  // A paid ADHD visit that was cancelled may be rebooked with the same personal payment link.
+  if (clinic === 'adhd') await db.from('adhd_payment_requests').update({ status: 'approved', booking_id: null, booked_at: null, updated_at: new Date().toISOString() }).eq('booking_id', id).eq('status', 'booked').then(() => null, () => null);
   return { cancelled: true };
 }
