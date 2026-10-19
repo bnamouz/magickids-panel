@@ -23,6 +23,8 @@ const APPOINTMENT_TYPES = [
 ];
 
 type QuarterSlot = { minute: number; time: string; available: boolean; takenBy: string | null };
+type HourSlot = { hour: number; time: string; assessmentAvailable: boolean; takenBy: string | null; quarters: QuarterSlot[] };
+type DaySlots = { hours: HourSlot[]; existing: { time: string; label: string }[]; calendarFailed: boolean };
 
 export default function BookAppointment({ sessionId, childName, assessmentReady, parentEmail, parentPhone }: Props) {
   const [open, setOpen] = useState(false);
@@ -31,7 +33,9 @@ export default function BookAppointment({ sessionId, childName, assessmentReady,
   const [time, setTime] = useState('16:00');
   const [quarter, setQuarter] = useState<number | null>(null);
   const [quarters, setQuarters] = useState<QuarterSlot[] | null>(null);
-  const [quartersLoading, setQuartersLoading] = useState(false);
+  const [day, setDay] = useState<DaySlots | null>(null);
+  const [dayLoading, setDayLoading] = useState(false);
+  const [dayError, setDayError] = useState<string | null>(null);
   const [location, setLocation] = useState('מכון Magic Kids, שפרעם');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -44,29 +48,40 @@ export default function BookAppointment({ sessionId, childName, assessmentReady,
   const duration = APPOINTMENT_TYPES.find((t) => t.value === type)?.duration ?? 60;
   const wednesdayDates = [...new Set(candidateSlots('adhd').map((iso) => localParts(new Date(iso)).date))];
 
-  // Load quarter-hour availability for the chosen follow-up date+hour.
+  // One availability lookup per chosen day (database guard view + both Google calendars):
+  // hours already taken are disabled for assessments, quarters already taken are disabled for follow-ups.
   useEffect(() => {
-    if (type !== 'followup' || !date || !time) { setQuarters(null); return; }
-    const hour = Number(time.split(':')[0]);
+    if (!date) { setDay(null); setDayError(null); return; }
     let cancelled = false;
-    setQuartersLoading(true);
-    setQuarter(null);
-    fetch(`/api/admin/appointments/followup-slots?date=${date}&hour=${hour}`)
-      .then((res) => res.json())
-      .then((data) => {
+    setDayLoading(true); setDayError(null); setQuarter(null);
+    fetch(`/api/admin/appointments/day-slots?date=${date}`)
+      .then(async (res) => ({ ok: res.ok, data: await res.json() }))
+      .then(({ ok, data }) => {
         if (cancelled) return;
-        if (Array.isArray(data.quarters)) {
-          setQuarters(data.quarters);
-          const firstFree = data.quarters.find((q: QuarterSlot) => q.available);
-          setQuarter(firstFree ? firstFree.minute : null);
-        } else {
-          setQuarters(null);
-        }
+        if (!ok || !Array.isArray(data.hours)) { setDay(null); setDayError(data.error || 'לא ניתן לבדוק זמינות; השעות מוצגות ללא סינון והשרת ידחה שעה תפוסה.'); return; }
+        setDay(data);
       })
-      .catch(() => { if (!cancelled) setQuarters(null); })
-      .finally(() => { if (!cancelled) setQuartersLoading(false); });
+      .catch(() => { if (!cancelled) { setDay(null); setDayError('לא ניתן לבדוק זמינות; השעות מוצגות ללא סינון והשרת ידחה שעה תפוסה.'); } })
+      .finally(() => { if (!cancelled) setDayLoading(false); });
     return () => { cancelled = true; };
-  }, [type, date, time]);
+  }, [date]);
+
+  const hourInfo = day?.hours.find((h) => h.time === time) ?? null;
+  // Keep the selected hour valid: jump to the first free hour when the chosen one is taken.
+  useEffect(() => {
+    if (!day) return;
+    const usable = (h: HourSlot) => type === 'assessment' ? h.assessmentAvailable : h.quarters.some((q) => q.available);
+    const current = day.hours.find((h) => h.time === time);
+    if (current && usable(current)) return;
+    const first = day.hours.find(usable);
+    if (first) setTime(first.time);
+  }, [day, type, time]);
+  useEffect(() => {
+    if (type !== 'followup' || !hourInfo) { setQuarters(null); return; }
+    setQuarters(hourInfo.quarters);
+    setQuarter((prev) => prev !== null && hourInfo.quarters.some((q) => q.minute === prev && q.available) ? prev : (hourInfo.quarters.find((q) => q.available)?.minute ?? null));
+  }, [type, hourInfo]);
+  const noHourFree = !!day && day.hours.every((h) => type === 'assessment' ? !h.assessmentAvailable : !h.quarters.some((q) => q.available));
 
   // Returns "+03:00" for IDT (summer) or "+02:00" for IST (winter)
   function getIsraelOffset(dateStr: string): string {
@@ -96,6 +111,10 @@ export default function BookAppointment({ sessionId, childName, assessmentReady,
 
     if (!date || !time) {
       setError('חובה לבחור תאריך ושעה');
+      return;
+    }
+    if (type === 'assessment' && hourInfo && !hourInfo.assessmentAvailable) {
+      setError('השעה שנבחרה כבר תפוסה. בחר/י שעה פנויה.');
       return;
     }
     if (type === 'followup' && quarter === null) {
@@ -225,16 +244,35 @@ export default function BookAppointment({ sessionId, childName, assessmentReady,
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     שעה
                   </label>
-                  <select aria-label="שעה" value={time} onChange={e=>setTime(e.target.value)} className="w-full border rounded-lg p-2">{(type === 'assessment' ? ['16:00','17:00','18:00','19:00'] : FOLLOWUP_HOURS).map(hour=><option key={hour}>{hour}</option>)}</select>
+                  <select aria-label="שעה" value={time} onChange={e=>setTime(e.target.value)} disabled={dayLoading} className="w-full border rounded-lg p-2">{(type === 'assessment' ? ['16:00','17:00','18:00','19:00'] : FOLLOWUP_HOURS).map(hour=>{
+                    const info = day?.hours.find((h) => h.time === hour);
+                    const free = info ? (type === 'assessment' ? info.assessmentAvailable : info.quarters.filter((q) => q.available).length) : null;
+                    const taken = info ? (type === 'assessment' ? !info.assessmentAvailable : free === 0) : false;
+                    const label = !info ? hour : type === 'assessment' ? (taken ? `${hour} · תפוס${info.takenBy ? ` (${info.takenBy})` : ''}` : hour) : (taken ? `${hour} · מלא` : `${hour} · ${free} פנויים`);
+                    return <option key={hour} value={hour} disabled={taken}>{label}</option>;
+                  })}</select>
                 </div>
               </div>
+
+              {date && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 space-y-1">
+                  {dayLoading ? <div className="flex items-center gap-2 text-slate-500"><Loader2 size={14} className="animate-spin" /> בודק מה כבר קבוע ביום זה...</div>
+                  : dayError ? <p className="text-amber-800">{dayError}</p>
+                  : <>
+                      <p className="font-semibold">כבר קבוע ביום זה (16:00–20:00): {day?.existing.length ? '' : 'אין תורים — כל השעות פנויות'}</p>
+                      {day?.existing.map((e, i) => <p key={i}><span dir="ltr" className="font-mono">{e.time}</span> · {e.label}</p>)}
+                      {day?.calendarFailed && <p className="text-amber-800">יומן גוגל לא נטען; מוצגות רק ההזמנות מהמערכת, והשרת ידחה שעה תפוסה ביומן.</p>}
+                      {noHourFree && <p className="text-red-700 font-semibold">אין שעה פנויה ביום זה. בחר/י יום רביעי אחר.</p>}
+                    </>}
+                </div>
+              )}
 
               {type === 'followup' && (
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">
                     רבע שעה
                   </label>
-                  {quartersLoading ? (
+                  {dayLoading ? (
                     <div className="flex items-center gap-2 text-sm text-slate-500 py-2"><Loader2 size={14} className="animate-spin" /> בודק זמינות...</div>
                   ) : quarters && quarters.every(q => !q.available) ? (
                     <p className="text-sm text-red-700">כל ארבעת רבעי השעה תפוסים. בחר/י שעה או יום אחר.</p>
@@ -305,7 +343,7 @@ export default function BookAppointment({ sessionId, childName, assessmentReady,
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={submit}
-                  disabled={loading || !!success || uncertain || ((notice.email || notice.whatsapp) && !notice.consentConfirmed)}
+                  disabled={loading || dayLoading || noHourFree || !!success || uncertain || ((notice.email || notice.whatsapp) && !notice.consentConfirmed)}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#01696f] text-white rounded-lg font-semibold text-sm hover:bg-[#0C4E54] transition disabled:opacity-50"
                 >
                   {loading ? (

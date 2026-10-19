@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { getCurrentStaff } from '@/lib/admin/auth';
 import { FOLLOWUP_QUARTERS, isFollowupSlot, localToUTC } from '@/lib/booking/schedule';
 
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic';
 // Wednesday ADHD hour are already taken by a follow-up appointment, so staff
 // can pick a free quarter instead of guessing and hitting a 409 on create.
 export async function GET(req: NextRequest) {
+  if (!await getCurrentStaff()) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   try {
     const date = req.nextUrl.searchParams.get('date'); // YYYY-MM-DD, must be a Wednesday
     const hour = Number(req.nextUrl.searchParams.get('hour')); // 16|17|18|19

@@ -1,0 +1,12 @@
+import ts from 'typescript'; import fs from 'node:fs'; import assert from 'node:assert/strict';
+const tr=f=>ts.transpileModule(fs.readFileSync(f,'utf8').replace(/^import .*;$/gm,''),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const sched={};new Function('exports',tr('lib/booking/schedule.ts'))(sched);
+const m={};new Function('exports','FOLLOWUP_QUARTERS','localToUTC',tr('lib/appointments/day-availability.ts'))(m,sched.FOLLOWUP_QUARTERS,sched.localToUTC);
+const d='2026-10-21'; const t=(h,mi=0)=>sched.localToUTC(d,h*60+mi).getTime();
+const busy=[{start:t(16),end:t(17),label:'דנה · אבחון קשב וריכוז'},{start:t(18,15),end:t(18,30),label:'יוסף · מעקב'}];
+const h=m.hourAvailability(d,busy);
+assert.equal(h[0].assessmentAvailable,false); assert.equal(h[0].takenBy,'דנה · אבחון קשב וריכוז'); assert.ok(h[0].quarters.every(q=>!q.available));
+assert.equal(h[1].assessmentAvailable,true); assert.ok(h[1].quarters.every(q=>q.available));
+assert.equal(h[2].assessmentAvailable,false); assert.deepEqual(h[2].quarters.map(q=>q.available),[true,false,true,true]);
+assert.equal(h[3].assessmentAvailable,true);
+console.log('PASS staff dialog availability: taken hour blocks assessment and all quarters; one follow-up blocks its quarter and the whole assessment hour');
