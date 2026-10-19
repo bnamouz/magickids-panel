@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 
 const STATE: Record<string, string> = { sending: 'פעיל — נשלחת הודעה כל 30 שניות', pending: 'מושהה', accepted: 'הסתיים', failed: 'נעצר אוטומטית' };
-const REASON: Record<string, string> = { whatsapp_not_connected: 'הוואטסאפ של 050-995-5137 לא מחובר.', rejected_3_in_a_row: 'שלוש הודעות נדחו ברצף. בדקו שהוואטסאפ בטלפון פתוח ולא הוגבל.', paused_by_admin: 'הושהה ידנית.' };
+const REASON: Record<string, string> = { whatsapp_not_connected: 'הוואטסאפ של 050-995-5137 לא מחובר.', rejected_3_in_a_row: 'שלוש הודעות נדחו ברצף. בדקו שהוואטסאפ בטלפון פתוח ולא הוגבל.', paused_by_admin: 'הושהה ידנית.', cancelled_by_admin: 'בוטל ידנית — ההודעות שנותרו לא יישלחו.' };
 
 export default function ClinicCampaignStatus() {
   const [list, setList] = useState<any[]>([]), [busy, setBusy] = useState(false);
