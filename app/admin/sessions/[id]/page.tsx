@@ -1,4 +1,5 @@
 import { firstRelated, intakeProgress, INTAKE_STAGES } from '@/lib/intake/progress';
+import { lastReminders } from '@/lib/intake/reminder';
 import CaseWhatsAppButton from '@/components/admin/CaseWhatsAppButton';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -56,6 +57,9 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
   }));
 
   const progress = intakeProgress(questionnaires ?? [], appointments ?? [], session.status);
+  const reminderHistory = await lastReminders(session.id);
+  const localPhone = (v: string | null | undefined) => { const d = String(v ?? '').replace(/\D/g, ''); if (!d) return null; const n = d.startsWith('972') ? '0' + d.slice(3) : d; return /^05\d{8}$/.test(n) ? n.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3') : null; };
+  const reminderPhones = { parent: localPhone(parent?.phone), teacher: localPhone(session.teacher_phone ?? patient?.teacher_phone) };
   const parentQ = questionnaires?.find((q: any) => q.type === 'vanderbilt_parent');
   const teacherQ = questionnaires?.find((q: any) => q.type === 'vanderbilt_teacher');
   const parentScore = scores?.find((s: any) => s.scope === 'parent');
@@ -97,7 +101,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
       </div>
 
       <div className="card mb-6"><div className="flex flex-wrap justify-between gap-3"><h2 className="font-bold text-[#01696f]">מצב הקליטה</h2><Link className="text-sm underline" href="/admin/intake">לרשימת הקליטה והזימון</Link></div><div className="grid sm:grid-cols-3 gap-3 mt-4"><div className="rounded-lg bg-slate-50 p-3">שאלון הורים: <strong>{progress.parentComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-slate-50 p-3">שאלון מורה: <strong>{progress.teacherComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-teal-50 text-[#01696f] p-3 font-bold">{INTAKE_STAGES[progress.stage]}</div></div>{!progress.bothComplete && <p className="text-sm text-slate-500 mt-3">ניתן לזמן לפגישת אבחון לאחר השלמת שני השאלונים.</p>}</div>
-      <QuestionnaireLinks sessionId={session.id} parent={{ token: session.parent_token, expiresAt: session.parent_token_expires_at }} teacher={{ token: session.teacher_token, expiresAt: session.teacher_token_expires_at }} parentComplete={progress.parentComplete} teacherComplete={progress.teacherComplete} closed={progress.stage === 'closed'} />
+      <QuestionnaireLinks sessionId={session.id} parent={{ token: session.parent_token, expiresAt: session.parent_token_expires_at }} teacher={{ token: session.teacher_token, expiresAt: session.teacher_token_expires_at }} parentComplete={progress.parentComplete} teacherComplete={progress.teacherComplete} closed={progress.stage === 'closed'} phones={reminderPhones} lastReminders={reminderHistory} />
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Combined profile - top priority */}
