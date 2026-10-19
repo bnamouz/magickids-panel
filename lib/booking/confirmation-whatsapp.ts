@@ -42,8 +42,11 @@ export async function sendBookingConfirmation(o: { clinic: Clinic; visitType: Vi
   let state = 'unknown';
   try { state = await notifyOnce(`website-booking:${o.reference}`, phone, message, { sender }); } catch { state = 'unknown'; }
   const now = new Date().toISOString();
-  const fresh = state === 'accepted' || state === 'failed' || state === 'not_configured';
-  if (fresh) await getSupabaseAdmin().from('notifications').insert({
+  const db = getSupabaseAdmin();
+  // A retried booking request returns the stored state without resending; log one row per booking only.
+  const already = await db.from('notifications').select('id', { count: 'exact', head: true }).eq('template', 'booking_confirmation').eq('payload->>booking_id', o.reference);
+  const fresh = (state === 'accepted' || state === 'failed' || state === 'not_configured') && !already.error && (already.count ?? 0) === 0;
+  if (fresh) await db.from('notifications').insert({
     recipient_type: 'parent', recipient_phone: phone, channel: 'whatsapp', template: 'booking_confirmation',
     payload: { clinic: o.clinic, visit_type: o.visitType, booking_id: o.reference, start: o.start, language: o.lang, sender },
     scheduled_for: now, sent_at: state === 'accepted' ? now : null, status: state === 'accepted' ? 'sent' : 'failed', error_message: state === 'accepted' ? null : state, retry_count: 0,
