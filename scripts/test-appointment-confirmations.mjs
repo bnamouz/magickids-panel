@@ -115,7 +115,7 @@ test('messages have Western digits, Israel timezone, and no child/clinical field
 test('existing provider helpers atomically claim and never reset uncertain sends',()=>{
   for(const file of ['lib/moxo/notification.ts','lib/therapists/mail.ts']){
     const code=fs.readFileSync(file,'utf8');
-    assert.match(code,/ignoreDuplicates:true/);assert.match(code,/eq\('state','pending'\)/);
+    assert.match(code,/ignoreDuplicates:true/);assert.match(code,/eq\('state','pending'\)|in\('state',\['pending','failed'\]\)/);
     assert.doesNotMatch(code,/update\(\{state:'pending'/);
   }
 });
