@@ -33,8 +33,11 @@ export function bookingConfirmationMessage(o: { clinic: Clinic; visitType: Visit
 /** Sends the confirmation once per booking (clinic_notifications key) and logs it in `notifications`.
  *  Pediatrics: Dr. Namouz's number 050-995-5137 when its connection is verified, otherwise the institute number. ADHD: institute number. */
 export async function sendBookingConfirmation(o: { clinic: Clinic; visitType: VisitType; start: string; durationMinutes: number; childName: string; parentName: string; phone: string; reference: string; lang: Lang }) {
-  let sender: 'clinic' | 'institute' = 'institute';
-  if (o.clinic === 'pediatrics' && (await clinicWhatsAppIdentity().catch(() => 'identity_unavailable')) === 'verified') sender = 'clinic';
+  let sender: 'clinic' | 'institute' = 'institute', fallbackReason: string | null = null;
+  if (o.clinic === 'pediatrics') {
+    const identity = await clinicWhatsAppIdentity().catch(() => 'identity_unavailable');
+    if (identity === 'verified') sender = 'clinic'; else fallbackReason = String(identity); // institute number only when the doctor's number is truly unavailable
+  }
   const digits = o.phone.replace(/\D/g, '');
   const phone = o.phone.startsWith('+') ? `+${digits}` : digits.startsWith('0') ? `+972${digits.slice(1)}` : `+${digits}`;
   if (!/^\+[1-9]\d{6,14}$/.test(phone)) return { state: 'invalid_phone', sender };
@@ -48,7 +51,7 @@ export async function sendBookingConfirmation(o: { clinic: Clinic; visitType: Vi
   const fresh = (state === 'accepted' || state === 'failed' || state === 'not_configured') && !already.error && (already.count ?? 0) === 0;
   if (fresh) await db.from('notifications').insert({
     recipient_type: 'parent', recipient_phone: phone, channel: 'whatsapp', template: 'booking_confirmation',
-    payload: { clinic: o.clinic, visit_type: o.visitType, booking_id: o.reference, start: o.start, language: o.lang, sender },
+    payload: { clinic: o.clinic, visit_type: o.visitType, booking_id: o.reference, start: o.start, language: o.lang, sender, fallback_reason: fallbackReason },
     scheduled_for: now, sent_at: state === 'accepted' ? now : null, status: state === 'accepted' ? 'sent' : 'failed', error_message: state === 'accepted' ? null : state, retry_count: 0,
   }).then(() => null, () => null);
   return { state, sender };

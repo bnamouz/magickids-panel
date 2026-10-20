@@ -19,16 +19,22 @@ function creds() {
 
 let cache: { at: number; value: ClinicIdentity } | null = null;
 export async function clinicWhatsAppIdentity(fresh = false): Promise<ClinicIdentity> {
-  if (!fresh && cache && Date.now() - cache.at < 60_000) return cache.value;
+  // A verified/mismatch answer is good for a minute; a provider hiccup is only remembered for a few seconds.
+  if (!fresh && cache && Date.now() - cache.at < (cache.value === 'identity_unavailable' ? 5_000 : 60_000)) return cache.value;
   const c = creds();
   let value: ClinicIdentity = 'not_configured';
   if (c) {
-    try {
-      const url = new URL(`${BASE}/${c.instance}/instance/me`); url.searchParams.set('token', c.token);
-      const r = await fetch(url, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10000) });
-      const d = r.ok ? await r.json().catch(() => null) : null;
-      value = typeof d?.id !== 'string' ? 'identity_unavailable' : d.id === `${CLINIC_SENDER.slice(1)}@c.us` ? 'verified' : 'identity_mismatch';
-    } catch { value = 'identity_unavailable'; }
+    // The provider occasionally times out or answers slowly; retry before giving up so a brief hiccup never changes the sender.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const url = new URL(`${BASE}/${c.instance}/instance/me`); url.searchParams.set('token', c.token);
+        const r = await fetch(url, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8000) });
+        const d = r.ok ? await r.json().catch(() => null) : null;
+        value = typeof d?.id !== 'string' ? 'identity_unavailable' : d.id === `${CLINIC_SENDER.slice(1)}@c.us` ? 'verified' : 'identity_mismatch';
+      } catch { value = 'identity_unavailable'; }
+      if (value !== 'identity_unavailable') break;
+      await new Promise(r => setTimeout(r, 1500));
+    }
   }
   cache = { at: Date.now(), value };
   return value;
