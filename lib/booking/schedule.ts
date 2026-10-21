@@ -16,6 +16,8 @@ const HOURS: Record<Clinic, Record<number, [number, number]>> = {
 export function clinicHours(clinic: Clinic, day: string): [number, number] | null {
   // Preserve the earlier one-day exception; subsequent Mondays use the new hours.
   if (clinic === 'pediatrics' && day === '2026-10-12') return [600, 900];
+  // 21.10.2026: clinic closes early, last visit 13:00 (existing bookings untouched).
+  if (clinic === 'pediatrics' && day === '2026-10-21') return [600, 790];
   return HOURS[clinic][new Date(day+'T12:00:00Z').getUTCDay()] ?? null;
 }
 const formatter = new Intl.DateTimeFormat('en-CA', {
