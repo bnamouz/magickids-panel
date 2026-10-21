@@ -13,12 +13,18 @@ const HOURS: Record<Clinic, Record<number, [number, number]>> = {
   pediatrics: { 1: [600, 930], 2: [960, 1200], 3: [600, 810], 4: [1020, 1200], 5: [570, 750], 6: [570, 750] },
   adhd: { 3: [960, 1200] },
 };
-export function clinicHours(clinic: Clinic, day: string): [number, number] | null {
+/** Per-day overrides set by staff (table clinic_day_overrides): closed day, or custom [open, close] minutes. Keyed by YYYY-MM-DD. */
+export type DayOverride = { closed: true } | { closed: false; open: number; close: number };
+export type DayOverrides = Record<string, DayOverride>;
+export function defaultClinicHours(clinic: Clinic, day: string): [number, number] | null {
   // Preserve the earlier one-day exception; subsequent Mondays use the new hours.
   if (clinic === 'pediatrics' && day === '2026-10-12') return [600, 900];
-  // 21.10.2026: clinic closes early, last visit 13:00 (existing bookings untouched).
-  if (clinic === 'pediatrics' && day === '2026-10-21') return [600, 790];
   return HOURS[clinic][new Date(day+'T12:00:00Z').getUTCDay()] ?? null;
+}
+export function clinicHours(clinic: Clinic, day: string, overrides?: DayOverrides): [number, number] | null {
+  const o = overrides?.[day];
+  if (o) return o.closed ? null : [o.open, o.close];
+  return defaultClinicHours(clinic, day);
 }
 const formatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
@@ -38,12 +44,12 @@ export function localToUTC(day: string, minutes: number): Date {
   }
   return new Date(value);
 }
-export function candidateSlots(clinic: Clinic, now = new Date(), visitType: VisitType = 'assessment'): string[] {
+export function candidateSlots(clinic: Clinic, now = new Date(), visitType: VisitType = 'assessment', overrides?: DayOverrides): string[] {
   const today = Date.parse(`${localParts(now).date}T00:00:00Z`);
   const slots: string[] = [];
   for (let offset = 0; offset < HORIZON_DAYS; offset++) {
     const day = new Date(today + offset * 86400000);
-    const hours = clinicHours(clinic, day.toISOString().slice(0, 10));
+    const hours = clinicHours(clinic, day.toISOString().slice(0, 10), overrides);
     if (!hours) continue;
     for (let minute = hours[0]; minute + durationFor(clinic, visitType) <= hours[1]; minute += durationFor(clinic, visitType)) {
       const at = localToUTC(day.toISOString().slice(0, 10), minute);

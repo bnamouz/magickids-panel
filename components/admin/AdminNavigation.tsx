@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { CalendarDays, ClipboardList, HeartPulse, LayoutDashboard, Menu, MessageSquare, Users, X } from 'lucide-react';
 const groups = [
- {title:'מרפאת הילדים',icon:HeartPulse,items:[['/admin/pediatrics-calendar','יומן ילדים ובקשות לרופא'],['/admin/clinic-patients','מטופלי המרפאה']]},
+ {title:'מרפאת הילדים',icon:HeartPulse,items:[['/admin/pediatrics-calendar','יומן ילדים ובקשות לרופא'],['/admin/clinic-patients','מטופלי המרפאה'],['/admin/clinic-hours','סגירת יומן ושינוי שעות']]},
  {title:'קשב ואבחונים',icon:ClipboardList,items:[['/admin/intake','קליטה וזימון לקשב'],['/admin/sessions','תיקי מטופלים'],['/admin/appointments','יומן פגישות המכון'],['/admin/moxo','בקשות MOXO'],['/admin/adhd-payments','אימות תשלומים לקשב'],['/admin/adhd-requests','בקשות לרופא — קשב']]},
  {title:'טיפולים וצוות',icon:Users,items:[['/admin/treatments','פניות וטיפולים'],['/admin/therapists','מטפלים ושעות עבודה'],['/admin/rana','בקשות תור לרנא'],['/admin/recruitment','גיוס מטפלים']]},
  {title:'שירותי המכון',icon:CalendarDays,items:[['/admin/development','התפתחות הילד'],['/admin/classes','חוגים ומתעניינים'],['/admin/abroad','ליווי ילדים בחו״ל'],['/admin/reviews','חוות דעת ותמונות'],['/admin/leads','לידים ושימוש באתר']]},

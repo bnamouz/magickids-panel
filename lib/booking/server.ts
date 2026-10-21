@@ -9,6 +9,7 @@ import { FUND_HE, type Fund } from './payments';
 import { eventTitle } from '@/lib/calendar-title';
 import { isBookingToken, tokenHash } from './payment-tokens';
 import { candidateSlots, leadMinutesFor, durationFor, freeSlots, overlaps, parseFreeBusy, TIME_ZONE, type Clinic, type VisitType } from './schedule';
+import { loadOverrides } from './overrides';
 
 export class BookingError extends Error {
   constructor(public code: string, public status = 503) { super(code); }
@@ -61,7 +62,8 @@ async function busyFromGoogle(start: string, end: string, ids: string[]) {
 export async function getSlots(clinic: Clinic, visitType: VisitType = 'assessment') {
   const ids = bookingSettings();
   await ensureWritable(Object.values(ids));
-  const candidates = candidateSlots(clinic, new Date(), visitType);
+  const overrides = await loadOverrides(clinic).catch(() => { throw new BookingError('unavailable'); });
+  const candidates = candidateSlots(clinic, new Date(), visitType, overrides);
   if (!candidates.length) return [];
   const from = candidates[0];
   const to = new Date(Date.parse(candidates[candidates.length - 1]) + durationFor(clinic, visitType) * 60000).toISOString();
@@ -133,7 +135,8 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
   if (prior?.status === 'confirmed') return confirmed(clinic, prior.starts_at, prior.id, visitType);
   if (prior?.status === 'released') throw new BookingError('slot_taken', 409);
   await ensureWritable(Object.values(ids));
-  if (!prior && (!candidateSlots(clinic, staffBooking ? new Date(Date.now()-leadMinutesFor(clinic)*60000) : new Date(), visitType).includes(start) || (staffBooking && Date.parse(start)<=Date.now()))) throw new BookingError('invalid_slot', 400);
+  const overrides = prior ? {} : await loadOverrides(clinic).catch(() => { throw new BookingError('unavailable'); });
+  if (!prior && (!candidateSlots(clinic, staffBooking ? new Date(Date.now()-leadMinutesFor(clinic)*60000) : new Date(), visitType, overrides).includes(start) || (staffBooking && Date.parse(start)<=Date.now()))) throw new BookingError('invalid_slot', 400);
   const eventId = `mk${body.requestId.replaceAll('-', '')}`; // Calendar-compatible, stable across retries.
   // Outside Maccabi, an ADHD visit is booked only with the personal link issued after the payment proof was approved.
   let payment: { id: string; status: string } | null = null;

@@ -10,6 +10,8 @@ export default function RequestWhatsApp({ clinic, eventId, phone, parent, child,
   const [custom, setCustom] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [sender, setSender] = useState<'doctor' | 'clinic'>('doctor');
+  const SENDER_LOCAL = { doctor: '050-995-5137', clinic: '054-349-6656' } as const;
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState<{ ok: boolean; message: string } | null>(null);
   const template = TEMPLATES[clinic].find(t => t.id === id) ?? TEMPLATES[clinic][0];
@@ -23,9 +25,9 @@ export default function RequestWhatsApp({ clinic, eventId, phone, parent, child,
   const sendFromInstitute = async () => {
     setSending(true); setSent(null);
     try {
-      const res = await fetch('/api/admin/doctor-requests/whatsapp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ clinic, eventId, phone: '+' + intl, text, templateTitle: template.title }) });
+      const res = await fetch('/api/admin/doctor-requests/whatsapp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ clinic, eventId, phone: '+' + intl, text, templateTitle: template.title, sender }) });
       const data = await res.json().catch(() => ({}));
-      if (data.status === 'sent') setSent({ ok: true, message: 'נשלח להורה מהמספר שלך (050-995-5137). נרשמה הערה על הבקשה ביומן.' });
+      if (data.status === 'sent') setSent({ ok: true, message: `נשלח להורה מהמספר ${SENDER_LOCAL[sender]}. נרשמה הערה על הבקשה ביומן.` });
       else if (data.status === 'sender_unavailable') setSent({ ok: false, message: data.message });
       else if (data.status === 'duplicate') setSent({ ok: true, message: data.message });
       else if (data.status === 'unknown') setSent({ ok: false, message: 'תוצאת השליחה אינה ודאית. לא לשלוח שוב לפני בדיקה בוואטסאפ שלך.' });
@@ -40,7 +42,7 @@ export default function RequestWhatsApp({ clinic, eventId, phone, parent, child,
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.6.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.1.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.2c0-.1-.2-.2-.4-.3Z"/></svg>
         וואטסאפ להורה <span dir="ltr" className="font-normal opacity-90">0{intl.slice(3)}</span>
       </button>
-      <span className="text-xs text-slate-500">בחירת תבנית ואז: פתיחה בוואטסאפ בטלפון שלך, או שליחה ישירה מהמערכת מהמספר 050-995-5137.</span>
+      <span className="text-xs text-slate-500">בחירת תבנית ואז: פתיחה בוואטסאפ בטלפון שלך, או שליחה ישירה מהמערכת (מהמספר שלך או ממספר המרפאה).</span>
     </div>
     {open && <div className="mt-2 rounded-lg border bg-white p-3 space-y-2 text-sm">
       <div className="flex flex-wrap gap-2 items-center">
@@ -53,9 +55,12 @@ export default function RequestWhatsApp({ clinic, eventId, phone, parent, child,
       <div className="flex flex-wrap gap-2 items-center">
         <a href={href} target="_blank" rel="noreferrer" className="rounded-lg bg-green-600 text-white px-4 py-1.5 font-semibold hover:bg-green-700">פתיחה בוואטסאפ בטלפון</a>
         {!confirm
-          ? <button type="button" disabled={sending || sent?.ok} onClick={() => setConfirm(true)} className="rounded-lg bg-teal-700 text-white px-4 py-1.5 font-semibold hover:bg-teal-800 disabled:opacity-50">שליחה מהמערכת מ־050-995-5137</button>
+          ? <span className="inline-flex items-center gap-1">
+              <select aria-label="מספר שולח" className="border rounded px-2 py-1.5 bg-white" value={sender} onChange={e => setSender(e.target.value as 'doctor' | 'clinic')}><option value="doctor">מהמספר שלי 050-995-5137</option><option value="clinic">ממספר המרפאה 054-349-6656</option></select>
+              <button type="button" disabled={sending || sent?.ok} onClick={() => setConfirm(true)} className="rounded-lg bg-teal-700 text-white px-4 py-1.5 font-semibold hover:bg-teal-800 disabled:opacity-50">שליחה מהמערכת</button>
+            </span>
           : <span className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-teal-700 bg-teal-50 px-3 py-1.5">
-              <span>לשלוח עכשיו אל <b dir="ltr">0{intl.slice(3)}</b> מהמספר 050-995-5137?</span>
+              <span>לשלוח עכשיו אל <b dir="ltr">0{intl.slice(3)}</b> מהמספר {SENDER_LOCAL[sender]}?</span>
               <button type="button" disabled={sending} onClick={sendFromInstitute} className="rounded bg-teal-700 text-white px-3 py-1 font-semibold disabled:opacity-50">{sending ? 'שולח…' : 'כן, לשלוח'}</button>
               <button type="button" disabled={sending} onClick={() => setConfirm(false)} className="underline">ביטול</button>
             </span>}

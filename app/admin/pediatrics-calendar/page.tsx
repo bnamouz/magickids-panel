@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import RequestWhatsApp from '@/components/admin/RequestWhatsApp';
 import { parseRequest } from '@/lib/admin/request-templates';
 import BookSlot from './BookSlot';
@@ -19,7 +20,8 @@ export default async function PediatricsCalendar({searchParams}:{searchParams:{d
   const today=localParts(new Date()).date;
   const input=searchParams.date;
   const day=typeof input==='string' && /^\d{4}-\d{2}-\d{2}$/.test(input) && Number.isFinite(Date.parse(input)) && new Date(input).toISOString().slice(0,10)===input ? input : today;
-  const hours=clinicHours('pediatrics',day);
+  const override=(await getSupabaseAdmin().from('clinic_day_overrides').select('closed,open_min,close_min,note').eq('clinic','pediatrics').eq('day',day).maybeSingle()).data;
+  const hours=clinicHours('pediatrics',day,override?{[day]:override.closed?{closed:true}:{closed:false,open:override.open_min!,close:override.close_min!}}:undefined);
   let events:calendar_v3.Schema$Event[]=[];
   let failed=false;
   try {

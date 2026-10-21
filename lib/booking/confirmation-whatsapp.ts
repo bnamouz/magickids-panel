@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { notifyOnce } from '@/lib/moxo/notification';
-import { clinicWhatsAppIdentity } from '@/lib/whatsapp-clinic';
+import { preferredClinicSender } from '@/lib/whatsapp-clinic';
 import { cancellationToken } from './server';
 import { TIME_ZONE, type Clinic, type VisitType } from './schedule';
 
@@ -31,13 +31,10 @@ export function bookingConfirmationMessage(o: { clinic: Clinic; visitType: Visit
 }
 
 /** Sends the confirmation once per booking (clinic_notifications key) and logs it in `notifications`.
- *  Pediatrics: Dr. Namouz's number 050-995-5137 when its connection is verified, otherwise the institute number. ADHD: institute number. */
+ *  Pediatrics: clinic number 054-349-6656, else Dr. Namouz's 050-995-5137, else the institute. ADHD: institute number. */
 export async function sendBookingConfirmation(o: { clinic: Clinic; visitType: VisitType; start: string; durationMinutes: number; childName: string; parentName: string; phone: string; reference: string; lang: Lang }) {
-  let sender: 'clinic' | 'institute' = 'institute', fallbackReason: string | null = null;
-  if (o.clinic === 'pediatrics') {
-    const identity = await clinicWhatsAppIdentity().catch(() => 'identity_unavailable');
-    if (identity === 'verified') sender = 'clinic'; else fallbackReason = String(identity); // institute number only when the doctor's number is truly unavailable
-  }
+  let sender: 'clinic' | 'doctor' | 'institute' = 'institute', fallbackReason: string | null = null;
+  if (o.clinic === 'pediatrics') ({ sender, fallbackReason } = await preferredClinicSender()); // clinic number → doctor's number → institute
   const digits = o.phone.replace(/\D/g, '');
   const phone = o.phone.startsWith('+') ? `+${digits}` : digits.startsWith('0') ? `+972${digits.slice(1)}` : `+${digits}`;
   if (!/^\+[1-9]\d{6,14}$/.test(phone)) return { state: 'invalid_phone', sender };

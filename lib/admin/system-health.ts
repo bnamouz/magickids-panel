@@ -1,4 +1,4 @@
-import { clinicWhatsAppIdentity } from '@/lib/whatsapp-clinic';
+import { clinicWhatsAppIdentity, doctorWhatsAppIdentity } from '@/lib/whatsapp-clinic';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import { getPediatricsCalendarId } from '@/lib/pediatrics-calendar';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -55,10 +55,15 @@ export async function runSystemHealth(): Promise<Check[]> {
       return s === 'verified' ? ['ok', 'מחובר, זהות השולח אומתה']
         : s === 'not_configured' ? ['fail', 'לא מוגדר'] : s === 'identity_mismatch' ? ['fail', 'זהות השולח אינה תואמת'] : ['warn', 'לא ניתן לאמת כרגע'];
     }),
-    safe('wa_clinic', 'וואטסאפ', 'וואטסאפ המרפאה 050-995-5137 (הודעות למטופלים)', async () => {
+    safe('wa_clinic', 'וואטסאפ', 'וואטסאפ המרפאה 054-349-6656 (אישורי תור ותזכורות)', async () => {
       const s = await clinicWhatsAppIdentity(true);
       return s === 'verified' ? ['ok', 'מחובר, זהות השולח אומתה']
-        : s === 'not_configured' ? ['fail', 'עוד לא חובר. יש לסרוק QR ב־UltraMsg מהטלפון 050-995-5137'] : s === 'identity_mismatch' ? ['fail', 'החיבור שייך למספר אחר'] : ['warn', 'לא ניתן לאמת כרגע'];
+        : s === 'not_configured' ? ['warn', 'עוד לא הוגדר (CLINIC_ULTRAMSG_TOKEN חסר). בינתיים נשלח מהמספר של ד״ר נמוז'] : s === 'identity_mismatch' ? ['fail', 'החיבור שייך למספר אחר; לא נשלח ממנו'] : ['warn', 'הספק לא ענה; ייבדק שוב בשליחה הבאה'];
+    }),
+    safe('wa_doctor', 'וואטסאפ', 'וואטסאפ ד״ר נמוז 050-995-5137 (מאגר המרפאה ובקשות לרופא)', async () => {
+      const s = await doctorWhatsAppIdentity(true);
+      return s === 'verified' ? ['ok', 'מחובר, זהות השולח אומתה']
+        : s === 'not_configured' ? ['fail', 'עוד לא חובר. יש לסרוק QR ב־UltraMsg מהטלפון 050-995-5137'] : s === 'identity_mismatch' ? ['fail', 'החיבור שייך למספר אחר; לא נשלח ממנו'] : ['warn', 'הספק לא ענה; ייבדק שוב בשליחה הבאה'];
     }),
     safe('wa_voice', 'וואטסאפ', 'וואטסאפ קישורי שרה', async () => {
       const instance = process.env.ULTRAMSG_INSTANCE_ID, token = process.env.ULTRAMSG_TOKEN;
