@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { notifyOnce } from '@/lib/moxo/notification';
 import { preferredClinicSender } from '@/lib/whatsapp-clinic';
+import { ADDRESS } from '@/lib/addresses';
 import { cancellationToken } from './server';
 import { TIME_ZONE, type Clinic, type VisitType } from './schedule';
 
@@ -20,8 +21,8 @@ export function bookingConfirmationMessage(o: { clinic: Clinic; visitType: Visit
   const link = cancelLink(o.clinic, o.reference, lang);
   const time = when(o.start, lang);
   const peds = o.clinic === 'pediatrics';
-  const place = peds ? { he: 'מרפאת הילדים של ד״ר בסים נמוז, תופיק זיאד 21, שפרעם', ar: 'عيادة الأطفال عند د. بسيم نموز، توفيق زياد 21، شفاعمرو', en: "Dr. Baseem Namouz's pediatric clinic, 21 Tawfiq Ziad St., Shefa-Amr" }
-    : { he: 'מכון Magic Kids, תופיק זיאד 21, שפרעם', ar: 'معهد Magic Kids، توفيق زياد 21، شفاعمرو', en: 'Magic Kids institute, 21 Tawfiq Ziad St., Shefa-Amr' };
+  const place = peds ? { he: `מרפאת הילדים של ד״ר בסים נמוז, ${ADDRESS.pediatrics.he}`, ar: `عيادة الأطفال عند د. بسيم نموز، ${ADDRESS.pediatrics.ar}`, en: `Dr. Baseem Namouz's pediatric clinic, ${ADDRESS.pediatrics.en}` }
+    : { he: `מכון Magic Kids, ${ADDRESS.institute.he}`, ar: `معهد Magic Kids، ${ADDRESS.institute.ar}`, en: `Magic Kids institute, ${ADDRESS.institute.en}` };
   const kind = peds ? { he: 'ביקור במרפאת הילדים', ar: 'زيارة في عيادة الأطفال', en: 'pediatric visit' }
     : o.visitType === 'followup' ? { he: 'ביקור מעקב קשב וריכוז', ar: 'زيارة متابعة للانتباه والتركيز', en: 'ADHD follow-up visit' } : { he: 'אבחון קשב וריכוז', ar: 'تشخيص الانتباه والتركيز', en: 'ADHD assessment' };
   const rebook = peds ? '' : { he: '\nאחרי ביטול אפשר לקבוע מועד חדש דרך הקישור האישי שקיבלתם.', ar: '\nبعد الإلغاء بتقدروا تحجزوا موعد جديد من الرابط الشخصي اللي وصلكم.', en: '\nAfter cancelling you can pick a new time with the personal link you received.' }[lang];
