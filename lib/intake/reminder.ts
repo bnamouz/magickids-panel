@@ -102,7 +102,7 @@ export async function sendQuestionnaireReminder(o: { sessionId: string; kind: Re
     payload: { kind: o.kind, language: o.lang, staff_id: o.staffId, started, link, forced: !!o.force, sender: 'institute' },
     scheduled_for: now, sent_at: wa.ok ? now : null, status: wa.ok ? 'sent' : 'failed', delivery_id: wa.ok ? wa.id ?? null : null, error_message: wa.ok ? null : wa.error ?? 'unknown', retry_count: 0,
   }).then(() => null, () => null);
-  await db.from('audit_log').insert({ actor_id: o.staffId, actor_type: 'staff', action: 'questionnaire_reminder_sent', entity_type: 'intake_session', entity_id: o.sessionId, metadata: { kind: o.kind, language: o.lang, ok: wa.ok, error: wa.ok ? null : wa.error ?? 'unknown' } }).then(() => null, () => null);
+  await db.from('audit_log').insert({ actor_id: o.staffId, actor_type: 'user', action: 'questionnaire_reminder_sent', entity_type: 'intake_session', entity_id: o.sessionId, metadata: { kind: o.kind, language: o.lang, ok: wa.ok, error: wa.ok ? null : wa.error ?? 'unknown' } }).then(() => null, () => null);
   if (o.kind === 'teacher' && wa.ok) await db.from('intake_sessions').update({ teacher_link_sent_at: now }).eq('id', o.sessionId).then(() => null, () => null);
   if (wa.ok) return { status: 'sent', phone, link };
   return { status: wa.error === 'send_uncertain' ? 'unknown' : 'failed', error: wa.error ?? 'unknown' };

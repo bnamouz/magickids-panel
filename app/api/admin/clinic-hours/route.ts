@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const db = getSupabaseAdmin();
   const r = await db.from('clinic_day_overrides').upsert(row, { onConflict: 'clinic,day' });
   if (r.error) return json({ error: 'השמירה נכשלה' }, 503);
-  await db.from('audit_log').insert({ actor_id: staff.id, actor_type: 'staff', action: 'clinic_day_override_set', entity_type: 'clinic_day_override', metadata: { ...row, default_hours: defaultClinicHours(b.clinic, b.day) } }).then(() => null, () => null);
+  await db.from('audit_log').insert({ actor_id: staff.id, actor_type: 'user', action: 'clinic_day_override_set', entity_type: 'clinic_day_override', metadata: { ...row, default_hours: defaultClinicHours(b.clinic, b.day) } }).then(() => null, () => null);
   return json({ ok: true });
 }
 export async function DELETE(req: NextRequest) {
@@ -39,6 +39,6 @@ export async function DELETE(req: NextRequest) {
   const db = getSupabaseAdmin();
   const r = await db.from('clinic_day_overrides').delete().eq('clinic', parsed.data.clinic).eq('day', parsed.data.day);
   if (r.error) return json({ error: 'המחיקה נכשלה' }, 503);
-  await db.from('audit_log').insert({ actor_id: staff.id, actor_type: 'staff', action: 'clinic_day_override_removed', entity_type: 'clinic_day_override', metadata: parsed.data }).then(() => null, () => null);
+  await db.from('audit_log').insert({ actor_id: staff.id, actor_type: 'user', action: 'clinic_day_override_removed', entity_type: 'clinic_day_override', metadata: parsed.data }).then(() => null, () => null);
   return json({ ok: true });
 }
