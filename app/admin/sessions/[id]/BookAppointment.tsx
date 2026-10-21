@@ -36,7 +36,7 @@ export default function BookAppointment({ sessionId, childName, assessmentReady,
   const [day, setDay] = useState<DaySlots | null>(null);
   const [dayLoading, setDayLoading] = useState(false);
   const [dayError, setDayError] = useState<string | null>(null);
-  const [location, setLocation] = useState('מכון Magic Kids, שפרעם');
+  const [location, setLocation] = useState('מכון Magic Kids, דאהר עומר אלזידאני 9, שפרעם');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
