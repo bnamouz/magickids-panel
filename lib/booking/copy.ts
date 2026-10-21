@@ -15,7 +15,7 @@ export const bookingCopy = {
     consent: 'אני ההורה או האפוטרופוס, ומאשר/ת שמירת פרטי ההזמנה לצורך תיאום התור.', noMedical: 'אין צורך להזין מידע רפואי. תעודת הזהות נדרשת לזיהוי המטופל/ת בתור.',
     intake: 'קישור השאלון האישי שקיבלתם מהמכון', intakeHint: 'הדביקו את הקישור לשאלון ההורה. נדרשת השלמת שאלון ההורה ושאלון המורה לפני קביעת האבחון.',
     newFamily: 'עדיין אין תיק אבחון?', register: 'פתיחת תיק ושאלונים', confirmed: 'התור נקבע בהצלחה', saved: 'התור נשמר ביומן המרפאה שבחרתם.', reference: 'מספר הזמנה',
-    address: 'דאהר עומר אלזידאני 9, שפרעם', addressPediatrics: 'תופיק זיאד 21, שפרעם', change: 'לשינוי או ביטול התור, פנו למזכירות וציינו את מספר ההזמנה.', contact: 'עזרה מהמזכירות', another: 'לאתר המכון',
+    address: 'דאהר עומר אלזידאני 9, שפרעם', addressPediatrics: 'תופיק זיאד 21, שפרעם', mapLink: 'ניווט במפה', change: 'לשינוי או ביטול התור, פנו למזכירות וציינו את מספר ההזמנה.', contact: 'עזרה מהמזכירות', another: 'לאתר המכון',
     errors: {
       slot_taken: 'השעה כבר אינה פנויה. בחרו שעה אחרת.', invalid_slot: 'השעה אינה זמינה להזמנה. עדכנו את לוח התורים.',
       invalid_body: 'בדקו שמילאתם את הפרטים בצורה תקינה.', invalid_intake: 'קישור השאלון אינו תקין או שפג תוקפו. פנו למכון לקבלת קישור אישי.',
@@ -41,7 +41,7 @@ export const bookingCopy = {
     consent: 'أنا ولي الأمر أو الوصي، وأوافق على حفظ تفاصيل الحجز لتنسيق الموعد.', noMedical: 'لا حاجة لإدخال معلومات طبية. رقم الهوية مطلوب لتعريف المريض/ة في الموعد.',
     intake: 'رابط استبيان الأهل الشخصي الذي وصلكم من المعهد', intakeHint: 'الصقوا رابط استبيان الأهل. يجب استكمال استبيان الأهل واستبيان المعلم قبل حجز موعد التشخيص.',
     newFamily: 'لم تفتحوا ملف تشخيص بعد؟', register: 'فتح ملف واستبيانات', confirmed: 'تم حجز الموعد بنجاح', saved: 'تم تسجيل الموعد في تقويم العيادة التي اخترتموها.', reference: 'رقم الحجز',
-    address: 'ظاهر عمر الزيداني 9، شفاعمرو', addressPediatrics: 'توفيق زياد 21، شفاعمرو', change: 'لتغيير الموعد أو إلغائه، تواصلوا مع السكرتارية واذكروا رقم الحجز.', contact: 'مساعدة من السكرتارية', another: 'موقع المعهد',
+    address: 'ظاهر عمر الزيداني 9، شفاعمرو', addressPediatrics: 'توفيق زياد 21، شفاعمرو', mapLink: 'الموقع على الخريطة', change: 'لتغيير الموعد أو إلغائه، تواصلوا مع السكرتارية واذكروا رقم الحجز.', contact: 'مساعدة من السكرتارية', another: 'موقع المعهد',
     errors: {
       slot_taken: 'لم يعد هذا الموعد متاحًا. اختاروا ساعة أخرى.', invalid_slot: 'هذا الموعد غير متاح للحجز. حدّثوا التقويم.',
       invalid_body: 'يرجى التأكد من صحة التفاصيل المدخلة.', invalid_intake: 'رابط الاستبيان غير صالح أو انتهت صلاحيته. تواصلوا مع المعهد للحصول على رابط شخصي.',
@@ -67,7 +67,7 @@ export const bookingCopy = {
     consent: 'I am the parent or guardian and agree to the booking details being stored to arrange this appointment.', noMedical: 'No medical information is needed. The ID number identifies the patient for this appointment.',
     intake: 'Your personal parent questionnaire link', intakeHint: 'Paste your parent questionnaire link. Both parent and teacher questionnaires must be complete before booking an assessment.',
     newFamily: 'New to the assessment service?', register: 'Start intake and questionnaires', confirmed: 'Your appointment is confirmed', saved: 'Your appointment has been saved in your selected clinic’s calendar.', reference: 'Booking reference',
-    address: '9 Daher Omar Al-Zaydani St., Shefa-Amr', addressPediatrics: '21 Tawfiq Ziad St., Shefa-Amr', change: 'To change or cancel, contact the clinic and quote your booking reference.', contact: 'Contact the clinic', another: 'Institute website',
+    address: '9 Daher Omar Al-Zaydani St., Shefa-Amr', addressPediatrics: '21 Tawfiq Ziad St., Shefa-Amr', mapLink: 'Open in Maps', change: 'To change or cancel, contact the clinic and quote your booking reference.', contact: 'Contact the clinic', another: 'Institute website',
     errors: {
       slot_taken: 'That time is no longer available. Please choose another.', invalid_slot: 'That time is unavailable. Refresh the calendar.',
       invalid_body: 'Please check your details.', invalid_intake: 'Your questionnaire link is invalid or expired. Contact the institute for a personal link.',

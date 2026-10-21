@@ -1,3 +1,4 @@
+import { mapLineFor } from '@/lib/addresses';
 export type ConfirmationLanguage = 'he' | 'ar';
 export type ConfirmationResult = { email: string; whatsapp: string };
 export const confirmationLabels: Record<string, string> = {
@@ -24,7 +25,9 @@ export function confirmationMessage(start: string, location: string | null, lang
   }).format(new Date(start));
   // No names, diagnosis, visit type, notes, or public case/cancellation links.
   const place = (location ?? '').replace(/[\r\n\x00-\x1f]/g, ' ').trim().slice(0, 200);
+  // Institute appointments carry the public map pin; a custom location (home visit, another site) does not.
+  const map = /magic kids|מכון|ילדי הקסם|אלזידאני/i.test(place) ? mapLineFor('adhd', language) : '';
   return language === 'ar'
-    ? `مرحبًا، تم تأكيد موعدكم في Magic Kids بتاريخ ${when} (توقيت إسرائيل).${place ? `\nالعنوان: ${place}.` : ''}\nللتغيير أو الإلغاء، يرجى التواصل عبر magickids@magickidsinstitute.com.\nشكرًا، فريق Magic Kids.`
-    : `שלום, התור שלכם במכון ילדי הקסם אושר ל־${when} (שעון ישראל).${place ? `\nמיקום: ${place}.` : ''}\nלשינוי או לביטול, פנו למייל magickids@magickidsinstitute.com.\nתודה, צוות Magic Kids.`;
+    ? `مرحبًا، تم تأكيد موعدكم في Magic Kids بتاريخ ${when} (توقيت إسرائيل).${place ? `\nالعنوان: ${place}.` : ''}${map}\nللتغيير أو الإلغاء، يرجى التواصل عبر magickids@magickidsinstitute.com.\nشكرًا، فريق Magic Kids.`
+    : `שלום, התור שלכם במכון ילדי הקסם אושר ל־${when} (שעון ישראל).${place ? `\nמיקום: ${place}.` : ''}${map}\nלשינוי או לביטול, פנו למייל magickids@magickidsinstitute.com.\nתודה, צוות Magic Kids.`;
 }

@@ -5,3 +5,7 @@ export const ADDRESS = {
 } as const;
 export type Lang = keyof typeof ADDRESS.institute;
 export const addressFor = (clinic: 'adhd' | 'pediatrics', lang: Lang) => ADDRESS[clinic === 'pediatrics' ? 'pediatrics' : 'institute'][lang];
+/** Public Google Maps pin of the institute (מכון ילדי הקסם, Shefa-Amr). Shown with every institute appointment. */
+export const INSTITUTE_MAP_URL = 'https://maps.app.goo.gl/MG3eHopWuLA4imPH8';
+export const mapLineFor = (clinic: 'adhd' | 'pediatrics', lang: Lang) =>
+  clinic === 'pediatrics' ? '' : { he: `\nניווט למכון: ${INSTITUTE_MAP_URL}`, ar: `\nموقع المعهد على الخريطة: ${INSTITUTE_MAP_URL}`, en: `\nDirections: ${INSTITUTE_MAP_URL}` }[lang];

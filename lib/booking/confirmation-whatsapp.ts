@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { notifyOnce } from '@/lib/moxo/notification';
 import { preferredClinicSender } from '@/lib/whatsapp-clinic';
-import { ADDRESS } from '@/lib/addresses';
+import { ADDRESS, mapLineFor } from '@/lib/addresses';
 import { cancellationToken } from './server';
 import { TIME_ZONE, type Clinic, type VisitType } from './schedule';
 
@@ -26,9 +26,9 @@ export function bookingConfirmationMessage(o: { clinic: Clinic; visitType: Visit
   const kind = peds ? { he: 'ביקור במרפאת הילדים', ar: 'زيارة في عيادة الأطفال', en: 'pediatric visit' }
     : o.visitType === 'followup' ? { he: 'ביקור מעקב קשב וריכוז', ar: 'زيارة متابعة للانتباه والتركيز', en: 'ADHD follow-up visit' } : { he: 'אבחון קשב וריכוז', ar: 'تشخيص الانتباه والتركيز', en: 'ADHD assessment' };
   const rebook = peds ? '' : { he: '\nאחרי ביטול אפשר לקבוע מועד חדש דרך הקישור האישי שקיבלתם.', ar: '\nبعد الإلغاء بتقدروا تحجزوا موعد جديد من الرابط الشخصي اللي وصلكم.', en: '\nAfter cancelling you can pick a new time with the personal link you received.' }[lang];
-  if (lang === 'ar') return `مرحبًا${first ? ` ${first}` : ''}، تم تثبيت موعد ${o.childName} لـ${kind.ar}.\nالموعد: ${time} (${o.durationMinutes} دقيقة، توقيت إسرائيل)\nالمكان: ${place.ar}\n\nإذا ما بتقدروا تيجوا، الرجاء إلغاء الموعد من هون حتى تستفيد منه عيلة ثانية:\n${link}${rebook}\n\nهاد الرابط شخصي، لا تشاركوه مع غيركم.\nشكرًا، ${peds ? 'طاقم العيادة' : 'طاقم Magic Kids'}.`;
-  if (lang === 'en') return `Hello${first ? ` ${first}` : ''}, ${o.childName}'s ${kind.en} is confirmed.\nWhen: ${time} (${o.durationMinutes} min, Israel time)\nWhere: ${place.en}\n\nIf you cannot come, please cancel here so another family can use the slot:\n${link}${rebook}\n\nThis link is personal; do not share it.\nThank you, ${peds ? 'the clinic team' : 'the Magic Kids team'}.`;
-  return `שלום${first ? ` ${first}` : ''}, התור של ${o.childName} ל${kind.he} נקבע.\nמועד: ${time} (${o.durationMinutes} דקות, שעון ישראל)\nמקום: ${place.he}\n\nאם לא תוכלו להגיע, בטלו בבקשה כאן כדי שמשפחה אחרת תוכל להשתמש בתור:\n${link}${rebook}\n\nהקישור אישי, אין להעביר אותו לאחרים.\nתודה, ${peds ? 'צוות המרפאה' : 'צוות Magic Kids'}.`;
+  if (lang === 'ar') return `مرحبًا${first ? ` ${first}` : ''}، تم تثبيت موعد ${o.childName} لـ${kind.ar}.\nالموعد: ${time} (${o.durationMinutes} دقيقة، توقيت إسرائيل)\nالمكان: ${place.ar}${mapLineFor(o.clinic, 'ar')}\n\nإذا ما بتقدروا تيجوا، الرجاء إلغاء الموعد من هون حتى تستفيد منه عيلة ثانية:\n${link}${rebook}\n\nهاد الرابط شخصي، لا تشاركوه مع غيركم.\nشكرًا، ${peds ? 'طاقم العيادة' : 'طاقم Magic Kids'}.`;
+  if (lang === 'en') return `Hello${first ? ` ${first}` : ''}, ${o.childName}'s ${kind.en} is confirmed.\nWhen: ${time} (${o.durationMinutes} min, Israel time)\nWhere: ${place.en}${mapLineFor(o.clinic, 'en')}\n\nIf you cannot come, please cancel here so another family can use the slot:\n${link}${rebook}\n\nThis link is personal; do not share it.\nThank you, ${peds ? 'the clinic team' : 'the Magic Kids team'}.`;
+  return `שלום${first ? ` ${first}` : ''}, התור של ${o.childName} ל${kind.he} נקבע.\nמועד: ${time} (${o.durationMinutes} דקות, שעון ישראל)\nמקום: ${place.he}${mapLineFor(o.clinic, 'he')}\n\nאם לא תוכלו להגיע, בטלו בבקשה כאן כדי שמשפחה אחרת תוכל להשתמש בתור:\n${link}${rebook}\n\nהקישור אישי, אין להעביר אותו לאחרים.\nתודה, ${peds ? 'צוות המרפאה' : 'צוות Magic Kids'}.`;
 }
 
 /** Sends the confirmation once per booking (clinic_notifications key) and logs it in `notifications`.
