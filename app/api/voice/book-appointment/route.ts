@@ -4,7 +4,7 @@ import { assertVoiceAuth, normalisePhone } from '@/lib/voice-auth';
 import {book,BookingError} from '@/lib/booking/server';
 import {createHash} from 'node:crypto';
 import { notifyOnce } from '@/lib/moxo/notification';
-import { clinicWhatsAppIdentity } from '@/lib/whatsapp-clinic';
+import { preferredClinicSender } from '@/lib/whatsapp-clinic';
 import { cancellationToken } from '@/lib/booking/server';
 
 /**
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
       : lang === 'en'
       ? [`Hello, an appointment at Dr. Baseem Namouz's pediatric clinic is confirmed for ${patient}.`,'',`When: ${when_str} (10 minutes)`,'Where: 21 Tawfiq Ziad St., Shefa-Amr','',`To cancel: ${cancel}`,'Pediatric clinic WhatsApp: 0543496656'].join('\n')
       : [`مرحبًا، تأكّد دور ${patient} في عيادة الأطفال عند الدكتور بسيم نموز.`,'',`الموعد: ${when_str} (10 دقائق)`,'المكان: شارع توفيق زياد 21، شفاعمرو','',`لإلغاء الدور: ${cancel}`,'واتساب عيادة الأطفال: 0543496656'].join('\n');
-    notification = await notifyOnce(`pediatrics-voice:${reference}`, phone, msg, { sender: (await clinicWhatsAppIdentity()) === 'verified' ? 'clinic' : 'institute' }).catch(() => 'unknown');
+    notification = await notifyOnce(`pediatrics-voice:${reference}`, phone, msg, { sender: (await preferredClinicSender()).sender }).catch(() => 'unknown');
   }
   const whatsappId = notification === 'accepted' ? 'accepted' : undefined;
 

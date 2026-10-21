@@ -68,7 +68,7 @@ export async function tick() {
   if (next.error) return { status: 'unavailable' };
   if (!next.data) { await setCtl(cid, 'accepted', { reason: 'done' }); return { status: 'done', cid }; }
   const phone = next.data.id.split(':')[3];
-  const s = await notifyOnce(next.data.id, phone, cfg.text, { sender: 'clinic' });
+  const s = await notifyOnce(next.data.id, phone, cfg.text, { sender: 'doctor' });
   if (s === 'not_configured' || s === 'unavailable') { await setCtl(cid, 'failed', { reason: 'whatsapp_not_connected' }); return { status: 'stopped', cid, reason: 'whatsapp_not_connected' }; }
   if (s !== 'accepted') {
     // Three rejections in a row → stop instead of burning the list (the number may be disconnected or limited).

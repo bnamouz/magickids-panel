@@ -134,6 +134,7 @@ test('Public booking integration with SQL reservations and mocked Google', async
   const pg = new PGlite();
   await pg.exec('create role anon; create role authenticated; create role service_role;');
   await pg.exec(fs.readFileSync(path.join(root, 'db/migrations/20260907_website_bookings.sql'), 'utf8'));
+  await pg.exec(fs.readFileSync(path.join(root, 'supabase/migrations/20261021140000_clinic_day_overrides.sql'), 'utf8').replace(/^insert[\s\S]*$/m, ''));
   await pg.exec('create table appointments(id uuid primary key, session_id uuid, patient_id uuid, appointment_type text, scheduled_at timestamptz, duration_minutes int, status text, gcal_event_id text, gcal_calendar_id text, location text, notes text);');
   const intake = { id: randomUUID(), patient_id: randomUUID(), token: randomUUID(), parent_token_expires_at: '2099-01-01T00:00:00Z', forms: fullForms(), patients: { first_name: 'Test', last_name: 'Child' } };
   const envBefore = { ...process.env };
@@ -298,7 +299,7 @@ test('Public booking integration with SQL reservations and mocked Google', async
     });
     await t.test('cancellation cannot touch another clinic or an unrelated Google event', async () => {
       await reset(); const request = body('adhd'); const result = await service.book('adhd', request, 'test-ip');
-      // ADHD bookings now carry their own cancellation token; it must not open the pediatrics cancellation path, and vice versa.
+  // ADHD bookings now carry their own cancellation token; it must not open the pediatrics cancellation path, and vice versa.
       assert.match(result.cancellationToken, /^[a-f0-9]{64}$/);
       assert.notEqual(result.cancellationToken, service.cancellationToken(request.requestId, 'pediatrics'));
       await rejects(service.cancelPediatrics(request.requestId, service.cancellationToken(request.requestId, 'adhd')), 'invalid_link');
@@ -310,12 +311,28 @@ test('Public booking integration with SQL reservations and mocked Google', async
       await rejects(service.cancelPediatrics(peds.requestId, receipt.cancellationToken), 'unavailable');
       assert.equal(events.size, 1);
     });
+    // A staff override closing a day removes its slots; a custom window narrows them; existing bookings are untouched.
+    await t.test('day overrides narrow or close the offered slots', async () => {
+      const before = await service.getSlots('pediatrics');
+      const day = before[0].slice(0, 10);
+      const local = compile('lib/booking/schedule.ts').localParts(new Date(before[0])).date;
+      await pg.query("insert into clinic_day_overrides(clinic,day,closed) values('pediatrics',$1,true)", [local]);
+      const closed = await service.getSlots('pediatrics');
+      assert.ok(closed.length > 0 && closed.every(s => compile('lib/booking/schedule.ts').localParts(new Date(s)).date !== local));
+      await pg.query("update clinic_day_overrides set closed=false, open_min=600, close_min=620 where day=$1", [local]);
+      const narrowed = (await service.getSlots('pediatrics')).filter(s => compile('lib/booking/schedule.ts').localParts(new Date(s)).date === local);
+      assert.ok(narrowed.length <= 2 && narrowed.length < before.filter(s => s.slice(0,10) === day).length);
+      await pg.query('delete from clinic_day_overrides');
+      await reset();
+    });
     await t.test('reminders observe consent, 30-minute window, cancellation and once-only delivery', async () => {
       await reset();
       await pg.exec("create table clinic_notifications(id text primary key,state text default 'pending',provider_id text,updated_at timestamptz default now());");
       const sent = [];
-      const notifications = compile('lib/moxo/notification.ts', { '@/lib/supabase': { getSupabaseAdmin: () => adapter(pg, intake) }, '@/lib/whatsapp-ultramsg': { sendWhatsAppText: async message => { sent.push(message); return {ok:true,id:'mock'}; } } });
-      const reminders = compile('lib/booking/reminders.ts', { '@/lib/supabase': {getSupabaseAdmin: () => adapter(pg,intake)}, '@/lib/google-calendar': {getCalendarClient:()=>google}, '@/lib/moxo/notification':notifications, './server':service,'./schedule':schedule });
+      // Reminders go out from the clinic number when it is verified (clinic → doctor → institute chain).
+      const clinicWa = { clinicWhatsAppIdentity: async () => 'verified', doctorWhatsAppIdentity: async () => 'verified', sendClinicWhatsAppText: async message => { sent.push(message); return {ok:true,id:'mock'}; }, sendDoctorWhatsAppText: async () => { throw new Error('doctor number must not be used while the clinic number is verified'); }, preferredClinicSender: async () => ({ sender: 'clinic', fallbackReason: null }) };
+      const notifications = compile('lib/moxo/notification.ts', { '@/lib/supabase': { getSupabaseAdmin: () => adapter(pg, intake) }, '@/lib/whatsapp-clinic': clinicWa, '@/lib/whatsapp-ultramsg': { sendWhatsAppText: async () => { throw new Error('shared sender must not be used'); } } });
+      const reminders = compile('lib/booking/reminders.ts', { '@/lib/supabase': {getSupabaseAdmin: () => adapter(pg,intake)}, '@/lib/google-calendar': {getCalendarClient:()=>google}, '@/lib/moxo/notification':notifications, '@/lib/whatsapp-clinic': clinicWa, './server':service,'./schedule':schedule });
       process.env.BOOKING_REMINDERS_ENABLED='true';process.env.ULTRAMSG_INSTANCE_ID='test';process.env.ULTRAMSG_TOKEN='test';
       const request={...body('pediatrics'),reminderConsent:true,language:'ar'};
       const receipt=await service.book('pediatrics',request,'test-ip');

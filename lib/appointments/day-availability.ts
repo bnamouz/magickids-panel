@@ -16,9 +16,11 @@ const SOURCE_HE: Record<string, string> = { website_bookings: 'תור מהאתר
 const hhmm = (h: number, m = 0) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 
 /** Pure: which hours/quarters of the day are free for the doctor given the busy intervals. */
-export function hourAvailability(date: string, busy: Busy[]): HourAvailability[] {
+export function hourAvailability(date: string, busy: Busy[], window: [number, number] | null = [16 * 60, 20 * 60]): HourAvailability[] {
   const overlap = (s: number, e: number) => busy.filter(b => b.start < e && b.end > s);
-  return ADHD_HOURS.map(hour => {
+  // A staff override (closed day / other hours) narrows the offered hours; a closed day offers none.
+  const hours = window ? ADHD_HOURS.filter(h => h * 60 >= window[0] && (h + 1) * 60 <= window[1]) : [];
+  return hours.map(hour => {
     const start = localToUTC(date, hour * 60).getTime(), end = localToUTC(date, hour * 60 + 60).getTime();
     const hits = overlap(start, end);
     return {

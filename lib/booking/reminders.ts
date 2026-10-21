@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarClient } from '@/lib/google-calendar';
 import { notifyOnce } from '@/lib/moxo/notification';
+import { preferredClinicSender } from '@/lib/whatsapp-clinic';
 import { cancellationToken } from './server';
 import { TIME_ZONE } from './schedule';
 export async function sendDueReminders(now = new Date()) {
@@ -28,7 +29,7 @@ export async function sendDueReminders(now = new Date()) {
       const message = lang === 'he' ? `תזכורת: התור שלך במרפאת הילדים בעוד כחצי שעה, ${when} (שעון ישראל). תופיק זיאד 21, שפרעם. לביטול התור: ${link}`
         : lang === 'ar' ? `تذكير: موعدكم في عيادة الأطفال بعد حوالي نصف ساعة، ${when} (توقيت إسرائيل). توفيق زياد 21، شفاعمرو. لإلغاء الموعد: ${link}`
         : `Reminder: your pediatrics visit is in about 30 minutes, ${when} (Israel time). 21 Tawfiq Ziad, Shefa-Amr. Cancel: ${link}`;
-      const state = await notifyOnce(`pediatrics-reminder:${row.id}`, p.reminderPhone!, message);
+      const state = await notifyOnce(`pediatrics-reminder:${row.id}`, p.reminderPhone!, message, { sender: (await preferredClinicSender()).sender });
       if (state === 'accepted') accepted++; else skipped++;
     } catch { skipped++; } // Do not log patient information or provider errors.
   }

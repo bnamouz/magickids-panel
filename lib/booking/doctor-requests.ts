@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarClient } from '@/lib/google-calendar';
 import { BookingError, bookingSettings } from './server';
-import { clinicHours, localParts, TIME_ZONE, type Clinic } from './schedule';
+import { clinicHours, localParts, TIME_ZONE, type Clinic, type DayOverrides } from './schedule';
+import { loadOverrides } from './overrides';
 import { FUND_HE, type Fund } from './payments';
 import { eventTitle } from '@/lib/calendar-title';
 
@@ -18,11 +19,11 @@ export const doctorRequestSchema = z.object({
   message: z.string().trim().min(5).max(1000).refine(v => !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(v)),
   consent: z.literal(true), language: z.enum(['he','ar','en']), website: z.literal('').default(''),
 }).strict();
-export function requestDay(now = new Date(), clinic: Clinic = 'pediatrics') {
+export function requestDay(now = new Date(), clinic: Clinic = 'pediatrics', overrides?: DayOverrides) {
   const local = localParts(now);
   for (let offset = 0; offset < 15; offset++) {
     const day = new Date(Date.parse(local.date+'T12:00:00Z') + offset*86400000).toISOString().slice(0,10);
-    const hours = clinicHours(clinic,day);
+    const hours = clinicHours(clinic,day,overrides);
     if (hours && (offset > 0 || local.minutes < hours[1])) return day;
   }
   throw new BookingError('unavailable');
@@ -43,7 +44,7 @@ export async function submitDoctorRequest(input: unknown, ip: string) {
   if (!/^\+[1-9]\d{6,14}$/.test(phone)) throw new BookingError('invalid_body',400);
   const fingerprint = digest(JSON.stringify([body.childName,body.parentName,phone,body.message,body.language,body.childId,body.cardlessVisitConfirmed,...(adhd?['adhd',body.fund]:[])]));
   const {data,error} = await getSupabaseAdmin().rpc('reserve_pediatrics_doctor_request',{
-    p_id:body.requestId,p_fingerprint:fingerprint,p_phone:digest('phone:'+phone),p_ip:digest('ip:'+ip),p_day:requestDay(new Date(),body.clinic),p_calendar:calendarId,
+    p_id:body.requestId,p_fingerprint:fingerprint,p_phone:digest('phone:'+phone),p_ip:digest('ip:'+ip),p_day:requestDay(new Date(),body.clinic,await loadOverrides(body.clinic,undefined,16).catch(()=>({}))),p_calendar:calendarId,
   });
   if (error || !data) throw new BookingError('unavailable');
   if (data.error) throw new BookingError(data.error,data.error==='rate_limited'?429:409);
