@@ -1,11 +1,11 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 
 export const SOURCE_HE: Record<string, string> = {
-  intake: 'פתיחת תיק ושאלונים', adhd_payment: 'תשלום לאבחון קשב', moxo: 'בקשת MOXO', treatment: 'בקשת טיפול', rana: 'תור לרנא',
+  intake: 'פתיחת תיק ושאלונים', adhd_payment: 'תשלום לאבחון קשב', moxo: 'בקשת MOXO', treatment: 'בקשת טיפול', rana: 'תור למטפל/ת',
   classes: 'חוגים', development: 'התפתחות הילד', abroad: 'ליווי בחו״ל', sarah: 'שיחה לשרה', nour: 'שיחה לנור',
 };
 export const SOURCE_LINK: Record<string, string> = {
-  intake: '/admin/intake', adhd_payment: '/admin/adhd-payments', moxo: '/admin/moxo', treatment: '/admin/treatments', rana: '/admin/rana',
+  intake: '/admin/intake', adhd_payment: '/admin/adhd-payments', moxo: '/admin/moxo', treatment: '/admin/treatments', rana: '/admin/therapy',
   classes: '/admin/classes', development: '/admin/development', abroad: '/admin/abroad', sarah: '/admin/calls', nour: '/admin/personal/calls',
 };
 /** Collapses the many per-table statuses into a few stages that make sense on a leads board. */

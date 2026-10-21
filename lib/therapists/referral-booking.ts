@@ -4,8 +4,8 @@ import {syncTreatment} from './calendar';
 
 // An existing general referral stays the same record. Do not copy patient data
 // into a second booking request or manufacture a parent-selected appointment.
-export async function scheduleReferral(id:string,therapistId:string,start:string,staffId:string|null){
- const db=getSupabaseAdmin(),profile=await bookingProfile();
+export async function scheduleReferral(id:string,therapistId:string,start:string,staffId:string|null,slug?:string){
+ const db=getSupabaseAdmin(),profile=await bookingProfile(slug);
  if(profile.therapist_id!==therapistId)throw new BookingError('forbidden',403);
  const found=await db.from('treatment_requests').select('id,status,scheduled_at,duration_minutes,calendar_sync')
   .eq('id',id).eq('therapist_id',therapistId).maybeSingle();
@@ -19,7 +19,7 @@ export async function scheduleReferral(id:string,therapistId:string,start:string
   if(r.calendar_sync==='syncing')throw new BookingError('busy');
  }else{
   if(!['pending','contacted'].includes(r.status))throw new BookingError('invalid_state');
-  const available=await publicBookingSlots(),slot=available.slots.find(s=>s.start===start);
+  const available=await publicBookingSlots(slug),slot=available.slots.find(s=>s.start===start);
   if(!slot)throw new BookingError('slot_taken');
   // Existing assignment, closure and scheduling endpoints respect 'syncing'.
   // Claim before booking so a reassignment cannot race the authorization check.

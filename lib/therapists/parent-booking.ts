@@ -3,8 +3,14 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarClient } from '@/lib/google-calendar';
 import { parseFreeBusy, type Busy } from '@/lib/booking/schedule';
 import { requestSlots, validateRequestAvailability, type RequestAvailability } from './request-slots';
+import { labels, treatments } from '@/lib/treatments/schema';
+/** Labels of the therapist's main field per language, e.g. טיפול רגשי / ריפוי בעיסוק. */
+export function treatmentLabels(list?:string[]|null){const i=treatments.indexOf((list?.[0]??'') as typeof treatments[number]);return {he:i>=0?labels.he[i]:'טיפול',ar:i>=0?labels.ar[i]:'علاج',en:i>=0?labels.en[i]:'Therapy'};}
+export const treatmentLabel=(list?:string[]|null)=>treatmentLabels(list).he;
 
-export const BOOKING_SLUG = 'rana';
+export const BOOKING_SLUG = 'rana'; // default kept for existing callers/tests
+export const SLUG_RE=/^[a-z][a-z0-9-]{1,50}$/;
+export function normalizeSlug(slug?:string){const v=(slug??BOOKING_SLUG).toLowerCase();if(!SLUG_RE.test(v))throw new BookingError('not_found',404);return v;}
 export class BookingError extends Error {
   constructor(message:string,public status=409){super(message);}
 }
@@ -13,13 +19,19 @@ export function bookingHash(value:string) {
   if(!secret)throw new BookingError('unavailable',503);
   return createHmac('sha256',secret).update(`therapy-booking:${value}`).digest('hex');
 }
-export async function bookingProfile() {
-  const db=getSupabaseAdmin();
-  const p=await db.from('therapist_booking_profiles').select('*').eq('slug',BOOKING_SLUG).eq('enabled',true).maybeSingle();
-  if(p.error||!p.data)throw new BookingError('unavailable',503);
-  const t=await db.from('therapists').select('id,name,active,leave_dates').eq('id',p.data.therapist_id).eq('active',true).maybeSingle();
+export async function bookingProfile(slug?:string) {
+  const db=getSupabaseAdmin(),key=normalizeSlug(slug);
+  const p=await db.from('therapist_booking_profiles').select('*').eq('slug',key).eq('enabled',true).maybeSingle();
+  if(p.error)throw new BookingError('unavailable',503);
+  if(!p.data)throw new BookingError('not_found',404);
+  const t=await db.from('therapists').select('id,name,active,leave_dates,treatments').eq('id',p.data.therapist_id).eq('active',true).maybeSingle();
   if(t.error||!t.data)throw new BookingError('unavailable',503);
   return {...p.data,therapist:t.data,availability:validateRequestAvailability(p.data.availability)};
+}
+/** Resolve the booking slug that belongs to a therapist (for portal links and calendar titles). */
+export async function slugForTherapist(therapistId:string){
+  const p=await getSupabaseAdmin().from('therapist_booking_profiles').select('slug').eq('therapist_id',therapistId).maybeSingle();
+  return p.data?.slug??null;
 }
 export async function googleBusy(calendarId:string,start:string,end:string):Promise<Busy[]> {
   try {
@@ -27,8 +39,8 @@ export async function googleBusy(calendarId:string,start:string,end:string):Prom
     return parseFreeBusy(result.data.calendars,[calendarId]);
   }catch{throw new BookingError('calendar_unavailable',503);}
 }
-export async function publicBookingSlots() {
-  const p=await bookingProfile(),now=new Date(),db=getSupabaseAdmin();
+export async function publicBookingSlots(slug?:string) {
+  const p=await bookingProfile(slug),now=new Date(),db=getSupabaseAdmin();
   const end=new Date(now.getTime()+29*86400000).toISOString();
   const [requests,legacy,external]=await Promise.all([
     db.from('therapist_booking_requests').select('starts_at,ends_at,status,expires_at').eq('therapist_id',p.therapist_id)
@@ -43,9 +55,9 @@ export async function publicBookingSlots() {
     .map(r=>({start:r.scheduled_at,end:new Date(Date.parse(r.scheduled_at)+r.duration_minutes*60000).toISOString()}));
   const slots=requestSlots(p.availability,[...held,...old,...external],now).filter(s=>
     !(p.therapist.leave_dates??[]).some((d:{start:string;end:string})=>s.day>=d.start&&s.day<=d.end));
-  return {name:p.therapist.name,slots,timeZone:'Asia/Jerusalem'};
+  return {name:p.therapist.name,treatment:treatmentLabels(p.therapist.treatments),slug:p.slug,slots,timeZone:'Asia/Jerusalem'};
 }
-export async function submitBooking(b:{id:string;token:string;patient:string;contact:string;phone:string;start:string},ip:string) {
+export async function submitBooking(b:{id:string;token:string;patient:string;contact:string;phone:string;start:string},ip:string,slug?:string) {
   // Retries may occur after the original reservation hid its slot.
   const db=getSupabaseAdmin();
   const existing=await db.from('therapist_booking_requests').select('id,parent_hash,patient_name,contact_name,phone,starts_at')
@@ -57,10 +69,10 @@ export async function submitBooking(b:{id:string;token:string;patient:string;con
       ||r.phone!==b.phone||Date.parse(r.starts_at)!==Date.parse(b.start))throw new BookingError('invalid_retry');
     return {received:true,id:b.id};
   }
-  const slots=await publicBookingSlots();
+  const slots=await publicBookingSlots(slug);
   const slot=slots.slots.find(s=>s.start===b.start);
   if(!slot)throw new BookingError('slot_taken');
-  const result=await db.rpc('submit_therapy_booking',{p_id:b.id,p_slug:BOOKING_SLUG,p_hash:bookingHash(b.token),
+  const result=await db.rpc('submit_therapy_booking',{p_id:b.id,p_slug:slots.slug,p_hash:bookingHash(b.token),
     p_patient:b.patient,p_contact:b.contact,p_phone:b.phone,p_ip:bookingHash(ip),p_start:slot.start,p_end:slot.end});
   if(result.error)throw new BookingError('unavailable',503);
   if(result.data!=='received')throw new BookingError(result.data,result.data==='rate_limited'?429:409);
@@ -74,8 +86,8 @@ export async function bookingStatus(id:string,token:string) {
   if(!r.data)throw new BookingError('not_found',404);
   return {...r.data,status:r.data.status==='pending'&&Date.parse(r.data.expires_at)<=Date.now()?'expired':r.data.status};
 }
-export async function therapistBookingData(therapistId:string) {
-  const p=await bookingProfile();
+export async function therapistBookingData(therapistId:string,slug?:string) {
+  const p=await bookingProfile(slug);
   if(p.therapist_id!==therapistId)throw new BookingError('forbidden',403);
   const r=await getSupabaseAdmin().from('therapist_booking_requests')
     .select('id,patient_name,contact_name,phone,starts_at,ends_at,duration,status,expires_at,last_error,lease_until')
@@ -85,7 +97,7 @@ export async function therapistBookingData(therapistId:string) {
     .select('id,patient_name,contact_name,phone,availability,status,scheduled_at,duration_minutes,calendar_sync,created_at')
     .eq('therapist_id',therapistId).order('created_at',{ascending:false}).limit(200);
   if(referrals.error)throw new BookingError('unavailable',503);
-  return {name:p.therapist.name,availability:p.availability,version:p.version,
+  return {name:p.therapist.name,treatment:treatmentLabels(p.therapist.treatments),slug:p.slug,availability:p.availability,version:p.version,
     referrals:referrals.data??[],
     requests:(r.data??[]).map(r=>({...r,status:r.status==='pending'&&Date.parse(r.expires_at)<=Date.now()?'expired':r.status}))};
 }
@@ -112,6 +124,8 @@ export async function decideBooking(id:string,therapistId:string,action:'approve
   const row=await db.from('therapist_booking_requests').select('*').eq('id',id).eq('therapist_id',therapistId).single();
   if(row.error)throw new BookingError('unavailable',503);
   const r=row.data;
+  const who=await db.from('therapists').select('treatments').eq('id',therapistId).maybeSingle();
+  const eventLabel=treatmentLabel(who.data?.treatments)+' ';
   const finish=async(result:string)=>{
     const f=await db.rpc('finish_therapy_booking',{p_id:id,p_lease:lease,p_result:result});
     if(f.error||f.data==='lost_lease')throw new BookingError('sync_pending',503);
@@ -143,7 +157,7 @@ export async function decideBooking(id:string,therapistId:string,action:'approve
       if(conflicts.length){await finish('conflict');throw new BookingError('slot_taken');}
       try{
         event=(await calendar.events.insert({calendarId:r.calendar_id,sendUpdates:'none',requestBody:{
-          id:r.event_id,summary:'טיפול רגשי · ילדי הקסם',visibility:'private',
+          id:r.event_id,summary:`${eventLabel}· ילדי הקסם`,visibility:'private',
           description:'פרטי הבקשה זמינים בפורטל המטפלת בלבד. מזהה בקשה: '+r.id,
           start:{dateTime:r.starts_at,timeZone:'Asia/Jerusalem'},end:{dateTime:r.ends_at,timeZone:'Asia/Jerusalem'},
           reminders:{useDefault:false,overrides:[]},
