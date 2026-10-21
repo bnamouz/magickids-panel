@@ -221,7 +221,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
                   <li key={a.id} className="border-r-2 border-r-slate-200 pr-2">
                     <div className="text-slate-700">{a.action}</div>
                     <div className="text-slate-400">
-                      {new Date(a.created_at).toLocaleString('he-IL')} · {a.actor_type==='staff'?'צוות המכון':a.actor_type}
+                      {new Date(a.created_at).toLocaleString('he-IL')} · {a.actor_type==='staff'||a.actor_type==='user'?'צוות המכון':a.actor_type}
                     </div>
                   </li>
                 ))}
