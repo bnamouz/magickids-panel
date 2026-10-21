@@ -40,7 +40,7 @@ const google={
 process.env.BOOKING_HASH_SECRET='not-a-real-secret-test-only';
 const service=compile('lib/therapists/parent-booking.ts',{
  '@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/google-calendar':{getCalendarClient:()=>google},
- '@/lib/booking/schedule':schedule,'./request-slots':slots,
+ '@/lib/booking/schedule':schedule,'./request-slots':slots,'@/lib/treatments/schema':compile('lib/treatments/schema.ts'),
 });
 let passed=0;
 function pass(s){passed++;console.log('PASS',s);}
@@ -100,12 +100,14 @@ try{
   const a=(await pg.query(`select has_table_privilege('${role}','therapist_booking_requests','SELECT') as r,has_function_privilege('${role}','claim_therapy_booking(uuid,uuid,text,uuid)','EXECUTE') as f`)).rows[0];assert.deepEqual(a,{r:false,f:false});
  }pass('RLS and grants: no anonymous or authenticated database access');
  const treatmentSchema=compile('lib/treatments/schema.ts');
- const publicRoute=compile('app/api/therapy/rana/route.ts',{'@/lib/treatments/schema':treatmentSchema,'@/lib/therapists/parent-booking':{...service,submitBooking:async()=>({received:true})}});
+ const publicRoute=compile('app/api/therapy/[slug]/route.ts',{'@/lib/treatments/schema':treatmentSchema,'@/lib/therapists/parent-booking':{...service,submitBooking:async()=>({received:true})}});
  const req=(body,origin='https://example.com')=>({ip:'test',headers:new Headers({origin}),nextUrl:new URL('https://example.com/api/therapy/rana'),text:async()=>JSON.stringify(body)});
- assert.equal((await publicRoute.POST(req({...make(),action:'request',consent:true,website:''}))).status,200);
- assert.equal((await publicRoute.POST(req({...make(),action:'request',consent:false,website:''}))).status,400);
- assert.equal((await publicRoute.POST(req({},'https://evil.example'))).status,403);pass('public endpoint validates fields, consent and same-origin');
- const staffRoute=compile('app/api/therapist/rana/route.ts',{'@/lib/admin/auth':{getCurrentStaff:async()=>null},'@/lib/therapists/server':{authenticateTherapist:async()=>null},'@/lib/therapists/parent-booking':service,'@/lib/therapists/referral-booking':referralService});
- assert.equal((await staffRoute.POST(req({action:'read'}))).status,403);pass('staff API rejects unauthenticated requests');
+ const ctx={params:{slug:'rana'}};
+ assert.equal((await publicRoute.POST(req({...make(),action:'request',consent:true,website:''}),ctx)).status,200);
+ assert.equal((await publicRoute.POST(req({...make(),action:'request',consent:false,website:''}),ctx)).status,400);
+ assert.equal((await publicRoute.POST(req({},'https://evil.example'),ctx)).status,403);pass('public endpoint validates fields, consent and same-origin');
+ const staffRoute=compile('app/api/therapist/[slug]/route.ts',{'@/lib/admin/auth':{getCurrentStaff:async()=>null},'@/lib/therapists/server':{authenticateTherapist:async()=>null},'@/lib/therapists/parent-booking':service,'@/lib/therapists/referral-booking':referralService});
+ assert.equal((await staffRoute.POST(req({action:'read'}),ctx)).status,403);pass('staff API rejects unauthenticated requests');
+ assert.equal((await publicRoute.GET(req({}),{params:{slug:'nobody'}})).status,404);pass('unknown slug is not served');
  console.log(`SUCCESS ${passed} production-path checks, real SQL and mocked Google only`);
 }finally{await pg.close();}
