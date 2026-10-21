@@ -10,7 +10,7 @@ import { eventTitle } from '@/lib/calendar-title';
 import { isBookingToken, tokenHash } from './payment-tokens';
 import { candidateSlots, leadMinutesFor, durationFor, freeSlots, overlaps, parseFreeBusy, TIME_ZONE, type Clinic, type VisitType } from './schedule';
 import { loadOverrides } from './overrides';
-import { addressFor } from '@/lib/addresses';
+import { addressFor, INSTITUTE_MAP_URL } from '@/lib/addresses';
 
 export class BookingError extends Error {
   constructor(public code: string, public status = 503) { super(code); }
@@ -186,7 +186,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
       event = (await calendar.events.insert({ calendarId, sendUpdates: 'none', requestBody: {
         id: eventId,
         summary: eventTitle(intake?.childName || body.childName, clinic === 'adhd' ? visitType : 'pediatrics'),
-        description: `${body.childId ? `תעודת זהות המטופל/ת: ${body.childId}\n` : ''}הורה: ${body.parentName}\nטלפון: ${phone}\n${fundLines(clinic, body, visitType)}${staffBooking ? 'נקבע בדאשבורד המרפאה' : 'נקבע באתר המכון'}\nאסמכתא: ${body.requestId}`,
+        description: `${body.childId ? `תעודת זהות המטופל/ת: ${body.childId}\n` : ''}הורה: ${body.parentName}\nטלפון: ${phone}\n${fundLines(clinic, body, visitType)}${staffBooking ? 'נקבע בדאשבורד המרפאה' : 'נקבע באתר המכון'}\nאסמכתא: ${body.requestId}${clinic === 'adhd' ? `\nניווט למכון: ${INSTITUTE_MAP_URL}` : ''}`,
         location: addressFor(clinic, 'he'),
         start: { dateTime: start, timeZone: TIME_ZONE }, end: { dateTime: end, timeZone: TIME_ZONE },
         visibility: 'private', transparency: 'opaque',

@@ -1,4 +1,5 @@
 'use client';
+import { INSTITUTE_MAP_URL } from '@/lib/addresses';
 import { track } from '@/lib/analytics/client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
@@ -155,7 +156,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
       <aside className={styles.intro}>
         <span className={styles.eyebrow}>{t[clinic]}</span><h1>{t.heading}</h1><p>{t.intro}</p>
         <div className={styles.doctor}><img src={`${origin}/assets/doctor.jpg`} alt={t.doctor} width="80" height="95" /><div><strong>{t.doctor}</strong><span>{t.institute}</span></div></div>
-        <div className={styles.address}><span aria-hidden="true">⌖</span> {clinic === 'pediatrics' ? t.addressPediatrics : t.address}</div>
+        <div className={styles.address}><span aria-hidden="true">⌖</span> {clinic === 'pediatrics' ? t.addressPediatrics : <a href={INSTITUTE_MAP_URL} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{t.address} · {t.mapLink}</a>}</div>
         <div className={styles.phoneContacts}>{phoneLinks(styles.phone)}</div>
         <a className={styles.home} href={`${origin}/index.html?lang=${language}`}>{t.home} ↗</a>
       </aside>
@@ -178,7 +179,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
           </>}
         </div>}
         {!confirmation && needsPayment && <PaymentRequest key={`${fund}-${visitType}`} language={language} visitType={visitType} fund={fund as Exclude<Fund, 'maccabi'>} labels={{ child: t.child, patientId: t.patientId, parent: t.parent, phone: t.phone, institute: t.institute }} />}
-        {confirmation ? <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{t.confirmed}</h2><p>{t.saved}</p><div className={styles.receipt}><h3>{t[confirmation.clinic]}</h3><strong>{displayDate(confirmation.start)}</strong><b>{displayTime(confirmation.start)}</b><p>{clinic === 'pediatrics' ? t.addressPediatrics : t.address}</p><small>{t.reference}</small><code dir="ltr">{confirmation.reference}</code></div>{confirmation.whatsapp === 'accepted' && <p>{t.whatsappSent}</p>}{confirmation.cancellationToken ? <><p>{t.keepCancel}</p><a className={styles.primary} href={`/book/cancel?lang=${language}#id=${confirmation.reference}&token=${confirmation.cancellationToken}${confirmation.clinic === 'adhd' ? '&clinic=adhd' : ''}`}>{t.cancelLink}</a></> : <p>{t.change}</p>}<a className={styles.primary} href={`${origin}/index.html?lang=${language}`}>{t.another}</a></div> : gated ? null : clinic === 'adhd' && visitType === 'assessment' && !intakeReady ? <form onSubmit={event => { event.preventDefault(); const token = extractToken(intakeLink); if (!token) { setError('invalid_intake'); return; } setError(''); setCheckedToken(token); setIntakeAttempt(value => value + 1); }}>
+        {confirmation ? <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{t.confirmed}</h2><p>{t.saved}</p><div className={styles.receipt}><h3>{t[confirmation.clinic]}</h3><strong>{displayDate(confirmation.start)}</strong><b>{displayTime(confirmation.start)}</b><p>{clinic === 'pediatrics' ? t.addressPediatrics : <>{t.address} · <a href={INSTITUTE_MAP_URL} target="_blank" rel="noreferrer">{t.mapLink}</a></>}</p><small>{t.reference}</small><code dir="ltr">{confirmation.reference}</code></div>{confirmation.whatsapp === 'accepted' && <p>{t.whatsappSent}</p>}{confirmation.cancellationToken ? <><p>{t.keepCancel}</p><a className={styles.primary} href={`/book/cancel?lang=${language}#id=${confirmation.reference}&token=${confirmation.cancellationToken}${confirmation.clinic === 'adhd' ? '&clinic=adhd' : ''}`}>{t.cancelLink}</a></> : <p>{t.change}</p>}<a className={styles.primary} href={`${origin}/index.html?lang=${language}`}>{t.another}</a></div> : gated ? null : clinic === 'adhd' && visitType === 'assessment' && !intakeReady ? <form onSubmit={event => { event.preventDefault(); const token = extractToken(intakeLink); if (!token) { setError('invalid_intake'); return; } setError(''); setCheckedToken(token); setIntakeAttempt(value => value + 1); }}>
           <div className={styles.intake}><p>{t.intakeHint}</p><p>{t.newFamily} <a href="/register">{t.register}</a></p><label>{t.intake}<input value={intakeLink} onChange={event => setIntakeLink(event.target.value)} required maxLength={300} autoComplete="off" dir="ltr" /></label></div>
           {error && <p role="alert" className={styles.error}>{errorText}</p>}
           <button type="submit" disabled={loading} className={styles.primary}>{loading ? t.loading : t.checkIntake}</button>
@@ -210,6 +211,6 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
         {!confirmation && clinic === 'adhd' && <DoctorRequest key={clinic} language={language} clinic={clinic} />}
       </section>
     </main>
-    <footer className={styles.footer}><span>{t.institute} · {clinic === 'pediatrics' ? t.addressPediatrics : t.address}</span><a href="mailto:magickids@magickidsinstitute.com" dir="ltr">magickids@magickidsinstitute.com</a></footer>
+    <footer className={styles.footer}><span>{t.institute} · {clinic === 'pediatrics' ? t.addressPediatrics : <a href={INSTITUTE_MAP_URL} target="_blank" rel="noreferrer">{t.address}</a>}</span><a href="mailto:magickids@magickidsinstitute.com" dir="ltr">magickids@magickidsinstitute.com</a></footer>
   </div>;
 }

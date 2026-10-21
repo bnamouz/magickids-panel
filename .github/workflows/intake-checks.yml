@@ -24,4 +24,4 @@ jobs:
       - run: npm run test:booking
       - run: node --test scripts/test-doctor-requests.mjs
       - run: npm run test:sarah-moxo
-      - run: node --test scripts/test-appointment-confirmations.mjs scripts/test-clinical-notes.mjs scripts/test-owner-mail.mjs
+      - run: node --test scripts/test-appointment-confirmations.mjs scripts/test-confirmation-text.mjs scripts/test-clinical-notes.mjs scripts/test-owner-mail.mjs

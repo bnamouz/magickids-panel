@@ -11,7 +11,7 @@ function compile(file, overrides={}) {
   }).outputText)(name=>overrides[name]??require(name),m,m.exports);
   return m.exports;
 }
-const copy=compile('lib/appointments/confirmation-copy.ts');
+const copy=compile('lib/appointments/confirmation-copy.ts',{'@/lib/addresses':compile('lib/addresses.ts')});
 const request={email:true,whatsapp:true,language:'he',consentConfirmed:true,expectedEmail:'parent@example.com',expectedPhone:'0501234567',expectedStart:'2099-10-21T13:00:00Z',expectedLocation:'מכון הבדיקה'};
 function fixture(overrides={}) {
   let reads=0;
