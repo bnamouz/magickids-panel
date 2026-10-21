@@ -34,15 +34,21 @@ export async function POST(req:NextRequest){
    const r=await q.select('id').single();if(r.error)return reply({error:'save_failed'},409);
    return reply({saved:true,id:r.data.id});
   }
-  if(['link','invite','rotate'].includes(b.action)){
+  if(['link','invite','rotate','resend'].includes(b.action)){
    const id=z.string().uuid().parse(b.id);
-   if(b.action==='rotate'){const changed=await db.from('therapists').update({token_version:randomUUID(),token_expires_at:new Date(Date.now()+90*86400000).toISOString()}).eq('id',id);if(changed.error)throw new Error('unavailable');}
+   if(b.action==='rotate'||b.action==='resend'){const changed=await db.from('therapists').update({token_version:randomUUID(),token_expires_at:new Date(Date.now()+90*86400000).toISOString()}).eq('id',id);if(changed.error)throw new Error('unavailable');}
    const r=await db.from('therapists').select('*').eq('id',id).single();if(r.error)return reply({error:'not_found'},404);if(!r.data.active)return reply({error:'inactive'},409);
    if(Date.parse(r.data.token_expires_at)<=Date.now())return reply({error:'expired'},409);
    // Therapists with their own booking calendar get the richer per-therapist portal (requests, approvals, hours).
    const slug=await slugForTherapist(id);
    const link=slug?`${portalLink(r.data).split('/therapist#')[0]}/therapist/${slug}#${portalLink(r.data).split('#')[1]}`:portalLink(r.data);
-   if(b.action==='invite'){const state=await emailOnce(`therapist-invite:${id}:${r.data.token_version}`,r.data.email,'הזמנה לפורטל המטפלים — ילדי הקסם',`שלום ${r.data.name},\n${slug?'ניהול בקשות התור, אישורן ועדכון שעות הקבלה בקישור האישי':'עדכון שעות העבודה ותיאום פניות בקישור האישי'}: ${link}\nאין להעביר את הקישור לאחרים.`);return reply({link,mail:state});}
+   if(b.action==='invite'){
+    // One invitation per link version: a second click must say so instead of silently sending nothing.
+    const key=`therapist-invite:${id}:${r.data.token_version}`;
+    const prior=await db.from('clinic_notifications').select('state,updated_at').eq('id',key).maybeSingle();
+    if(prior.data?.state==='accepted')return reply({link,mail:'already_sent',sentAt:prior.data.updated_at});
+   }
+   if(b.action==='invite'||b.action==='resend'){const state=await emailOnce(`therapist-invite:${id}:${r.data.token_version}`,r.data.email,'הזמנה לפורטל המטפלים — ילדי הקסם',`שלום ${r.data.name},\n${slug?'ניהול בקשות התור, אישורן ועדכון שעות הקבלה בקישור האישי':'עדכון שעות העבודה ותיאום פניות בקישור האישי'}: ${link}\nאין להעביר את הקישור לאחרים.`);return reply({link,mail:state,to:r.data.email});}
    return reply({link});
   }
   if(b.action==='booking'){
