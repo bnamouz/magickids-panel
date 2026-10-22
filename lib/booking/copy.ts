@@ -19,7 +19,7 @@ export const bookingCopy = {
     errors: {
       slot_taken: 'השעה כבר אינה פנויה. בחרו שעה אחרת.', invalid_slot: 'השעה אינה זמינה להזמנה. עדכנו את לוח התורים.',
       invalid_body: 'בדקו שמילאתם את הפרטים בצורה תקינה.', invalid_intake: 'קישור השאלון אינו תקין או שפג תוקפו. פנו למכון לקבלת קישור אישי.',
-      intake_incomplete: 'יש להשלים את שאלון ההורה ושאלון המורה לפני קביעת האבחון.', already_booked: 'כבר קיימת הזמנה לתיק הזה. לשינוי התור פנו למזכירות.',
+      intake_incomplete: 'יש להשלים את שאלון ההורה ושאלון המורה לפני קביעת האבחון.', id_mismatch: 'מספר תעודת הזהות אינו תואם לת.ז. של הילד/ה שנרשמה בפתיחת התיק. בדקו את המספר או פנו למכון.', already_booked: 'כבר קיימת הזמנה לתיק הזה. לשינוי התור פנו למזכירות.',
       rate_limited: 'הגעתם למספר ההזמנות האפשרי כרגע. לתיאום נוסף פנו למזכירות.', invalid_retry: 'פרטי הבקשה השתנו. פנו למזכירות כדי לבדוק אם התור נקבע.',
       processing: 'עדיין לא התקבל אישור סופי. המתינו שתי דקות ולחצו שוב על אישור, או פנו למזכירות. אין לפתוח הזמנה נוספת.',
       unavailable: 'לא ניתן לאשר את התור כרגע. פנו למזכירות או נסו שוב בהמשך.',
@@ -45,7 +45,7 @@ export const bookingCopy = {
     errors: {
       slot_taken: 'لم يعد هذا الموعد متاحًا. اختاروا ساعة أخرى.', invalid_slot: 'هذا الموعد غير متاح للحجز. حدّثوا التقويم.',
       invalid_body: 'يرجى التأكد من صحة التفاصيل المدخلة.', invalid_intake: 'رابط الاستبيان غير صالح أو انتهت صلاحيته. تواصلوا مع المعهد للحصول على رابط شخصي.',
-      intake_incomplete: 'يجب استكمال استبيان الأهل واستبيان المعلم قبل حجز موعد التشخيص.', already_booked: 'يوجد حجز لهذا الملف بالفعل. لتغييره، تواصلوا مع السكرتارية.',
+      intake_incomplete: 'يجب استكمال استبيان الأهل واستبيان المعلم قبل حجز موعد التشخيص.', id_mismatch: 'رقم الهوية لا يطابق هوية الطفل/ة المسجّلة عند فتح الملف. تحققوا من الرقم أو تواصلوا مع المعهد.', already_booked: 'يوجد حجز لهذا الملف بالفعل. لتغييره، تواصلوا مع السكرتارية.',
       rate_limited: 'وصلتم إلى عدد الحجوزات المتاح حاليًا. تواصلوا مع السكرتارية لتنسيق موعد إضافي.', invalid_retry: 'تغيّرت تفاصيل الطلب. تواصلوا مع السكرتارية للتحقق من الحجز.',
       processing: 'لم يصل التأكيد النهائي بعد. انتظروا دقيقتين ثم اضغطوا على التأكيد مجددًا، أو تواصلوا مع السكرتارية. لا تفتحوا طلب حجز آخر.',
       unavailable: 'يتعذّر تأكيد الموعد حاليًا. تواصلوا مع السكرتارية أو حاولوا لاحقًا.',
@@ -71,7 +71,7 @@ export const bookingCopy = {
     errors: {
       slot_taken: 'That time is no longer available. Please choose another.', invalid_slot: 'That time is unavailable. Refresh the calendar.',
       invalid_body: 'Please check your details.', invalid_intake: 'Your questionnaire link is invalid or expired. Contact the institute for a personal link.',
-      intake_incomplete: 'Both parent and teacher questionnaires must be completed before booking an assessment.', already_booked: 'This case already has a booking. Contact the clinic to change it.',
+      intake_incomplete: 'Both parent and teacher questionnaires must be completed before booking an assessment.', id_mismatch: 'The ID number does not match the child\'s ID recorded when the case was opened. Check the number or contact the institute.', already_booked: 'This case already has a booking. Contact the clinic to change it.',
       rate_limited: 'The booking limit has been reached. Contact the clinic for additional appointments.', invalid_retry: 'The request details changed. Contact the clinic to check whether the appointment was booked.',
       processing: 'Final confirmation has not arrived. Wait two minutes and confirm again, or contact the clinic. Please do not create another booking.',
       unavailable: 'We cannot confirm this appointment right now. Contact the clinic or try again later.',

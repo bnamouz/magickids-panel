@@ -6,6 +6,7 @@ import { useState } from 'react';
 type FormState = {
   child_first_name: string;
   child_last_name: string;
+  child_id: string;
   birth_date: string;
   gender: '' | 'male' | 'female';
   grade: string;
@@ -23,6 +24,7 @@ type FormState = {
 const initial: FormState = {
   child_first_name: '',
   child_last_name: '',
+  child_id: '',
   birth_date: '',
   gender: '',
   grade: '',
@@ -162,6 +164,21 @@ export default function RegisterPage() {
                   value={form.child_last_name}
                   onChange={(e) => update('child_last_name', e.target.value)}
                   required
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="תעודת זהות של הילד/ה" required hint="9 ספרות, כפי שמופיע בספח">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  dir="ltr"
+                  value={form.child_id}
+                  onChange={(e) => update('child_id', e.target.value.replace(/[^0-9]/g, '').slice(0, 9))}
+                  required
+                  minLength={9}
+                  maxLength={9}
+                  pattern="[0-9]{9}"
+                  autoComplete="off"
                   className={inputCls}
                 />
               </Field>

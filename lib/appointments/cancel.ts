@@ -23,7 +23,7 @@ export async function cancelAppointment(appointmentId: string, reason: string | 
     }
     const updated = await db.from('appointments').update({ status: 'cancelled', calendar_sync: 'synced', cancelled_reason: reason || null, cancelled_at: new Date().toISOString() }).eq('id', r.id);
     if (updated.error) throw updated.error;
-    await db.from('audit_log').insert({ actor_id: actor.type === 'staff' ? actor.id : null, actor_type: actor.type, action: 'appointment_cancelled', entity_type: 'appointment', entity_id: r.id, metadata: { reason: reason || null, scheduled_at: r.scheduled_at, type: r.appointment_type, via: actor.type === 'staff' ? 'admin' : actor.id } }).then(() => null, () => null);
+    await db.from('audit_log').insert({ actor_id: actor.type === 'staff' ? actor.id : null, actor_type: actor.type === 'staff' ? 'user' : actor.type, action: 'appointment_cancelled', entity_type: 'appointment', entity_id: r.id, metadata: { reason: reason || null, scheduled_at: r.scheduled_at, type: r.appointment_type, via: actor.type === 'staff' ? 'admin' : actor.id } }).then(() => null, () => null);
     return { ok: true };
   } catch { return { ok: false, error: 'calendar_pending' }; }
 }
