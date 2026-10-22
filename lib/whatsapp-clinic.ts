@@ -94,13 +94,18 @@ export async function providerAccountStatus(kind: SenderKind): Promise<{ status:
   try {
     const url = new URL(`${BASE}/${c.instance}/instance/status`); url.searchParams.set('token', c.token);
     const r = await fetch(url, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8000) });
-    const d = r.ok ? await r.json().catch(() => null) : null;
+    const d = await r.json().catch(() => null);
     const a = d?.status?.accountStatus;
-    return a && typeof a.status === 'string' ? { status: a.status, substatus: String(a.substatus ?? '') } : null;
+    if (a && typeof a.status === 'string') return { status: a.status, substatus: String(a.substatus ?? '') };
+    const err = typeof d?.error === 'string' ? d.error : d?.error ? JSON.stringify(d.error) : r.ok ? '' : `HTTP ${r.status}`;
+    return err ? { status: 'error', substatus: err.slice(0, 120) } : null;
   } catch { return null; }
 }
 export function explainProviderStatus(st: { status: string; substatus: string } | null, phone: string, instance: string): string {
   if (!st) return 'הספק לא ענה; ייבדק שוב בשליחה הבאה';
+  if (st.status === 'error') return /token|unauthori|credential/i.test(st.substatus)
+    ? `הטוקן שהוזן ב־Vercel אינו תקין עבור ${instance} (UltraMsg: ${st.substatus}). העתיקו שוב את ה־Token מעמוד המופע ב־UltraMsg ועדכנו את CLINIC_ULTRAMSG_TOKEN`
+    : `UltraMsg החזיר שגיאה עבור ${instance}: ${st.substatus}`;
   if (st.status === 'standby') return `הטלפון ${phone} לא מחובר כרגע (וואטסאפ סגור או אין אינטרנט בטלפון). פתחו וואטסאפ בטלפון; אם לא עוזר – סרקו QR מחדש ב־UltraMsg (${instance})`;
   if (/^(qr|init|loading|got qr code)/i.test(st.status) || /qr/i.test(st.substatus)) return `החיבור נותק – יש לסרוק QR מחדש ב־UltraMsg (${instance}) מהטלפון ${phone}`;
   return `מצב הספק: ${st.status}${st.substatus ? ' / ' + st.substatus : ''}; ייבדק שוב בשליחה הבאה`;
