@@ -97,7 +97,7 @@ export async function checkIntake(token: string, retryEventId?: string) {
   if (!intakeTokenSchema.safeParse(token).success) throw new BookingError('invalid_intake', 403);
   const db = getSupabaseAdmin();
   const { data: session, error } = await db.from('intake_sessions')
-    .select('id,patient_id,parent_token_expires_at,patients(first_name,last_name)')
+    .select('id,patient_id,parent_token_expires_at,patients(first_name,last_name,national_id)')
     .eq('parent_token', token).maybeSingle();
   if (error) throw new BookingError('unavailable');
   if (!session || !session.parent_token_expires_at || Date.parse(session.parent_token_expires_at) <= Date.now() || !Number.isFinite(Date.parse(session.parent_token_expires_at))) throw new BookingError('invalid_intake', 403);
@@ -109,7 +109,7 @@ export async function checkIntake(token: string, retryEventId?: string) {
   if (appointmentError) throw new BookingError('unavailable');
   if (existing?.some(row => row.gcal_event_id !== retryEventId)) throw new BookingError('already_booked', 409);
   const patient = Array.isArray(session.patients) ? session.patients[0] : session.patients;
-  return { id: session.id, patientId: session.patient_id, childName: `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() };
+  return { id: session.id, patientId: session.patient_id, childName: `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim(), nationalId: (patient as { national_id?: string | null } | null)?.national_id ?? null };
 }
 function isMissing(error: unknown) {
   return [404, 410].includes(Number((error as { code?: number })?.code));
@@ -151,6 +151,11 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
     payment = pr.data;
   }
   const intake = clinic === 'adhd' && visitType === 'assessment' ? await checkIntake(body.parentToken ?? '', prior ? eventId : undefined) : null;
+  // The ID typed here must be the child whose case was opened; a case opened before the ID field existed adopts it.
+  if (intake && body.childId) {
+    if (intake.nationalId && intake.nationalId !== body.childId) throw new BookingError('id_mismatch', 400);
+    if (!intake.nationalId) await db.from('patients').update({ national_id: body.childId }).eq('id', intake.patientId).is('national_id', null);
+  }
   const attemptId = randomUUID();
   const { data: reservation, error: reservationError } = await db.rpc('reserve_website_booking', {
     p_id: body.requestId, p_clinic: clinic, p_start: start, p_end: end,

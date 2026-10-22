@@ -16,6 +16,7 @@ export default function NewSessionPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [nationalId, setNationalId] = useState('');
   const [gender, setGender] = useState('');
   const [grade, setGrade] = useState('');
   const [school, setSchool] = useState('');
@@ -44,6 +45,7 @@ export default function NewSessionPage() {
         body: JSON.stringify({
           first_name: firstName,
           last_name: lastName,
+          national_id: nationalId.trim() || undefined,
           birth_date: birthDate,
           gender: gender || null,
           grade: grade || null,
@@ -165,6 +167,7 @@ export default function NewSessionPage() {
           <div className="grid grid-cols-2 gap-4">
             <Field label="שם פרטי *" value={firstName} onChange={setFirstName} required />
             <Field label="שם משפחה *" value={lastName} onChange={setLastName} required />
+            <Field label="תעודת זהות של הילד/ה" value={nationalId} onChange={(v: string) => setNationalId(v.replace(/[^0-9]/g, "").slice(0, 9))} />
             <Field label="תאריך לידה *" type="date" value={birthDate} onChange={setBirthDate} required />
             <Select
               label="מגדר"

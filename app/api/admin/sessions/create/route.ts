@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { randomBytes } from 'crypto';
+import { isValidIsraeliId, normalizeIsraeliId } from '@/lib/israeli-id';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,7 @@ export async function POST(req: NextRequest) {
     const {
       first_name,
       last_name,
+      national_id,
       birth_date,
       gender,
       grade,
@@ -31,6 +33,9 @@ export async function POST(req: NextRequest) {
       reason_for_referral,
     } = body;
 
+    if (national_id !== undefined && national_id !== null && national_id !== '' && !isValidIsraeliId(String(national_id))) {
+      return NextResponse.json({ ok: false, error: 'מספר תעודת הזהות של הילד/ה אינו תקין (9 ספרות כולל ספרת ביקורת)' }, { status: 400 });
+    }
     if (!first_name || !last_name || !birth_date) {
       return NextResponse.json(
         { ok: false, error: 'שם ילד ותאריך לידה נדרשים' },
@@ -60,6 +65,7 @@ export async function POST(req: NextRequest) {
       .insert({
         first_name: first_name.trim(),
         last_name: last_name.trim(),
+        national_id: national_id ? normalizeIsraeliId(String(national_id)) : null,
         birth_date,
         gender: gender || null,
         grade: grade || null,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { isValidIsraeliId, normalizeIsraeliId } from '@/lib/israeli-id';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -8,6 +9,7 @@ export const runtime = 'nodejs';
 const intakeSchema = z.object({
   child_first_name: z.string().min(1).max(80),
   child_last_name: z.string().min(1).max(80),
+  child_id: z.string().transform(normalizeIsraeliId).refine(isValidIsraeliId, { message: 'מספר תעודת הזהות של הילד/ה אינו תקין (9 ספרות כולל ספרת ביקורת).' }),
   birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   gender: z.enum(['male', 'female', 'other']).optional(),
   grade: z.string().optional(),
@@ -100,6 +102,7 @@ export async function POST(req: NextRequest) {
     await supabase
       .from('patients')
       .update({
+        national_id: d.child_id,
         gender: d.gender || null,
         grade: d.grade || null,
         school: d.school || null,

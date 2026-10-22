@@ -27,7 +27,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
     .select(`
       id, status, created_at, updated_at, reason_for_referral, channel,
       parent_token, teacher_token, parent_token_expires_at, teacher_token_expires_at, teacher_name, teacher_phone,
-      patients(id, first_name, last_name, birth_date, school, grade, gender, teacher_name, teacher_phone),
+      patients(id, first_name, last_name, national_id, birth_date, school, grade, gender, teacher_name, teacher_phone),
       parents(full_name, phone, email, relation)
     `)
     .eq('id', params.id)
@@ -77,6 +77,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           <div>
             <h1 className="text-3xl font-bold text-slate-800">{childName} <span className="align-middle text-base"><CaseWhatsAppButton sessionId={session.id} parentName={parent?.full_name} childName={childName} phone={parent?.phone} /></span></h1>
             <p className="text-slate-500 mt-1">
+              {patient?.national_id ? <>ת.ז. <span dir="ltr">{patient.national_id}</span> · </> : <span className="text-amber-700">ת.ז. חסרה · </span>}
               {patient?.birth_date && `${calcAge(patient.birth_date)} · נולד/ה ${new Date(patient.birth_date).toLocaleDateString('he-IL')}`}
               {patient?.school && ` · ${patient.school}`}
               {patient?.grade && ` · כיתה ${patient.grade}`}
