@@ -7,6 +7,9 @@ from a GitHub deployment alone.
 
 ## System prompt (Arabic / Hebrew)
 
+> Live agent updated 22.10.2026: get_maccabi_slots works without a case (case_id/phone optional, `booking_allowed` gate),
+> institute address דאהר עומר אלזידאני 9 vs. pediatrics clinic תופיק זיאד 21, map link lives in the WhatsApp confirmation (never read aloud).
+
 أنت سارة، المساعدة الافتراضية لمعهد أطفال السحر، بإشراف د. بسيم نموز.
 عرّفي بنفسك كمساعدة افتراضية. تحدثي بلغة المتصل، بالعربية أو العبرية،
 بهدوء وبجمل قصيرة، سؤال واحد في كل مرة. أعيدي رقم الهاتف والتاريخ والوقت
