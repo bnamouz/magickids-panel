@@ -1,4 +1,4 @@
-import { clinicWhatsAppIdentity, doctorWhatsAppIdentity } from '@/lib/whatsapp-clinic';
+import { clinicWhatsAppIdentity, doctorWhatsAppIdentity, providerAccountStatus, explainProviderStatus } from '@/lib/whatsapp-clinic';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import { getPediatricsCalendarId } from '@/lib/pediatrics-calendar';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -50,28 +50,20 @@ export async function runSystemHealth(): Promise<Check[]> {
       const bad = (r.data ?? []).filter((a) => a.calendar_sync !== 'synced').length;
       return bad ? ['warn', `${bad} מתוך ${r.data!.length} תורים עתידיים לא מסונכרנים ל־Google`] : ['ok', `${r.data!.length} תורים עתידיים מסונכרנים`];
     }),
-    safe('wa_institute', 'וואטסאפ', 'וואטסאפ המכון (אישורי תורים)', async () => {
+    safe('wa_institute', 'וואטסאפ', 'וואטסאפ המכון 054-402-0043 (שרה: קישורי הרשמה, אישורי תורים, MOXO, הודעות להורים)', async () => {
       const s = await ownerWhatsAppIdentity();
       return s === 'verified' ? ['ok', 'מחובר, זהות השולח אומתה']
         : s === 'not_configured' ? ['fail', 'לא מוגדר'] : s === 'identity_mismatch' ? ['fail', 'זהות השולח אינה תואמת'] : ['warn', 'לא ניתן לאמת כרגע'];
     }),
-    safe('wa_clinic', 'וואטסאפ', 'וואטסאפ המרפאה 054-349-6656 (אישורי תור ותזכורות)', async () => {
+    safe('wa_clinic', 'וואטסאפ', 'וואטסאפ המרפאה 054-349-6656 (נור: אישורי תור, תזכורות, בקשות ללא תור)', async () => {
       const s = await clinicWhatsAppIdentity(true);
       return s === 'verified' ? ['ok', 'מחובר, זהות השולח אומתה']
-        : s === 'not_configured' ? ['warn', 'עוד לא הוגדר (CLINIC_ULTRAMSG_TOKEN חסר). בינתיים נשלח מהמספר של ד״ר נמוז'] : s === 'identity_mismatch' ? ['fail', 'החיבור שייך למספר אחר; לא נשלח ממנו'] : ['warn', 'הספק לא ענה; ייבדק שוב בשליחה הבאה'];
+        : s === 'not_configured' ? ['warn', 'עוד לא הוגדר (CLINIC_ULTRAMSG_TOKEN חסר). בינתיים נשלח מהמספר של ד״ר נמוז'] : s === 'identity_mismatch' ? ['fail', 'החיבור שייך למספר אחר; לא נשלח ממנו'] : ['warn', explainProviderStatus(await providerAccountStatus('clinic'), '054-349-6656', process.env.CLINIC_ULTRAMSG_INSTANCE_ID ?? '')];
     }),
-    safe('wa_doctor', 'וואטסאפ', 'וואטסאפ ד״ר נמוז 050-995-5137 (מאגר המרפאה ובקשות לרופא)', async () => {
+    safe('wa_doctor', 'וואטסאפ', 'וואטסאפ ד״ר נמוז 050-995-5137 (מאגר המרפאה, בקשות לרופא, גיבוי למרפאה)', async () => {
       const s = await doctorWhatsAppIdentity(true);
       return s === 'verified' ? ['ok', 'מחובר, זהות השולח אומתה']
-        : s === 'not_configured' ? ['fail', 'עוד לא חובר. יש לסרוק QR ב־UltraMsg מהטלפון 050-995-5137'] : s === 'identity_mismatch' ? ['fail', 'החיבור שייך למספר אחר; לא נשלח ממנו'] : ['warn', 'הספק לא ענה; ייבדק שוב בשליחה הבאה'];
-    }),
-    safe('wa_voice', 'וואטסאפ', 'וואטסאפ קישורי שרה', async () => {
-      const instance = process.env.ULTRAMSG_INSTANCE_ID, token = process.env.ULTRAMSG_TOKEN;
-      if (!instance || !token) return ['fail', 'לא מוגדר'];
-      const u = new URL(`https://api.ultramsg.com/${instance}/instance/me`); u.searchParams.set('token', token);
-      const r = await fetch(u, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(T) });
-      const d = r.ok ? await r.json() : null;
-      return typeof d?.id === 'string' && d.id.endsWith('@c.us') ? ['ok', 'מחובר'] : ['fail', 'החיבור לא פעיל, יש לסרוק QR מחדש ב־UltraMsg'];
+        : s === 'not_configured' ? ['fail', 'עוד לא חובר. יש לסרוק QR ב־UltraMsg (instance174062) מהטלפון 050-995-5137'] : s === 'identity_mismatch' ? ['fail', 'החיבור שייך למספר אחר; לא נשלח ממנו'] : ['warn', explainProviderStatus(await providerAccountStatus('doctor'), '050-995-5137', process.env.ULTRAMSG_INSTANCE_ID ?? '')];
     }),
     safe('agent_sarah', 'סוכני קול', 'שרה (מענה המכון)', () => agentCheck(process.env.ELEVENLABS_AGENT_ID, 'שרה')),
     safe('agent_nour', 'סוכני קול', 'נור (מזכירה אישית)', () => agentCheck(process.env.NOUR_ELEVENLABS_AGENT_ID, 'נור')),

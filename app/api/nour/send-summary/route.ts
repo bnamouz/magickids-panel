@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertNourAuth } from '@/lib/nour-auth';
-import { sendInstituteWhatsAppText } from '@/lib/whatsapp-ultramsg';
+import { sendClinicPreferred } from '@/lib/whatsapp-clinic';
 
 /**
  * POST /api/nour/send-summary
@@ -91,8 +91,8 @@ export async function POST(req: NextRequest) {
   msg += `\n━━━━━━━━━━━━━━━━━━`;
 
   try {
-    // Sent from the verified institute WhatsApp; the shared Nour/Marhaba instance is not used.
-    const data = await sendInstituteWhatsAppText({ toPhone: drBaseemPhone, body: msg });
+    // Nour belongs to the pediatric clinic: clinic number first, then Dr. Namouz's number.
+    const data = await sendClinicPreferred({ toPhone: drBaseemPhone, body: msg });
     if (!data.ok) {
       return NextResponse.json({ success: false, error: 'whatsapp_send_failed', details: data.error });
     }
