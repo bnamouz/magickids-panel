@@ -7,7 +7,8 @@ const ERR: Record<string, string> = {
   forbidden: 'נדרשת כניסה מחדש לפאנל.',
 };
 
-export default function CaseWhatsAppButton({ sessionId, parentName, childName, phone }: { sessionId: string; parentName?: string | null; childName: string; phone?: string | null }) {
+/** Staff → parent WhatsApp from the institute number. Target is an ADHD case (sessionId) or a child-development referral (referralId). */
+export default function CaseWhatsAppButton({ sessionId, referralId, parentName, childName, phone, size = 'xs' }: { sessionId?: string; referralId?: string; parentName?: string | null; childName: string; phone?: string | null; size?: 'xs' | 'md' }) {
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [status, setStatus] = useState('');
   const [text, setText] = useState(''), [requestId, setRequestId] = useState('');
   if (!phone) return null;
@@ -19,7 +20,7 @@ export default function CaseWhatsAppButton({ sessionId, parentName, childName, p
   async function send(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setStatus('');
     try {
-      const r = await fetch('/api/admin/sessions/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sessionId, text, request_id: requestId }) });
+      const r = await fetch('/api/admin/sessions/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...(sessionId ? { session_id: sessionId } : { referral_id: referralId }), text, request_id: requestId }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(ERR[d.error] ?? 'ההודעה לא נשלחה. בדקו שהוואטסאפ של המכון מחובר ונסו שוב.');
       setStatus('ההודעה נשלחה.'); setTimeout(() => setOpen(false), 1200);
@@ -27,8 +28,8 @@ export default function CaseWhatsAppButton({ sessionId, parentName, childName, p
   }
   return <>
     <button type="button" onClick={start} title="מענה בוואטסאפ מהמכון" aria-label={`מענה בוואטסאפ להורה של ${childName}`}
-      className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100">
-      <MessageCircle size={14} /> וואטסאפ
+      className={size === 'md' ? "inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700" : "inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"}>
+      <MessageCircle size={size === 'md' ? 16 : 14} /> {size === 'md' ? 'הודעה להורים בוואטסאפ' : 'וואטסאפ'}
     </button>
     {open && <div role="dialog" aria-modal="true" aria-label="מענה בוואטסאפ" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 text-right font-normal">
       <form onSubmit={send} className="card w-full max-w-lg space-y-3">
