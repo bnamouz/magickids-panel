@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertNourAuth, normalisePhone } from '@/lib/nour-auth';
-import { sendInstituteWhatsAppText } from '@/lib/whatsapp-ultramsg';
+import { sendClinicPreferred } from '@/lib/whatsapp-clinic';
 
 /**
  * POST /api/nour/escalate
@@ -16,10 +16,10 @@ const Schema = z.object({
   caller_phone: z.string().min(6),
 });
 
-// Sent from the verified institute WhatsApp; the shared Nour/Marhaba instance is not used.
+// Nour belongs to the pediatric clinic: sent from the clinic number (054-349-6656), falling back to Dr. Namouz's number.
 async function sendUrgentWhatsApp(text: string) {
-  const to = process.env.ESCALATION_WHATSAPP?.replace(/\\n/g, '').trim() || '+972544020043';
-  const result = await sendInstituteWhatsAppText({ toPhone: to, body: text });
+  const to = process.env.ESCALATION_WHATSAPP?.replace(/\\n/g, '').trim() || '+972509955137';
+  const result = await sendClinicPreferred({ toPhone: to, body: text });
   if (!result.ok) throw new Error(result.error || 'whatsapp_send_failed');
   return result;
 }

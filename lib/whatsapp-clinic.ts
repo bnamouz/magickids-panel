@@ -76,3 +76,32 @@ export async function preferredClinicSender(): Promise<{ sender: 'clinic' | 'doc
   if (doctor === 'verified') return { sender: 'doctor', fallbackReason: `clinic_${clinic}` };
   return { sender: 'institute', fallbackReason: `clinic_${clinic},doctor_${doctor}` };
 }
+
+/** Clinic-side messages (Nour, pediatrics): clinic number first, then the doctor's number, then the institute as last resort. */
+export async function sendClinicPreferred(args: { toPhone: string; body: string }): Promise<{ ok: boolean; id?: string; error?: string; sender: 'clinic' | 'doctor' | 'institute'; fallbackReason: string | null }> {
+  const pref = await preferredClinicSender();
+  if (pref.sender === 'institute') {
+    const { sendInstituteWhatsAppText } = await import('@/lib/whatsapp-ultramsg');
+    return { ...(await sendInstituteWhatsAppText(args)), ...pref };
+  }
+  return { ...(await sendFromSender(pref.sender, args)), ...pref };
+}
+
+/** Raw provider account status (e.g. "authenticated"/"connected", "standby" = phone offline, "qr"/"init" = needs a new QR scan). */
+export async function providerAccountStatus(kind: SenderKind): Promise<{ status: string; substatus: string } | null> {
+  const c = creds(kind);
+  if (!c) return null;
+  try {
+    const url = new URL(`${BASE}/${c.instance}/instance/status`); url.searchParams.set('token', c.token);
+    const r = await fetch(url, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8000) });
+    const d = r.ok ? await r.json().catch(() => null) : null;
+    const a = d?.status?.accountStatus;
+    return a && typeof a.status === 'string' ? { status: a.status, substatus: String(a.substatus ?? '') } : null;
+  } catch { return null; }
+}
+export function explainProviderStatus(st: { status: string; substatus: string } | null, phone: string, instance: string): string {
+  if (!st) return 'הספק לא ענה; ייבדק שוב בשליחה הבאה';
+  if (st.status === 'standby') return `הטלפון ${phone} לא מחובר כרגע (וואטסאפ סגור או אין אינטרנט בטלפון). פתחו וואטסאפ בטלפון; אם לא עוזר – סרקו QR מחדש ב־UltraMsg (${instance})`;
+  if (/^(qr|init|loading|got qr code)/i.test(st.status) || /qr/i.test(st.substatus)) return `החיבור נותק – יש לסרוק QR מחדש ב־UltraMsg (${instance}) מהטלפון ${phone}`;
+  return `מצב הספק: ${st.status}${st.substatus ? ' / ' + st.substatus : ''}; ייבדק שוב בשליחה הבאה`;
+}

@@ -13,8 +13,9 @@ from a GitHub deployment alone.
 على المتصل للتحقق، واطلبي موافقته قبل الحجز أو إرسال رسالة.
 
 אבחון קשב: בררי שם הילד, ההורה ומספר הנייד הרשום בתיק. בדקי את מצב התיק
-באמצעות check_intake_status. רק ready_to_schedule=true מאפשר הצעת מועדים.
-אין להסתמך על אמירת המתקשר שהשאלונים מולאו. אם חסר שאלון הורה או מורה,
+באמצעות check_intake_status. מותר תמיד להקריא את המועדים הפנויים הקרובים
+(get_maccabi_slots גם ללא תיק), אך קביעת תור אפשרית רק כאשר ready_to_schedule=true
+(booking_allowed=true). אין להסתמך על אמירת המתקשר שהשאלונים מולאו. אם חסר שאלון הורה או מורה,
 הסבירי מה חסר והציעי לשלוח קישור להמשך התהליך. אין לעקוף דרך יומן נור,
 מרפאת הילדים או כלי זימון אחר. בכמה תיקים לאותו מספר, אין לבחור ילד באופן
 אוטומטי: יש לברר עם הצוות את התיק המתאים.
@@ -44,8 +45,11 @@ server-side Authorization header (Bearer). Never embed it in the prompt or page.
 
 - check_intake_status: GET /api/voice/intake-status?phone={verified_phone}
   Optional case_id after staff resolves ambiguity.
-- get_maccabi_slots: GET /api/voice/maccabi-slots?case_id={case_id}&phone={verified_phone}&max=4
-  **Both case_id and phone are now required.** This is intentionally fail-closed.
+- get_maccabi_slots: GET /api/voice/maccabi-slots?max=4[&case_id={case_id}&phone={verified_phone}]
+  case_id/phone are optional since 22.10.2026: Sarah may always read out the next free assessment dates.
+  The response carries `booking_allowed` and `booking_block` (no_case | case_not_found | intake_incomplete | case_not_ready);
+  booking is only possible when `booking_allowed` is true — otherwise offer send_intake_link and explain that the
+  parent and teacher questionnaires must be completed first. The server enforces this in book_maccabi_appointment regardless.
 - book_maccabi_appointment: POST /api/voice/book-maccabi
   JSON: {"case_id":"UUID","parent_phone":"+9725…","slot_iso":"ISO-8601 with timezone"}
 - send_intake_link: POST /api/voice/send-intake-link
