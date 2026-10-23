@@ -17,3 +17,11 @@ test('pediatric confirmations keep the clinic address and no institute map link'
     assert.doesNotMatch(t,/maps\.app\.goo\.gl/); assert.match(t,/תופיק זיאד|توفيق زياد|Tawfiq Ziad/);
   }
 });
+test('flu vaccination visits: 10-minute pediatric slot, calendar title and confirmation wording', () => {
+  const schedule=compile('lib/booking/schedule.ts',stub), titles=compile('lib/calendar-title.ts',stub);
+  assert.equal(schedule.durationFor('pediatrics','flu'),10);
+  assert.equal(titles.eventTitle('דנה חדאד','flu'),'דנה חדאד · חיסון שפעת');
+  const t=c.bookingConfirmationMessage({...base,clinic:'pediatrics',visitType:'flu',durationMinutes:10,lang:'he'});
+  assert.match(t,/חיסון שפעת/); assert.match(t,/תופיק זיאד/); assert.doesNotMatch(t,/maps\.app\.goo\.gl/);
+  assert.match(c.bookingConfirmationMessage({...base,clinic:'pediatrics',visitType:'flu',durationMinutes:10,lang:'ar'}),/تطعيم الإنفلونزا/);
+});

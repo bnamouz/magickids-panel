@@ -4,7 +4,7 @@
  * The invitee's name comes first so it is readable even when the calendar truncates titles.
  */
 export const VISIT_KIND = {
-  assessment: 'אבחון קשב וריכוז', followup: 'מעקב קשב וריכוז', moxo: 'מבדק MOXO', pediatrics: 'מרפאת ילדים',
+  assessment: 'אבחון קשב וריכוז', followup: 'מעקב קשב וריכוז', moxo: 'מבדק MOXO', pediatrics: 'מרפאת ילדים', flu: 'חיסון שפעת',
   doctor_request_pediatrics: 'בקשה ללא תור', doctor_request_adhd: 'בקשה ללא תור · קשב', institute: 'פגישה במכון',
 } as const;
 export type VisitKind = keyof typeof VISIT_KIND;

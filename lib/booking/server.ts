@@ -18,7 +18,7 @@ export class BookingError extends Error {
 const name = z.string().trim().min(2).max(100).refine(value => !/[\r\n\x00-\x1f]/.test(value));
 export const intakeTokenSchema = z.union([z.string().uuid(), z.string().regex(/^[0-9a-f]{48}$/i)]);
 export const bookingSchema = z.object({
-  visitType: z.enum(['assessment', 'followup']).optional(),
+  visitType: z.enum(['assessment', 'followup', 'flu']).optional(),
   requestId: z.string().uuid(),
   start: z.string().datetime(),
   childName: name,
@@ -122,13 +122,14 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
   if (staffBooking && (clinic !== 'pediatrics' || !await getCurrentStaff())) throw new BookingError('forbidden',403);
   const visitType = body.visitType ?? 'assessment';
   if (clinic !== 'adhd' && visitType === 'followup') throw new BookingError('invalid_body', 400);
+  if (clinic === 'adhd' && visitType === 'flu') throw new BookingError('invalid_body', 400);
   const ids = bookingSettings();
   const phoneDigits = body.phone.replace(/\D/g, '');
   let phone = body.phone.startsWith('+') ? `+${phoneDigits}` : phoneDigits.startsWith('0') ? `+972${phoneDigits.slice(1)}` : `+${phoneDigits}`;
   if (!/^\+[1-9]\d{6,14}$/.test(phone)) throw new BookingError('invalid_body', 400);
   const start = new Date(body.start).toISOString();
   const end = new Date(Date.parse(start) + durationFor(clinic, visitType) * 60000).toISOString();
-  const fingerprint = digest(JSON.stringify([clinic, start, body.childName, body.parentName, phone, body.parentToken ?? '', ...(visitType === 'followup' ? ['followup'] : []), ...(body.childId ? [body.childId] : [])]));
+  const fingerprint = digest(JSON.stringify([clinic, start, body.childName, body.parentName, phone, body.parentToken ?? '', ...(visitType === 'followup' || visitType === 'flu' ? [visitType] : []), ...(body.childId ? [body.childId] : [])]));
   const db = getSupabaseAdmin();
   const { data: prior, error: priorError } = await db.from('website_bookings').select('*').eq('id', body.requestId).maybeSingle();
   if (priorError) throw new BookingError('unavailable');
@@ -190,7 +191,7 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
     try {
       event = (await calendar.events.insert({ calendarId, sendUpdates: 'none', requestBody: {
         id: eventId,
-        summary: eventTitle(intake?.childName || body.childName, clinic === 'adhd' ? visitType : 'pediatrics'),
+        summary: eventTitle(intake?.childName || body.childName, clinic === 'adhd' ? (visitType === 'flu' ? 'assessment' : visitType) : visitType === 'flu' ? 'flu' : 'pediatrics'),
         description: `${body.childId ? `תעודת זהות המטופל/ת: ${body.childId}\n` : ''}הורה: ${body.parentName}\nטלפון: ${phone}\n${fundLines(clinic, body, visitType)}${staffBooking ? 'נקבע בדאשבורד המרפאה' : 'נקבע באתר המכון'}\nאסמכתא: ${body.requestId}${clinic === 'adhd' ? `\nניווט למכון: ${INSTITUTE_MAP_URL}` : ''}`,
         location: addressFor(clinic, 'he'),
         start: { dateTime: start, timeZone: TIME_ZONE }, end: { dateTime: end, timeZone: TIME_ZONE },
