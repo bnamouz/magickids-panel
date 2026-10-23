@@ -34,9 +34,11 @@ test('real ledger SQL, private calendar writes, retry recovery and validation',a
  class BookingError extends Error{constructor(code,status=503){super(code);this.code=code;this.status=status;}}
  process.env.BOOKING_HASH_SECRET='test-only-doctor-request-key-32-characters';
  const mod=compile('lib/booking/doctor-requests.ts',{'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/google-calendar':{getCalendarClient:()=>({events})},'./server':{BookingError,bookingSettings:()=>({pediatrics:'clinic-test'})},'./schedule':schedule});
- assert.equal(mod.requestDay(schedule.localToUTC('2026-10-17',800)),'2026-10-19');
+ // Filed on the day it was sent, even on a closed day (Saturday) or after closing time.
+ assert.equal(mod.requestDay(schedule.localToUTC('2026-10-17',800)),'2026-10-17');
  assert.equal(mod.requestDay(schedule.localToUTC('2026-10-19',929)),'2026-10-19');
- assert.equal(mod.requestDay(schedule.localToUTC('2026-10-19',930)),'2026-10-20');
+ assert.equal(mod.requestDay(schedule.localToUTC('2026-10-19',930)),'2026-10-19');
+ assert.equal(mod.requestDay(schedule.localToUTC('2026-10-19',1439)),'2026-10-19');
  const body={requestId:randomUUID(),childName:'Test Child',parentName:'Test Parent',phone:'0500000000',childId:'123456782',cardlessVisitConfirmed:true,message:'Synthetic nonclinical test',consent:true,language:'he',website:''};
  const receipt=await mod.submitDoctorRequest(body,'test-ip');
  assert.equal(receipt.received,true);const event=[...saved.values()][0];
