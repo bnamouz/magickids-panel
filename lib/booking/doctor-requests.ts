@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarClient } from '@/lib/google-calendar';
 import { BookingError, bookingSettings } from './server';
-import { clinicHours, localParts, TIME_ZONE, type Clinic, type DayOverrides } from './schedule';
+import { localParts, TIME_ZONE, type Clinic, type DayOverrides } from './schedule';
 import { loadOverrides } from './overrides';
 import { FUND_HE, type Fund } from './payments';
 import { eventTitle } from '@/lib/calendar-title';
@@ -19,14 +19,10 @@ export const doctorRequestSchema = z.object({
   message: z.string().trim().min(5).max(1000).refine(v => !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(v)),
   consent: z.literal(true), language: z.enum(['he','ar','en']), website: z.literal('').default(''),
 }).strict();
-export function requestDay(now = new Date(), clinic: Clinic = 'pediatrics', overrides?: DayOverrides) {
-  const local = localParts(now);
-  for (let offset = 0; offset < 15; offset++) {
-    const day = new Date(Date.parse(local.date+'T12:00:00Z') + offset*86400000).toISOString().slice(0,10);
-    const hours = clinicHours(clinic,day,overrides);
-    if (hours && (offset > 0 || local.minutes < hours[1])) return day;
-  }
-  throw new BookingError('unavailable');
+/** The request is filed on the calendar day it was sent (Israel time) — even when the clinic is closed that day.
+ *  Staff see it under its real date; nothing is pushed to the next working day. */
+export function requestDay(now = new Date(), _clinic: Clinic = 'pediatrics', _overrides?: DayOverrides) {
+  return localParts(now).date;
 }
 const nextDay = (day: string) => new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10);
 export async function submitDoctorRequest(input: unknown, ip: string) {
