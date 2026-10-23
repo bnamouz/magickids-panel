@@ -23,7 +23,7 @@ export function bookingConfirmationMessage(o: { clinic: Clinic; visitType: Visit
   const peds = o.clinic === 'pediatrics';
   const place = peds ? { he: `מרפאת הילדים של ד״ר בסים נמוז, ${ADDRESS.pediatrics.he}`, ar: `عيادة الأطفال عند د. بسيم نموز، ${ADDRESS.pediatrics.ar}`, en: `Dr. Baseem Namouz's pediatric clinic, ${ADDRESS.pediatrics.en}` }
     : { he: `מכון Magic Kids, ${ADDRESS.institute.he}`, ar: `معهد Magic Kids، ${ADDRESS.institute.ar}`, en: `Magic Kids institute, ${ADDRESS.institute.en}` };
-  const kind = peds ? { he: 'ביקור במרפאת הילדים', ar: 'زيارة في عيادة الأطفال', en: 'pediatric visit' }
+  const kind = peds ? (o.visitType === 'flu' ? { he: 'חיסון שפעת במרפאת הילדים', ar: 'تطعيم الإنفلونزا في عيادة الأطفال', en: 'flu vaccination at the pediatric clinic' } : { he: 'ביקור במרפאת הילדים', ar: 'زيارة في عيادة الأطفال', en: 'pediatric visit' })
     : o.visitType === 'followup' ? { he: 'ביקור מעקב קשב וריכוז', ar: 'زيارة متابعة للانتباه والتركيز', en: 'ADHD follow-up visit' } : { he: 'אבחון קשב וריכוז', ar: 'تشخيص الانتباه والتركيز', en: 'ADHD assessment' };
   const rebook = peds ? '' : { he: '\nאחרי ביטול אפשר לקבוע מועד חדש דרך הקישור האישי שקיבלתם.', ar: '\nبعد الإلغاء بتقدروا تحجزوا موعد جديد من الرابط الشخصي اللي وصلكم.', en: '\nAfter cancelling you can pick a new time with the personal link you received.' }[lang];
   if (lang === 'ar') return `مرحبًا${first ? ` ${first}` : ''}، تم تثبيت موعد ${o.childName} لـ${kind.ar}.\nالموعد: ${time} (${o.durationMinutes} دقيقة، توقيت إسرائيل)\nالمكان: ${place.ar}${mapLineFor(o.clinic, 'ar')}\n\nإذا ما بتقدروا تيجوا، الرجاء إلغاء الموعد من هون حتى تستفيد منه عيلة ثانية:\n${link}${rebook}\n\nهاد الرابط شخصي، لا تشاركوه مع غيركم.\nشكرًا، ${peds ? 'طاقم العيادة' : 'طاقم Magic Kids'}.`;

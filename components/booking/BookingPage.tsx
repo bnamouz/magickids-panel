@@ -35,7 +35,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
   const [payReady, setPayReady] = useState(false);
   const [payError, setPayError] = useState('');
   const locale = bookingLocale(language);
-  const [visitType, setVisitType] = useState<'assessment' | 'followup'>('assessment');
+  const [visitType, setVisitType] = useState<'assessment' | 'followup' | 'flu'>('assessment');
   const [slots, setSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [remindersEnabled, setRemindersEnabled] = useState(false);
@@ -76,6 +76,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
   useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [load]);
   useEffect(() => {
     if (clinic === 'adhd' && new URLSearchParams(window.location.search).get('visitType') === 'followup') setVisitType('followup');
+    if (clinic === 'pediatrics' && new URLSearchParams(window.location.search).get('visit') === 'flu') setVisitType('flu');
     const hash = new URLSearchParams(window.location.hash.slice(1));
     const pay = hash.get('pay');
     if (pay && clinic === 'adhd' && /^[0-9a-f]{48}$/.test(pay)) {
@@ -162,7 +163,8 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
       </aside>
       <section className={styles.panel} aria-label={t.available}>
         {!confirmation && <><nav className={styles.clinics} aria-label={t.available}>{(['pediatrics', 'adhd'] as const).map(value => <a key={value} aria-current={value === clinic ? 'page' : undefined} href={`/book/${value}?lang=${language}`}>{t[value]}</a>)}</nav><h2>{t[clinic]}</h2><p className={styles.muted}>{clinic === 'adhd' ? (visitType === 'followup' ? t.followupIntro : t.adhdIntro) : t.pedsIntro}</p></>}
-        {!confirmation && clinic === 'pediatrics' && <DoctorRequest key={clinic} language={language} clinic={clinic} />}
+        {!confirmation && clinic === 'pediatrics' && visitType === 'flu' && <div className={styles.notice} role="status"><strong>💉 {t.fluBanner}</strong><p>{t.fluIntro}</p><button type="button" className={styles.linkButton} onClick={() => { setVisitType('assessment'); const u = new URL(window.location.href); u.searchParams.delete('visit'); window.history.replaceState(null, '', u.toString()); }}>{t.fluSwitch}</button></div>}
+        {!confirmation && clinic === 'pediatrics' && visitType !== 'flu' && <DoctorRequest key={clinic} language={language} clinic={clinic} />}
         {!confirmation && clinic === 'adhd' && <div className={styles.times} role="group" aria-label={t.visitType}>
           {(['assessment', 'followup'] as const).map(kind => <button key={kind} type="button" disabled={sending || uncertain || payReady} aria-pressed={visitType === kind} onClick={() => { if (kind === visitType) return; setVisitType(kind); setIntakeReady(false); setCheckedToken(''); setSlots([]); setStart(''); setError(''); setLoading(true); }}>{t[kind]}</button>)}
         </div>}
@@ -178,8 +180,8 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
             </div>}
           </>}
         </div>}
-        {!confirmation && needsPayment && <PaymentRequest key={`${fund}-${visitType}`} language={language} visitType={visitType} fund={fund as Exclude<Fund, 'maccabi'>} labels={{ child: t.child, patientId: t.patientId, parent: t.parent, phone: t.phone, institute: t.institute }} />}
-        {confirmation ? <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{t.confirmed}</h2><p>{t.saved}</p><div className={styles.receipt}><h3>{t[confirmation.clinic]}</h3><strong>{displayDate(confirmation.start)}</strong><b>{displayTime(confirmation.start)}</b><p>{clinic === 'pediatrics' ? t.addressPediatrics : <>{t.address} · <a href={INSTITUTE_MAP_URL} target="_blank" rel="noreferrer">{t.mapLink}</a></>}</p><small>{t.reference}</small><code dir="ltr">{confirmation.reference}</code></div>{confirmation.whatsapp === 'accepted' && <p>{t.whatsappSent}</p>}{confirmation.cancellationToken ? <><p>{t.keepCancel}</p><a className={styles.primary} href={`/book/cancel?lang=${language}#id=${confirmation.reference}&token=${confirmation.cancellationToken}${confirmation.clinic === 'adhd' ? '&clinic=adhd' : ''}`}>{t.cancelLink}</a></> : <p>{t.change}</p>}<a className={styles.primary} href={`${origin}/index.html?lang=${language}`}>{t.another}</a></div> : gated ? null : clinic === 'adhd' && visitType === 'assessment' && !intakeReady ? <form onSubmit={event => { event.preventDefault(); const token = extractToken(intakeLink); if (!token) { setError('invalid_intake'); return; } setError(''); setCheckedToken(token); setIntakeAttempt(value => value + 1); }}>
+        {!confirmation && needsPayment && <PaymentRequest key={`${fund}-${visitType}`} language={language} visitType={visitType === 'flu' ? 'assessment' : visitType} fund={fund as Exclude<Fund, 'maccabi'>} labels={{ child: t.child, patientId: t.patientId, parent: t.parent, phone: t.phone, institute: t.institute }} />}
+        {confirmation ? <div className={styles.confirmation} role="status"><span className={styles.check} aria-hidden="true">✓</span><h2>{t.confirmed}</h2><p>{t.saved}</p><div className={styles.receipt}><h3>{confirmation.clinic === 'pediatrics' && visitType === 'flu' ? `${t[confirmation.clinic]} · ${t.flu}` : t[confirmation.clinic]}</h3><strong>{displayDate(confirmation.start)}</strong><b>{displayTime(confirmation.start)}</b><p>{clinic === 'pediatrics' ? t.addressPediatrics : <>{t.address} · <a href={INSTITUTE_MAP_URL} target="_blank" rel="noreferrer">{t.mapLink}</a></>}</p><small>{t.reference}</small><code dir="ltr">{confirmation.reference}</code></div>{confirmation.whatsapp === 'accepted' && <p>{t.whatsappSent}</p>}{confirmation.cancellationToken ? <><p>{t.keepCancel}</p><a className={styles.primary} href={`/book/cancel?lang=${language}#id=${confirmation.reference}&token=${confirmation.cancellationToken}${confirmation.clinic === 'adhd' ? '&clinic=adhd' : ''}`}>{t.cancelLink}</a></> : <p>{t.change}</p>}<a className={styles.primary} href={`${origin}/index.html?lang=${language}`}>{t.another}</a></div> : gated ? null : clinic === 'adhd' && visitType === 'assessment' && !intakeReady ? <form onSubmit={event => { event.preventDefault(); const token = extractToken(intakeLink); if (!token) { setError('invalid_intake'); return; } setError(''); setCheckedToken(token); setIntakeAttempt(value => value + 1); }}>
           <div className={styles.intake}><p>{t.intakeHint}</p><p>{t.newFamily} <a href="/register">{t.register}</a></p><label>{t.intake}<input value={intakeLink} onChange={event => setIntakeLink(event.target.value)} required maxLength={300} autoComplete="off" dir="ltr" /></label></div>
           {error && <p role="alert" className={styles.error}>{errorText}</p>}
           <button type="submit" disabled={loading} className={styles.primary}>{loading ? t.loading : t.checkIntake}</button>

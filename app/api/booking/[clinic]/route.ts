@@ -15,9 +15,9 @@ function failure(error: unknown) {
 export async function GET(req: NextRequest, { params }: { params: { clinic: string } }) {
   if (!isClinic(params.clinic)) return reply({ error: 'unknown_clinic' }, 404);
   const visitType = req.nextUrl.searchParams.get('visitType') ?? 'assessment';
-  if (!['assessment', 'followup'].includes(visitType) || (params.clinic !== 'adhd' && visitType === 'followup')) return reply({ error: 'invalid_body' }, 400);
+  if (!['assessment', 'followup', 'flu'].includes(visitType) || (params.clinic !== 'adhd' && visitType === 'followup') || (params.clinic === 'adhd' && visitType === 'flu')) return reply({ error: 'invalid_body' }, 400);
   if (params.clinic === 'adhd' && visitType === 'assessment') return reply({ error: 'invalid_intake' }, 403);
-  const kind = visitType as 'assessment' | 'followup';
+  const kind = visitType as 'assessment' | 'followup' | 'flu';
   try { return reply({ clinic: params.clinic, timeZone: TIME_ZONE, durationMinutes: durationFor(params.clinic, kind), slots: await getSlots(params.clinic, kind), remindersEnabled: process.env.BOOKING_REMINDERS_ENABLED === 'true' && !!process.env.ULTRAMSG_INSTANCE_ID && !!process.env.ULTRAMSG_TOKEN }); }
   catch (error) { return failure(error); }
 }

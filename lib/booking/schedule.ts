@@ -3,7 +3,7 @@ export const TIME_ZONE = 'Asia/Jerusalem';
 export const HORIZON_DAYS = 28;
 export const LEAD_MINUTES = 120;
 export const leadMinutesFor = (clinic: Clinic) => clinic === 'pediatrics' ? 15 : LEAD_MINUTES;
-export type VisitType = 'assessment' | 'followup';
+export type VisitType = 'assessment' | 'followup' | 'flu';
 export const durationFor = (clinic: Clinic, visitType: VisitType = 'assessment') => clinic === 'adhd' ? (visitType === 'followup' ? 15 : 60) : 10;
 export const isClinic = (value: string): value is Clinic => value === 'pediatrics' || value === 'adhd';
 
