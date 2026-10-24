@@ -9,13 +9,18 @@ export const VOICE_LINKS = {
   treatments: { url: 'https://app.magickidsinstitute.com/treatments', he: 'פנייה לטיפולים', ar: 'طلب علاج' },
   development: { url: 'https://app.magickidsinstitute.com/development', he: 'הערכת התפתחות הילד', ar: 'تقييم تطور الطفل' },
   classes: { url: 'https://app.magickidsinstitute.com/classes', he: 'חוגים במכון', ar: 'دورات وحلقات في المعهد' },
-  website: { url: 'https://magickidsinstitute.com/', he: 'אתר המכון', ar: 'موقع المعهد' },
+  website: { url: 'https://www.magickidsinstitute.com/', he: 'אתר המכון', ar: 'موقع المعهد' },
   workshops: { url: 'https://magickidsinstitute.com/workshop-register.html', he: 'הרשמה לסדנאות הורים', ar: 'التسجيل لورشات الأهل' },
   private_care: { url: 'https://magickidsinstitute.com/private-care.html', he: 'רפואה פרטית', ar: 'طب خاص' },
 } as const;
 
 export type VoiceLinkKey = keyof typeof VOICE_LINKS;
 export const VOICE_LINK_KEYS = Object.keys(VOICE_LINKS) as [VoiceLinkKey, ...VoiceLinkKey[]];
+
+/** Every link message Sarah sends ends with the institute website (owner request, 24.10.2026). */
+export function instituteWebsiteLines(lang: 'he' | 'ar') {
+  return [`${VOICE_LINKS.website[lang]}:`, voiceLinkUrl('website', lang), ''];
+}
 
 export function voiceLinkUrl(key: VoiceLinkKey, lang: 'he' | 'ar') {
   const u = new URL(VOICE_LINKS[key].url);
