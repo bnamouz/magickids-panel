@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { sendInstituteWhatsAppText } from '@/lib/whatsapp-ultramsg';
+import { instituteWebsiteLines } from '@/lib/voice/links';
 
 export const INTAKE_LINK_TEMPLATE = 'voice_intake_link';
 export type IntakeLinkInput = { phone: string; language: 'he' | 'ar'; parentName?: string | null; childName?: string | null; reason?: string | null; source: 'voice' | 'retry'; retryOf?: string | null; callId?: string | null };
@@ -11,8 +12,8 @@ export function intakeLink(language: 'he' | 'ar') {
 export function intakeMessage(i: Pick<IntakeLinkInput, 'language' | 'parentName' | 'childName'>) {
   const link = intakeLink(i.language);
   const greetingName = i.parentName ? ` ${i.parentName}` : '';
-  const he = [`שלום${greetingName}, זו שרה ממכון Magic Kids.`, i.childName ? `בהמשך לשיחה שלנו לגבי ${i.childName}, שולחת לך את הקישור להרשמה ולשאלונים:` : `בהמשך לשיחה שלנו, שולחת לך את הקישור להרשמה ולשאלונים:`, link, ``, `שאלון ההורה לוקח 10-15 דקות.`, `אחרי שסיימת – תקבל/י קישור נפרד למורה של הילד/ה.`, `לאחר ששני השאלונים מולאו – מוזמנים להתקשר ונקבע תור לאבחון.`].join('\n');
-  const ar = [`مرحبًا${greetingName}, هاي سارة من معهد ماجيك كيدز.`, i.childName ? `بعد الحكي عن ${i.childName}، هاد الرابط للتسجيل والاستمارات:` : `متابعة لحكينا، هاد الرابط للتسجيل والاستمارات:`, link, ``, `استمارة الأهل بتاخد 10-15 دقيقة.`, `بعد ما تخلصو، بتوصلكم استمارة تانية لمعلم/ة الولد.`, `لما تخلصوا التنتين — رنّونا ومنحدد موعد للفحص.`].join('\n');
+  const he = [`שלום${greetingName}, זו שרה ממכון Magic Kids.`, i.childName ? `בהמשך לשיחה שלנו לגבי ${i.childName}, שולחת לך את הקישור להרשמה ולשאלונים:` : `בהמשך לשיחה שלנו, שולחת לך את הקישור להרשמה ולשאלונים:`, link, ``, `שאלון ההורה לוקח 10-15 דקות.`, `אחרי שסיימת – תקבל/י קישור נפרד למורה של הילד/ה.`, `לאחר ששני השאלונים מולאו – מוזמנים להתקשר ונקבע תור לאבחון.`, ``, ...instituteWebsiteLines('he')].join('\n').trimEnd();
+  const ar = [`مرحبًا${greetingName}, هاي سارة من معهد ماجيك كيدز.`, i.childName ? `بعد الحكي عن ${i.childName}، هاد الرابط للتسجيل والاستمارات:` : `متابعة لحكينا، هاد الرابط للتسجيل والاستمارات:`, link, ``, `استمارة الأهل بتاخد 10-15 دقيقة.`, `بعد ما تخلصو، بتوصلكم استمارة تانية لمعلم/ة الولد.`, `لما تخلصوا التنتين — رنّونا ومنحدد موعد للفحص.`, ``, ...instituteWebsiteLines('ar')].join('\n').trimEnd();
   return { link, message: i.language === 'ar' ? ar : he };
 }
 

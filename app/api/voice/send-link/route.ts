@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertVoiceAuth, normalisePhone } from '@/lib/voice-auth';
 import { sendInstituteWhatsAppText } from '@/lib/whatsapp-ultramsg';
-import { VOICE_LINKS, VOICE_LINK_KEYS, voiceLinkUrl } from '@/lib/voice/links';
+import { VOICE_LINKS, VOICE_LINK_KEYS, voiceLinkUrl, instituteWebsiteLines } from '@/lib/voice/links';
 
 /**
  * POST /api/voice/send-link
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const keys = Array.from(new Set(body.links));
   const lang = body.language;
   const name = body.parent_name ? ` ${body.parent_name}` : '';
-  const lines = keys.flatMap((k) => [`${VOICE_LINKS[k][lang]}:`, voiceLinkUrl(k, lang), '']);
+  const lines = [...keys.flatMap((k) => [`${VOICE_LINKS[k][lang]}:`, voiceLinkUrl(k, lang), '']), ...(keys.includes('website') ? [] : instituteWebsiteLines(lang))];
   const message = lang === 'ar'
     ? [`مرحبًا${name}، هاي سارة من معهد أطفال السحر. متل ما حكينا، هاي الروابط:`, '', ...lines, 'للتواصل مع المعهد: 0544020043'].join('\n')
     : [`שלום${name}, זו שרה ממכון ילדי הקסם. כפי שדיברנו, הנה הקישורים:`, '', ...lines, 'ליצירת קשר עם המכון: 0544020043'].join('\n');
