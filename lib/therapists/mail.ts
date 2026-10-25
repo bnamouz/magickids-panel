@@ -1,8 +1,8 @@
 import { google } from 'googleapis';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
-const sender='magickids@magickidsinstitute.com';
-function credentials(){const raw=process.env.TREATMENT_GOOGLE_SERVICE_ACCOUNT_JSON||process.env.DEVELOPMENT_GOOGLE_SERVICE_ACCOUNT_JSON;if(!raw)throw new Error('not_configured');const c=JSON.parse(raw);if(c.type!=='service_account'||!c.client_email||!c.private_key)throw new Error('not_configured');return c;}
+export const sender='magickids@magickidsinstitute.com';
+export function credentials(){const raw=process.env.TREATMENT_GOOGLE_SERVICE_ACCOUNT_JSON||process.env.DEVELOPMENT_GOOGLE_SERVICE_ACCOUNT_JSON;if(!raw)throw new Error('not_configured');const c=JSON.parse(raw);if(c.type!=='service_account'||!c.client_email||!c.private_key)throw new Error('not_configured');return c;}
 export function mailConfigured(){try{credentials();return true;}catch{return false;}}
 export async function emailOnce(id:string,to:string,subject:string,body:string){
  if(!mailConfigured())return 'not_configured';
