@@ -66,7 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .select('id, patients ( first_name, last_name, national_id, birth_date )').eq('id', id).maybeSingle();
   if (!session) return reply({ error: 'not_found' }, 404);
   const patient = (Array.isArray(session.patients) ? session.patients[0] : session.patients) as { first_name: string | null; last_name: string | null; national_id: string | null; birth_date: string | null } | null;
-  const childName = `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || 'ילד/ה';
+  const childName = `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.replace(/\s+/g, ' ').trim() || 'ילד/ה';
   const birthDate = patient?.birth_date ? new Date(patient.birth_date).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' }) : null;
 
   const attachments: MailAttachment[] = [];
