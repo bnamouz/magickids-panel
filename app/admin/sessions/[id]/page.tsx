@@ -3,7 +3,7 @@ import { lastReminders } from '@/lib/intake/reminder';
 import CaseWhatsAppButton from '@/components/admin/CaseWhatsAppButton';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { requireStaff } from '@/lib/admin/auth';
+import { requireStaff, canEditReports } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { ArrowRight, User, School, Phone, Mail, Calendar, ClipboardList, Brain } from 'lucide-react';
 import ClinicalNotes from '@/components/admin/ClinicalNotes';
@@ -12,6 +12,7 @@ import ScoreCard from '@/components/admin/ScoreCard';
 import BookAppointment from './BookAppointment';
 import AppointmentConfirmation from '@/components/admin/AppointmentConfirmation';
 import ReportsList from './ReportsList';
+import SendToMaccabi from './SendToMaccabi';
 import QuestionnaireLinks from '@/components/admin/QuestionnaireLinks';
 import CaseActions from '@/components/admin/CaseActions';
 import CaseCalls from '@/components/admin/CaseCalls';
@@ -130,6 +131,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
             childName={childName}
             hasParentForm={progress.parentComplete}
           />
+          <SendToMaccabi sessionId={session.id} childName={childName} nationalId={patient?.national_id ?? null} canSend={canEditReports(staff)} />
 
           {/* Responses tabs */}
           {(parentQ || teacherQ) && (
