@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { sendInstituteWhatsAppText } from '@/lib/whatsapp-ultramsg';
 import { firstRelated } from '@/lib/intake/progress';
+import { asciiDigits } from '@/lib/phone-digits';
 
 export type ReminderKind = 'parent' | 'teacher';
 export type ReminderLang = 'he' | 'ar';
@@ -31,7 +32,7 @@ export function reminderMessage(o: { kind: ReminderKind; lang: ReminderLang; nam
 }
 
 function normalizePhone(value: string | null | undefined) {
-  const digits = String(value ?? '').replace(/\D/g, '');
+  const digits = asciiDigits(value).replace(/\D/g, '');
   if (!digits) return null;
   const n = digits.startsWith('0') ? `+972${digits.slice(1)}` : `+${digits}`;
   return /^\+[1-9]\d{6,14}$/.test(n) ? n : null;
