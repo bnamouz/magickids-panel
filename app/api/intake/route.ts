@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { isValidIsraeliId, normalizeIsraeliId } from '@/lib/israeli-id';
+import { asciiDigits } from '@/lib/phone-digits';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -15,9 +16,9 @@ const intakeSchema = z.object({
   grade: z.string().optional(),
   school: z.string().optional(),
   teacher_name: z.string().max(120).optional(),
-  teacher_phone: z.string().max(25).optional(),
+  teacher_phone: z.preprocess((v) => (v == null ? v : asciiDigits(v)), z.string().max(25).optional()),
   parent_name: z.string().min(1),
-  parent_phone: z.string().min(7),
+  parent_phone: z.preprocess(asciiDigits, z.string().min(7)),
   parent_email: z.string().email().optional().or(z.literal('')),
   relation: z.enum(['mother', 'father', 'guardian', 'other']).default('mother'),
   reason_for_referral: z.string().optional(),
