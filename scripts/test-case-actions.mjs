@@ -1,3 +1,4 @@
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
@@ -6,7 +7,7 @@ import {PGlite} from '@electric-sql/pglite';
 const require=createRequire(import.meta.url);
 function compile(path,mocks){const mod={exports:{}};const code=ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;new Function('require','module','exports',code)(n=>mocks[n]??require(n),mod,mod.exports);return mod.exports;}
 const {NextRequest}=require('next/server');let staff=null,calls=0;
-const {POST}=compile('app/api/admin/sessions/manage/route.ts',{'@/lib/admin/auth':{getCurrentStaff:async()=>staff},'@/lib/supabase':{getSupabaseAdmin:()=>({rpc:async()=>{calls++;return {data:{ok:true}};}})}});
+const {POST}=compile('app/api/admin/sessions/manage/route.ts',{'@/lib/phone-digits':{asciiDigits:(v)=>String(v??'').replace(/[\u0660-\u0669]/g,(c)=>String(c.charCodeAt(0)-0x0660)).trim()},'@/lib/admin/auth':{getCurrentStaff:async()=>staff},'@/lib/supabase':{getSupabaseAdmin:()=>({rpc:async()=>{calls++;return {data:{ok:true}};}})}});
 const id='00000000-0000-4000-8000-000000000001';
 const req=(body,origin='https://clinic.test')=>new NextRequest('https://clinic.test/api/admin/sessions/manage',{method:'POST',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
 assert.equal((await POST(req({sessionId:id,action:'archive'}))).status,401);
@@ -77,3 +78,11 @@ assert.equal((await db.query('select count(*)::int n from patients')).rows[0].n,
 assert.equal((await db.query('select count(*)::int n from parents')).rows[0].n,0);
 assert.equal((await db.query("select has_function_privilege('authenticated','delete_intake_case(uuid,uuid,text)','execute') allowed")).rows[0].allowed,false);
 await db.close();console.log('PASS: staff/origin/validation, archive/restore, edit, stale-edit rejection, audit, private permissions, permanent deletion, calendar block, shared patient preservation, retry, cleanup failure');
+test('edit with a phone typed in Arabic-Indic digits is accepted; a bad phone names the field', async () => {
+  staff={id:'00000000-0000-4000-8000-00000000aaaa',role:'admin'};
+  const fields={first_name:'דנה',last_name:'חדאד',birth_date:'2017-02-01',school:'',grade:'',parent_name:'',parent_phone:'٠٥٢٤٣٢٢٩٩٦',parent_email:'',teacher_name:'ליאת',teacher_phone:'050-1234567',reason_for_referral:''};
+  const ok=await POST(req({action:'edit',sessionId:id,version:'a'.repeat(32),fields}));
+  assert.equal(ok.status,200);
+  const bad=await POST(req({action:'edit',sessionId:id,version:'a'.repeat(32),fields:{...fields,teacher_phone:'05416ד'}}));
+  assert.equal(bad.status,400); const body=await bad.json(); assert.match(body.error,/טלפון המורה/); assert.deepEqual(Object.keys(body.fields),['teacher_phone']);
+});
