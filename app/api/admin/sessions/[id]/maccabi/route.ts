@@ -14,7 +14,8 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
-const BUCKET = 'reports';
+const BUCKET = 'maccabi-outbox'; // private; pdf/jpeg/png, 15MB per file – temp copies, deleted after the mail is sent
+const REPORTS_BUCKET = 'reports';
 const prefix = (sessionId: string) => `maccabi/${sessionId}/`;
 
 async function guard(req: NextRequest) {
@@ -71,8 +72,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const attachments: MailAttachment[] = [];
   let total = 0;
-  const pull = async (path: string) => {
-    const dl = await db.storage.from(BUCKET).download(path);
+  const pull = async (path: string, bucket = BUCKET) => {
+    const dl = await db.storage.from(bucket).download(path);
     if (dl.error || !dl.data) throw new Error('file_missing');
     const buf = Buffer.from(await dl.data.arrayBuffer());
     total += buf.length;
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!reports || reports.length !== report_ids.length || reports.some((r) => !r.pdf_storage_path)) return reply({ error: 'report_missing' }, 400);
       for (const r of reports) {
         const day = new Date(r.created_at).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' }).replace(/\./g, '-');
-        attachments.push({ filename: `דוח אבחון קשב – ${childName} – ${day}.pdf`, contentType: 'application/pdf', content: await pull(r.pdf_storage_path!) });
+        attachments.push({ filename: `דוח אבחון קשב – ${childName} – ${day}.pdf`, contentType: 'application/pdf', content: await pull(r.pdf_storage_path!, REPORTS_BUCKET) });
       }
     }
     for (const u of uploads) {
