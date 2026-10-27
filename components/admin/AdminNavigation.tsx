@@ -2,12 +2,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { CalendarDays, ClipboardList, HeartPulse, LayoutDashboard, Menu, MessageSquare, Users, X } from 'lucide-react';
+import { Bot, CalendarDays, ClipboardList, HeartPulse, LayoutDashboard, Menu, MessageSquare, Users, X } from 'lucide-react';
 const groups = [
  {title:'מרפאת הילדים',icon:HeartPulse,items:[['/admin/pediatrics-calendar','יומן ילדים ובקשות לרופא'],['/admin/clinic-patients','מטופלי המרפאה'],['/admin/clinic-hours','סגירת יומן ושינוי שעות']]},
  {title:'קשב ואבחונים',icon:ClipboardList,items:[['/admin/intake','קליטה וזימון לקשב'],['/admin/sessions','תיקי מטופלים'],['/admin/appointments','יומן פגישות המכון'],['/admin/moxo','בקשות MOXO'],['/admin/adhd-payments','אימות תשלומים לקשב'],['/admin/adhd-requests','בקשות לרופא — קשב']]},
  {title:'טיפולים וצוות',icon:Users,items:[['/admin/treatments','פניות וטיפולים'],['/admin/therapists','מטפלים ושעות עבודה'],['/admin/therapy','יומני בקשות למטפלים'],['/admin/recruitment','גיוס מטפלים']]},
  {title:'שירותי המכון',icon:CalendarDays,items:[['/admin/development','התפתחות הילד'],['/admin/classes','חוגים ומתעניינים'],['/admin/abroad','ליווי ילדים בחו״ל'],['/admin/reviews','חוות דעת ותמונות'],['/admin/leads','לידים ושימוש באתר']]},
+ {title:'מזכירות AI',icon:Bot,items:[['/admin/secretaries','המזכירות והתחייבויות מכבי']]},
  {title:'שיחות',icon:MessageSquare,items:[['/admin/calls','שיחות שרה'],['/admin/personal/calls','שיחות נור'],['/admin/google-calendars','יומני גוגל — שיתוף'],['/admin/system-health','בריאות המערכת']]},
 ];
 export default function AdminNavigation(){
