@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getCurrentStaff } from '@/lib/admin/auth';
 import SecretaryDesk from '@/components/admin/SecretaryDesk';
-import { MACCABI_BRANCH_EMAIL, REMINDER_AFTER_BUSINESS_DAYS, SERVICES } from '@/lib/maccabi/commitments';
+import { MACCABI_BRANCH_EMAIL, REMINDER_AFTER_BUSINESS_DAYS, SERVICES } from '@/lib/maccabi/commitment-shared';
 
 export const dynamic = 'force-dynamic';
 

@@ -2,17 +2,10 @@ import { randomUUID } from 'crypto';
 import { sender } from '@/lib/therapists/mail';
 import { buildRawMessage, type MailAttachment } from '@/lib/maccabi/send-files';
 
-/** Maccabi Shefa-Amr branch – commitment (טופס 17) requests (owner request, 27.10.2026). */
-export const MACCABI_BRANCH_EMAIL = 'shfaram@mac.org.il';
-export const REMINDER_AFTER_BUSINESS_DAYS = 3;
+export { MACCABI_BRANCH_EMAIL, REMINDER_AFTER_BUSINESS_DAYS, SERVICES, STATUS_LABEL, OPEN_STATUSES, type CommitmentStatus } from '@/lib/maccabi/commitment-shared';
+import { MACCABI_BRANCH_EMAIL } from '@/lib/maccabi/commitment-shared';
 export const CLINIC_PHONE = '054-349-6656';
 export const CLINIC_ADDRESS = 'תופיק זיאד 21, שפרעם';
-
-export const SERVICES = ['ביקור רופא ילדים', 'בדיקת רופא מומחה', 'אבחון קשב וריכוז (ADHD)', 'מבדק MOXO', 'הערכת התפתחות הילד', 'ריפוי בעיסוק', 'קלינאות תקשורת', 'טיפול רגשי', 'אחר'] as const;
-
-export type CommitmentStatus = 'sent' | 'reminded' | 'reply_received' | 'ready' | 'rejected' | 'cancelled';
-export const STATUS_LABEL: Record<CommitmentStatus, string> = { sent: 'נשלח למכבי', reminded: 'נשלחה תזכורת', reply_received: 'התקבלה תשובה – לבדיקה', ready: 'ההתחייבות מוכנה', rejected: 'נדחה / חסר', cancelled: 'בוטל' };
-export const OPEN_STATUSES: CommitmentStatus[] = ['sent', 'reminded', 'reply_received'];
 
 export function newReference(now = new Date()) {
   const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: '2-digit', month: '2-digit', day: '2-digit' }).format(now).replace(/-/g, '');
