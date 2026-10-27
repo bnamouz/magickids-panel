@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import RequestWhatsApp from '@/components/admin/RequestWhatsApp';
 import { parseRequest } from '@/lib/admin/request-templates';
 import BookSlot from './BookSlot';
+import CancelEvent from './CancelEvent';
 import { redirect } from 'next/navigation';
 import { calendar_v3 } from 'googleapis';
 import { getCurrentStaff } from '@/lib/admin/auth';
@@ -60,7 +61,7 @@ export default async function PediatricsCalendar({searchParams}:{searchParams:{d
         const matches=timed.filter(e=>Date.parse(e.start!.dateTime!)<end&&Date.parse(e.end!.dateTime!)>start);
         return <tr key={minute} id={minute%60===0?`hour-${minute/60}`:undefined} className={`${minute%60===0?'border-t-2 border-slate-300':'border-t border-slate-100'} ${matches.length?'bg-teal-50':''} scroll-mt-20`}>
           <th scope="row" className="p-3 w-36 font-mono align-top whitespace-nowrap" dir="ltr">{clock(minute)}–{clock(minute+10)}</th>
-          <td className="p-3">{failed?<span className="text-slate-500">לא ידוע</span>:matches.length?matches.map((e,j)=><div key={e.id??j} className="border-r-4 border-teal-600 pr-3 mb-2"><b>{e.summary||'תור ללא כותרת'}</b><span className="block text-xs" dir="ltr">{time(e.start!.dateTime!)}–{time(e.end!.dateTime!)}</span>{e.transparency==='transparent'&&<small>אינו חוסם זמן</small>}</div>):allDay.some(e=>e.transparency!=='transparent')?<span>חסום באירוע לכל היום</span>:<span className="text-slate-400">אין תור ביומן</span>}{!failed&&start>Date.now()&&!matches.some(e=>e.transparency!=='transparent')&&!allDay.some(e=>e.transparency!=='transparent')&&<BookSlot start={new Date(start).toISOString()} label={clock(minute)}/>}</td>
+          <td className="p-3">{failed?<span className="text-slate-500">לא ידוע</span>:matches.length?matches.map((e,j)=><div key={e.id??j} className="border-r-4 border-teal-600 pr-3 mb-2"><b>{e.summary||'תור ללא כותרת'}</b><span className="block text-xs" dir="ltr">{time(e.start!.dateTime!)}–{time(e.end!.dateTime!)}</span>{e.transparency==='transparent'&&<small>אינו חוסם זמן</small>}{e.id&&start>Date.now()&&e.transparency!=='transparent'&&<CancelEvent eventId={e.id} label={e.summary||'תור ללא כותרת'}/>}</div>):allDay.some(e=>e.transparency!=='transparent')?<span>חסום באירוע לכל היום</span>:<span className="text-slate-400">אין תור ביומן</span>}{!failed&&start>Date.now()&&!matches.some(e=>e.transparency!=='transparent')&&!allDay.some(e=>e.transparency!=='transparent')&&<BookSlot start={new Date(start).toISOString()} label={clock(minute)}/>}</td>
         </tr>;
       })}
     </tbody></table></div>}
