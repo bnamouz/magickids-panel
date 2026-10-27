@@ -170,7 +170,7 @@ test('staff navigation keeps every destination available with current-page seman
   assert.match(html, /href="\/admin\/sessions" aria-current="page"/);
   assert.match(html, /aria-controls="staff-navigation"/);
   assert.match(html, /id="staff-navigation"/);
-  for (const route of ['pediatrics-calendar','intake','appointments','moxo','treatments','therapists','rana','recruitment','development','classes','abroad','reviews','calls','personal/calls']) {
+  for (const route of ['pediatrics-calendar','intake','appointments','moxo','treatments','therapists','rana','recruitment','development','classes','abroad','reviews','secretaries','calls','personal/calls']) {
     assert.ok(html.includes(`href="/admin/${route}"`), route);
     assert.ok(fs.existsSync(path.join(root, 'app/admin', route, 'page.tsx')), route);
   }
