@@ -4,7 +4,8 @@ const require=createRequire(import.meta.url);
 function compile(file,overrides={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)((n)=>overrides[n]??require(n),m,m.exports);return m.exports;}
 const mail={sender:'magickids@magickidsinstitute.com',credentials:()=>({client_email:'sa@x.iam.gserviceaccount.com',private_key:'k',client_id:'123'})};
 const sendFiles=compile('lib/maccabi/send-files.ts',{'googleapis':{google:{}},'@/lib/therapists/mail':mail});
-const c=compile('lib/maccabi/commitments.ts',{'@/lib/therapists/mail':mail,'@/lib/maccabi/send-files':sendFiles});
+const shared=compile('lib/maccabi/commitment-shared.ts');
+const c={...shared,...compile('lib/maccabi/commitments.ts',{'@/lib/therapists/mail':mail,'@/lib/maccabi/send-files':sendFiles,'@/lib/maccabi/commitment-shared':shared})};
 const input={reference:'MK-261027-AB12',patientName:'אחמד חדאד',nationalId:'123456782',birthDate:'2018-03-05',phone:'0521234567',service:'מבדק MOXO',note:'הפניה מצורפת',staffName:'נטלי'};
 
 test('request goes to the Shefa-Amr branch with name, ID, service and reference in the subject', () => {

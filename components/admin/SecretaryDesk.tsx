@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { STATUS_LABEL, type CommitmentStatus } from '@/lib/maccabi/commitments';
+import { STATUS_LABEL, type CommitmentStatus } from '@/lib/maccabi/commitment-shared';
 
 type Row = { id: string; reference: string; patient_name: string; national_id: string; phone: string; service: string; status: CommitmentStatus; sent_at: string; last_reminder_at: string | null; reminders_count: number; last_checked_at: string | null; last_reply_at: string | null; last_reply_snippet: string | null; ready_at: string | null; ready_source: string | null; patient_notified_at: string | null; notify_error: string | null; attachments: { filename: string }[]; note: string | null };
 type Patient = { id: string; name: string; national_id: string | null; phone: string; birth_date: string | null };
