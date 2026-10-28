@@ -337,7 +337,46 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: COLORS.muted,
   },
+  // DSM-5 criteria / symptom tables
+  colCrit: { width: '8%', textAlign: 'center' as any },
+  colCritTitle: { width: '24%', paddingRight: 4 },
+  colCritFinding: { width: '50%', paddingRight: 4 },
+  colCritStatus: { width: '18%', textAlign: 'center' as any },
+  colSymCode: { width: '9%', textAlign: 'center' as any },
+  colSymText: { width: '55%', paddingRight: 4 },
+  colSymSrc: { width: '12%', textAlign: 'center' as any },
+  statusPartial: { color: '#8A6D00', fontWeight: 600 },
+  statusUnknown: { color: COLORS.muted, fontWeight: 600 },
+  kindBadge: {
+    alignSelf: 'flex-end',
+    marginTop: 10,
+    marginBottom: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    backgroundColor: '#FFF4E0',
+    color: '#8A4B00',
+    fontSize: 10,
+    fontWeight: 600,
+  },
+  summaryBox: {
+    marginTop: 8,
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: COLORS.bgLight,
+    borderRight: `3px solid ${COLORS.primary}`,
+  },
+  multi: {
+    fontSize: 11,
+    color: COLORS.text,
+    marginBottom: 8,
+    textAlign: 'right',
+    lineHeight: 1.7,
+    direction: 'rtl',
+  },
 });
+
+export type PdfSymptomRow = { code: string; text: string; parent: number | null; teacher: number | null; present: 'present' | 'absent' | 'unclear' };
 
 export interface PdfInput {
   patient: {
@@ -359,6 +398,7 @@ export interface PdfInput {
   teacherScore: VanderbiltScore | null;
   clinicalNotes: Array<{ category: string; content: string }>;
   report: GeneratedReport;
+  dsm5Items?: { inattention: PdfSymptomRow[]; hyperactivity: PdfSymptomRow[]; threshold: number; inattentionCount: number; hyperactivityCount: number };
   clinicianName: string;
   clinicianTitle: string;
   reportDate: string;
@@ -395,7 +435,7 @@ function PageFooter({ reportDate }: { reportDate: string }) {
   return (
     <View style={styles.pageFooter} fixed>
       <Text style={styles.footerText} render={({ pageNumber, totalPages }) => `עמוד ${pageNumber} מתוך ${totalPages}`} />
-      <Text style={styles.footerText}>דוח אבחון NICHQ Vanderbilt · {reportDate}</Text>
+      <Text style={styles.footerText}>דוח אבחון ADHD · Magic Kids · {reportDate}</Text>
     </View>
   );
 }
@@ -411,8 +451,9 @@ function CoverPage({ input }: { input: PdfInput }) {
       </View>
 
       <View>
-        <Text style={styles.coverTitle}>דוח אבחון קשב וריכוז</Text>
-        <Text style={styles.coverSubtitle}>סקאלת הערכה NICHQ Vanderbilt</Text>
+        <Text style={styles.coverTitle}>דוח אבחון הפרעת קשב וריכוז (ADHD)</Text>
+        <Text style={styles.coverSubtitle}>הערכה קלינית לפי קריטריוני DSM-5 ושאלוני NICHQ Vanderbilt</Text>
+        {input.report.reportKind === 'preliminary' && <Text style={styles.kindBadge}>סיכום ראשוני מבוסס שאלונים – טרם הושלמה הערכה קלינית</Text>}
 
         <View style={styles.coverInfoBox}>
           <View style={styles.coverInfoRow}>
@@ -450,89 +491,61 @@ function CoverPage({ input }: { input: PdfInput }) {
   );
 }
 
-function FamilyAndBackgroundPage({ input }: { input: PdfInput }) {
-  const childName = `${input.patient.firstName} ${input.patient.lastName}`;
+/** Renders a multi-paragraph string (paragraphs separated by blank lines). */
+function Paragraphs({ text }: { text: string | undefined }) {
+  if (!text || !text.trim()) return null;
+  return <>{text.split(/\n{2,}|\n/).map((p) => p.trim()).filter(Boolean).map((p, i) => <Text key={i} style={styles.multi}>{p}</Text>)}</>;
+}
 
+const CATEGORY_HE: Record<string, string> = { general: 'כללי', clinical: 'קליני', follow_up: 'מעקב', flag: 'דגל אדום' };
+
+function BackgroundPage({ input }: { input: PdfInput }) {
+  const childName = `${input.patient.firstName} ${input.patient.lastName}`;
+  const { report } = input;
   return (
     <Page size="A4" style={styles.page}>
-      <PageHeader pageName="פרטי משפחה ורקע" childName={childName} />
+      <PageHeader pageName="רקע, מקורות מידע והיסטוריה" childName={childName} />
 
       <Text style={styles.h2}>פרטי משפחה</Text>
       <View style={styles.infoGrid}>
         {input.parent && (
           <>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>שם הורה</Text>
-              <Text style={styles.infoValue}>{input.parent.fullName}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>קרבה</Text>
-              <Text style={styles.infoValue}>{input.parent.relation || 'לא צוין'}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>טלפון</Text>
-              <Text style={styles.infoValue}>{input.parent.phone}</Text>
-            </View>
+            <View style={styles.infoRow}><Text style={styles.infoLabel}>שם הורה</Text><Text style={styles.infoValue}>{input.parent.fullName}</Text></View>
+            <View style={styles.infoRow}><Text style={styles.infoLabel}>קרבה</Text><Text style={styles.infoValue}>{input.parent.relation || 'לא צוין'}</Text></View>
+            <View style={styles.infoRow}><Text style={styles.infoLabel}>טלפון</Text><Text style={styles.infoValue}>{input.parent.phone}</Text></View>
           </>
         )}
         {input.patient.teacherName && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>שם המורה</Text>
-            <Text style={styles.infoValue}>{input.patient.teacherName}</Text>
-          </View>
+          <View style={styles.infoRow}><Text style={styles.infoLabel}>מחנך/ת</Text><Text style={styles.infoValue}>{input.patient.teacherName}</Text></View>
         )}
       </View>
 
-      {input.reasonForReferral && (
-        <>
-          <Text style={styles.h3}>סיבת ההפניה</Text>
-          <Text style={styles.paragraph}>{input.reasonForReferral}</Text>
-        </>
-      )}
+      <Text style={styles.h2}>רקע וסיבת ההפניה</Text>
+      {report.background ? <Paragraphs text={report.background} /> : <Text style={styles.paragraph}>{input.reasonForReferral || 'לא צוינה סיבת הפניה.'}</Text>}
 
-      {input.clinicalNotes.length > 0 && (
-        <>
-          <Text style={styles.h2}>הערות קליניות</Text>
-          {input.clinicalNotes.map((note, i) => (
-            <View key={i}>
-              <Text style={styles.h3}>{note.category}</Text>
-              <Text style={styles.paragraph}>{note.content}</Text>
-            </View>
-          ))}
-        </>
-      )}
+      {report.sources ? (<><Text style={styles.h2}>מקורות המידע ושיטת האבחון</Text><Paragraphs text={report.sources} /></>) : null}
+      {report.history ? (<><Text style={styles.h2}>היסטוריה התפתחותית, רפואית ומשפחתית</Text><Paragraphs text={report.history} /></>) : null}
 
       <PageFooter reportDate={input.reportDate} />
     </Page>
   );
 }
 
-function ScorePage({
-  input,
-  score,
-  respondentLabel,
-}: {
-  input: PdfInput;
-  score: VanderbiltScore;
-  respondentLabel: string;
-}) {
+function ScorePage({ input, score, respondentLabel }: { input: PdfInput; score: VanderbiltScore; respondentLabel: string }) {
   const childName = `${input.patient.firstName} ${input.patient.lastName}`;
-
   return (
     <Page size="A4" style={styles.page}>
-      <PageHeader pageName={`שאלון ${respondentLabel} - NICHQ Vanderbilt`} childName={childName} />
-
+      <PageHeader pageName={`שאלון ${respondentLabel} – NICHQ Vanderbilt`} childName={childName} />
       <Text style={styles.h2}>ניתוח שאלון {respondentLabel}</Text>
       <Text style={styles.paragraph}>
-        השאלון מולא במלואו ({score.completeness}% מהשאלות). ההצגה הקלינית הזוהתה כ:{' '}
+        השאלון מולא ב-{score.completeness}% מהפריטים. ההצגה הקלינית העולה מהשאלון:{' '}
         <Text style={{ fontWeight: 700, color: COLORS.primary }}>{score.presentationLabelHe}</Text>.
       </Text>
-
       <Text style={styles.h3}>סיכום תת-סקאלות</Text>
       <View style={styles.scoreTable}>
         <View style={styles.scoreHeaderRow}>
           <Text style={[styles.scoreHeaderCell, styles.colScale]}>תת-סקאלה</Text>
-          <Text style={[styles.scoreHeaderCell, styles.colScore]}>סימפטומים</Text>
+          <Text style={[styles.scoreHeaderCell, styles.colScore]}>תסמינים</Text>
           <Text style={[styles.scoreHeaderCell, styles.colThreshold]}>סף</Text>
           <Text style={[styles.scoreHeaderCell, styles.colStatus]}>סטטוס</Text>
         </View>
@@ -542,20 +555,107 @@ function ScorePage({
             <Text style={[styles.scoreCell, styles.colScore]}>{s.symptomCount}</Text>
             <Text style={[styles.scoreCell, styles.colThreshold]}>{s.threshold}</Text>
             <View style={styles.colStatus}>
-              <Text style={[styles.scoreCell, s.meetsThreshold ? styles.statusPass : styles.statusFail]}>
-                {s.meetsThreshold ? 'חריג' : 'תקין'}
-              </Text>
+              <Text style={[styles.scoreCell, s.meetsThreshold ? styles.statusPass : styles.statusFail]}>{s.meetsThreshold ? 'מעל הסף' : 'מתחת לסף'}</Text>
             </View>
           </View>
         ))}
       </View>
-
       <Text style={styles.h3}>תפקוד בבית ובבית הספר</Text>
       <Text style={styles.paragraph}>{score.performance.interpretation}</Text>
-
-      <Text style={styles.h3}>פרשנות שאלון</Text>
+      <Text style={styles.h3}>פרשנות השאלון</Text>
       <Text style={styles.paragraph}>{score.clinicalSummary}</Text>
+      <PageFooter reportDate={input.reportDate} />
+    </Page>
+  );
+}
 
+const STATUS_HE = { met: 'מתקיים', not_met: 'לא מתקיים', partial: 'חלקי', unknown: 'לא נבדק' } as const;
+const statusStyle = (st: keyof typeof STATUS_HE) => st === 'met' ? styles.statusPass : st === 'not_met' ? styles.statusFail : st === 'partial' ? styles.statusPartial : styles.statusUnknown;
+
+function SymptomTable({ title, rows, count, threshold }: { title: string; rows: PdfSymptomRow[]; count: number; threshold: number }) {
+  return (
+    <View>
+      <Text style={styles.h3}>{title} – {count}/9 תסמינים (סף {threshold})</Text>
+      <View style={styles.scoreTable}>
+        <View style={styles.scoreHeaderRow}>
+          <Text style={[styles.scoreHeaderCell, styles.colSymCode]}>קוד</Text>
+          <Text style={[styles.scoreHeaderCell, styles.colSymText]}>תסמין</Text>
+          <Text style={[styles.scoreHeaderCell, styles.colSymSrc]}>הורה</Text>
+          <Text style={[styles.scoreHeaderCell, styles.colSymSrc]}>מורה</Text>
+          <Text style={[styles.scoreHeaderCell, styles.colSymSrc]}>קביעה</Text>
+        </View>
+        {rows.map((r, i) => (
+          <View key={r.code} style={i % 2 === 0 ? styles.scoreRow : styles.scoreRowAlt} wrap={false}>
+            <Text style={[styles.scoreCell, styles.colSymCode]}>{r.code}</Text>
+            <Text style={[styles.scoreCell, styles.colSymText]}>{r.text}</Text>
+            <Text style={[styles.scoreCell, styles.colSymSrc]}>{r.parent === null ? '—' : r.parent}</Text>
+            <Text style={[styles.scoreCell, styles.colSymSrc]}>{r.teacher === null ? '—' : r.teacher}</Text>
+            <Text style={[styles.scoreCell, styles.colSymSrc, r.present === 'present' ? styles.statusPass : r.present === 'absent' ? styles.statusFail : styles.statusUnknown]}>
+              {r.present === 'present' ? 'קיים' : r.present === 'absent' ? 'לא' : 'לא ברור'}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function FindingsPage({ input }: { input: PdfInput }) {
+  const childName = `${input.patient.firstName} ${input.patient.lastName}`;
+  const { report } = input;
+  return (
+    <Page size="A4" style={styles.page}>
+      <PageHeader pageName="ממצאים: שאלונים, תצפית ובדיקה" childName={childName} />
+      {report.questionnaireFindings ? (<><Text style={styles.h2}>ניתוח ממצאי השאלונים</Text><Paragraphs text={report.questionnaireFindings} /></>) : null}
+      {report.observation ? (<><Text style={styles.h2}>תצפית קלינית ובדיקה</Text><Paragraphs text={report.observation} /></>) : null}
+      {input.clinicalNotes.length > 0 && (
+        <>
+          <Text style={styles.h2}>הערות קליניות מהתיק</Text>
+          {input.clinicalNotes.map((note, i) => (
+            <View key={i} style={styles.bulletRow}>
+              <Text style={styles.bulletDot}>-</Text>
+              <Text style={styles.bulletText}>[{CATEGORY_HE[note.category] ?? note.category}] {note.content}</Text>
+            </View>
+          ))}
+        </>
+      )}
+      <PageFooter reportDate={input.reportDate} />
+    </Page>
+  );
+}
+
+function Dsm5Page({ input }: { input: PdfInput }) {
+  const childName = `${input.patient.firstName} ${input.patient.lastName}`;
+  const { report, dsm5Items } = input;
+  return (
+    <Page size="A4" style={styles.page}>
+      <PageHeader pageName="ניתוח לפי קריטריוני DSM-5" childName={childName} />
+      <Text style={styles.h2}>קריטריוני DSM-5 להפרעת קשב וריכוז</Text>
+      <Text style={styles.paragraph}>הטבלה מסכמת את עמידת הממצאים בחמשת הקריטריונים האבחוניים (A–E) של ה-DSM-5, על בסיס השאלונים, הראיון האנמנסטי והבדיקה הקלינית.</Text>
+      <View style={styles.scoreTable}>
+        <View style={styles.scoreHeaderRow}>
+          <Text style={[styles.scoreHeaderCell, styles.colCrit]}>קריט׳</Text>
+          <Text style={[styles.scoreHeaderCell, styles.colCritTitle]}>נושא</Text>
+          <Text style={[styles.scoreHeaderCell, styles.colCritFinding]}>ממצא</Text>
+          <Text style={[styles.scoreHeaderCell, styles.colCritStatus]}>סטטוס</Text>
+        </View>
+        {report.dsm5.map((c, i) => (
+          <View key={c.criterion} style={i % 2 === 0 ? styles.scoreRow : styles.scoreRowAlt} wrap={false}>
+            <Text style={[styles.scoreCell, styles.colCrit, { fontWeight: 700 }]}>{c.criterion}</Text>
+            <Text style={[styles.scoreCell, styles.colCritTitle]}>{c.title}</Text>
+            <Text style={[styles.scoreCell, styles.colCritFinding]}>{c.finding}</Text>
+            <Text style={[styles.scoreCell, styles.colCritStatus, statusStyle(c.status)]}>{STATUS_HE[c.status]}</Text>
+          </View>
+        ))}
+      </View>
+      {dsm5Items && (
+        <>
+          <Text style={styles.h2}>פירוט תסמיני קריטריון A</Text>
+          <Text style={styles.paragraph}>ציוני ההורה והמורה הם ציוני NICHQ Vanderbilt (0 = אף פעם, 3 = לעיתים קרובות מאוד); ציון 2–3 נחשב תסמין. עמודת "קביעה" משקפת את שיקול הדעת הקליני הסופי.</Text>
+          <SymptomTable title="A1 – חוסר קשב" rows={dsm5Items.inattention} count={dsm5Items.inattentionCount} threshold={dsm5Items.threshold} />
+          <SymptomTable title="A2 – היפראקטיביות / אימפולסיביות" rows={dsm5Items.hyperactivity} count={dsm5Items.hyperactivityCount} threshold={dsm5Items.threshold} />
+        </>
+      )}
       <PageFooter reportDate={input.reportDate} />
     </Page>
   );
@@ -564,19 +664,17 @@ function ScorePage({
 function ImpressionAndDiagnosisPage({ input }: { input: PdfInput }) {
   const childName = `${input.patient.firstName} ${input.patient.lastName}`;
   const { report } = input;
-
   return (
     <Page size="A4" style={styles.page}>
-      <PageHeader pageName="התרשמות ואבחנה" childName={childName} />
-
+      <PageHeader pageName="התרשמות קלינית ואבחנה" childName={childName} />
       <Text style={styles.h2}>התרשמות קלינית</Text>
-      <Text style={styles.paragraph}>{report.clinicalImpression}</Text>
-
-      <Text style={styles.h2}>אבחנה</Text>
-      <View style={styles.diagBox}>
+      <Paragraphs text={report.clinicalImpression} />
+      <Text style={styles.h2}>{report.reportKind === 'preliminary' ? 'רושם אבחוני ראשוני' : 'אבחנה'}</Text>
+      <View style={styles.diagBox} wrap={false}>
         <Text style={styles.diagText}>{report.diagnosis}</Text>
       </View>
-
+      {report.presentationAndSeverity ? (<><Text style={styles.h3}>הצגה קלינית ודרגת חומרה</Text><Paragraphs text={report.presentationAndSeverity} /></>) : null}
+      {report.differential ? (<><Text style={styles.h2}>אבחנה מבדלת ותחלואה נלווית</Text><Paragraphs text={report.differential} /></>) : null}
       <PageFooter reportDate={input.reportDate} />
     </Page>
   );
@@ -585,7 +683,6 @@ function ImpressionAndDiagnosisPage({ input }: { input: PdfInput }) {
 function RecommendationsPage({ input }: { input: PdfInput }) {
   const childName = `${input.patient.firstName} ${input.patient.lastName}`;
   const { report } = input;
-
   const renderList = (title: string, items: string[]) => {
     if (!items || items.length === 0) return null;
     return (
@@ -593,62 +690,58 @@ function RecommendationsPage({ input }: { input: PdfInput }) {
         <Text style={styles.h3}>{title}</Text>
         {items.map((it, i) => (
           <View key={i} style={styles.bulletRow}>
-            <Text style={styles.bulletDot}>-</Text>
+            <Text style={styles.bulletDot}>{i + 1}</Text>
             <Text style={styles.bulletText}>{it}</Text>
           </View>
         ))}
       </View>
     );
   };
-
   return (
     <Page size="A4" style={styles.page}>
-      <PageHeader pageName="המלצות" childName={childName} />
-
+      <PageHeader pageName="המלצות וסיכום" childName={childName} />
       <Text style={styles.h2}>המלצות</Text>
-
-      {renderList('טיפוליות', report.recommendations.therapeutic)}
-      {renderList('חינוכיות', report.recommendations.educational)}
+      {renderList('להורים', report.recommendations.parents)}
+      {renderList('לצוות החינוכי – התאמות והתערבות', report.recommendations.educational)}
       {renderList('רפואיות', report.recommendations.medical)}
-
-      {report.recommendations.followUp && (
-        <>
-          <Text style={styles.h3}>מעקב והמשך</Text>
-          <Text style={styles.paragraph}>{report.recommendations.followUp}</Text>
-        </>
-      )}
-
+      {renderList('טיפוליות ומשלימות', report.recommendations.therapeutic)}
+      {report.recommendations.followUp ? (<><Text style={styles.h3}>מעקב והמשך</Text><Paragraphs text={report.recommendations.followUp} /></>) : null}
+      {report.summary ? (
+        <View style={styles.summaryBox} wrap={false}>
+          <Text style={[styles.h3, { marginTop: 0 }]}>סיכום</Text>
+          <Paragraphs text={report.summary} />
+        </View>
+      ) : null}
       {report.disclaimers && report.disclaimers.length > 0 && (
-        <View style={styles.disclaimerBox}>
+        <View style={styles.disclaimerBox} wrap={false}>
           <Text style={styles.disclaimerTitle}>הערות חשובות</Text>
-          {report.disclaimers.map((d, i) => (
-            <Text key={i} style={styles.disclaimerText}>• {d}</Text>
-          ))}
+          {report.disclaimers.map((d, i) => (<Text key={i} style={styles.disclaimerText}>• {d}</Text>))}
         </View>
       )}
-
       <View style={styles.signatureBlock} wrap={false}>
         <Text style={styles.signatureName}>{input.clinicianName}</Text>
         <Text style={styles.signatureTitle}>{input.clinicianTitle}</Text>
         <Text style={[styles.signatureTitle, { marginTop: 8 }]}>תאריך: {input.reportDate}</Text>
       </View>
-
       <PageFooter reportDate={input.reportDate} />
     </Page>
   );
 }
 
 function ReportDocument({ input }: { input: PdfInput }) {
+  const hasFindings = Boolean(input.report.questionnaireFindings || input.report.observation || input.clinicalNotes.length);
   return (
     <Document
-      title={`דוח אבחון - ${input.patient.firstName} ${input.patient.lastName}`}
+      title={`דוח אבחון ADHD - ${input.patient.firstName} ${input.patient.lastName}`}
       author="Magic Kids Institute"
-      subject="NICHQ Vanderbilt ADHD Assessment Report"
+      subject="ADHD Diagnostic Report (DSM-5, NICHQ Vanderbilt)"
     >
       <CoverPage input={input} />
-      <FamilyAndBackgroundPage input={input} />
+      <BackgroundPage input={input} />
       {input.parentScore && <ScorePage input={input} score={input.parentScore} respondentLabel="הורה" />}
       {input.teacherScore && <ScorePage input={input} score={input.teacherScore} respondentLabel="מורה" />}
+      {hasFindings && <FindingsPage input={input} />}
+      <Dsm5Page input={input} />
       <ImpressionAndDiagnosisPage input={input} />
       <RecommendationsPage input={input} />
     </Document>
