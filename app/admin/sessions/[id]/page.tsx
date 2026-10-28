@@ -12,6 +12,7 @@ import ScoreCard from '@/components/admin/ScoreCard';
 import BookAppointment from './BookAppointment';
 import AppointmentConfirmation from '@/components/admin/AppointmentConfirmation';
 import ReportsList from './ReportsList';
+import ClinicalAssessment from '@/components/admin/ClinicalAssessment';
 import SendToMaccabi from './SendToMaccabi';
 import QuestionnaireLinks from '@/components/admin/QuestionnaireLinks';
 import CaseActions from '@/components/admin/CaseActions';
@@ -126,6 +127,8 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           )}
 
           {/* Reports — always visible section */}
+          <ClinicalAssessment sessionId={session.id} />
+
           <ReportsList
             sessionId={session.id}
             childName={childName}

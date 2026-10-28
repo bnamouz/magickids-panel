@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { scoreVanderbilt } from '@/lib/vanderbilt-scoring';
-import { generateReportContent } from '@/lib/report-generator';
-import { generatePdfReport, type PdfInput } from '@/lib/pdf-report';
+import { generateReportContent, REPORT_MODEL, REPORT_PROMPT_VERSION } from '@/lib/report-generator';
+import { generatePdfReport, type PdfInput, type PdfSymptomRow } from '@/lib/pdf-report';
+import { getCurrentStaff } from '@/lib/admin/auth';
+import { DSM5_HYPERACTIVITY, DSM5_INATTENTION, effectivePresence, normalizeAssessment, symptomEvidence } from '@/lib/adhd/dsm5';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,6 +24,9 @@ function formatHebrewDate(iso: string | null | undefined): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const staff = await getCurrentStaff();
+    if (!staff) return NextResponse.json({ error: 'אין הרשאה' }, { status: 403 });
+    if (req.headers.get('origin') !== req.nextUrl.origin) return NextResponse.json({ error: 'אין הרשאה' }, { status: 403 });
     const body = await req.json();
     const { session_id } = body;
 
@@ -68,7 +73,7 @@ export async function POST(req: NextRequest) {
     // Load parent Vanderbilt questionnaire
     const { data: parentQ } = await supabase
       .from('questionnaires')
-      .select('id, responses, submitted_at, is_complete, respondent_name')
+      .select('id, responses, submitted_at, is_complete, respondent_name, free_text, intro_data')
       .eq('session_id', session_id)
       .eq('type', 'vanderbilt_parent')
       .eq('is_complete', true)
@@ -86,7 +91,7 @@ export async function POST(req: NextRequest) {
     // Load teacher Vanderbilt if exists
     const { data: teacherQ } = await supabase
       .from('questionnaires')
-      .select('id, responses, submitted_at, is_complete, respondent_name, respondent_role')
+      .select('id, responses, submitted_at, is_complete, respondent_name, respondent_role, free_text')
       .eq('session_id', session_id)
       .eq('type', 'vanderbilt_teacher')
       .eq('is_complete', true)
@@ -115,21 +120,14 @@ export async function POST(req: NextRequest) {
       teacherScore = scoreVanderbilt(teacherResponses, 'teacher');
     }
 
-    // Try to identify authenticated staff for audit
-    const authHeader = req.headers.get('authorization');
-    let generatedByUserId: string | null = null;
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.slice(7);
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) {
-        const { data: staff } = await supabase
-          .from('users')
-          .select('id')
-          .eq('auth_user_id', user.id)
-          .maybeSingle();
-        generatedByUserId = staff?.id || null;
-      }
-    }
+    // Clinician's DSM-5 assessment (filled during the evaluation) – optional; without it the report is preliminary.
+    const { data: assessmentRow } = await supabase
+      .from('adhd_clinical_assessments')
+      .select('data')
+      .eq('session_id', session_id)
+      .maybeSingle();
+    const assessment = assessmentRow ? normalizeAssessment(assessmentRow.data) : null;
+    const teacherResponses = teacherQ ? (teacherQ.responses as Record<string, number>) : null;
 
     const childName = `${patient.first_name || ''} ${patient.last_name || ''}`.trim();
 
@@ -142,7 +140,7 @@ export async function POST(req: NextRequest) {
       content: n.content,
     }));
 
-    const aiReport = await generateReportContent({
+    const { report: aiReport, evaluation, tokensIn, tokensOut } = await generateReportContent({
       patient: {
         firstName: patient.first_name || '',
         lastName: patient.last_name || '',
@@ -162,8 +160,23 @@ export async function POST(req: NextRequest) {
       reasonForReferral: session.reason_for_referral || null,
       parentScore,
       teacherScore,
+      parentResponses,
+      teacherResponses,
+      parentIntro: (parentQ.intro_data as Record<string, unknown> | null) ?? null,
+      parentFreeText: parentQ.free_text ?? null,
+      teacherFreeText: teacherQ?.free_text ?? null,
+      teacherRespondent: teacherQ ? { name: teacherQ.respondent_name ?? null, role: teacherQ.respondent_role ?? null } : null,
       clinicalNotes: notesArray,
+      assessment,
     });
+
+    // Item-level DSM-5 table for the PDF (same logic the generator used).
+    const evidence = symptomEvidence({ parent: parentResponses, teacher: teacherResponses });
+    const emptyAssessment = normalizeAssessment(null);
+    const toRows = (list: readonly { code: string; he: string }[]): PdfSymptomRow[] => list.map((s) => ({
+      code: s.code, text: s.he, parent: evidence[s.code]?.parent ?? null, teacher: evidence[s.code]?.teacher ?? null,
+      present: effectivePresence(s.code, assessment ?? emptyAssessment, evidence),
+    }));
 
     const pdfInput: PdfInput = {
       patient: {
@@ -187,6 +200,7 @@ export async function POST(req: NextRequest) {
       teacherScore,
       clinicalNotes: notesArray,
       report: aiReport,
+      dsm5Items: { inattention: toRows(DSM5_INATTENTION), hyperactivity: toRows(DSM5_HYPERACTIVITY), threshold: evaluation.threshold, inattentionCount: evaluation.inattention, hyperactivityCount: evaluation.hyperactivity },
       clinicianName: CLINICIAN_NAME,
       clinicianTitle: CLINICIAN_TITLE,
       reportDate: formatHebrewDate(new Date().toISOString()),
@@ -229,9 +243,13 @@ export async function POST(req: NextRequest) {
           parent_score: parentScore,
           teacher_score: teacherScore,
           ai_report: aiReport,
+          dsm5_evaluation: evaluation,
+          clinical_assessment: assessment,
         },
-        ai_model: 'gpt-4o',
-        ai_prompt_version: 'v1',
+        ai_model: REPORT_MODEL,
+        ai_prompt_version: REPORT_PROMPT_VERSION,
+        ai_tokens_in: tokensIn,
+        ai_tokens_out: tokensOut,
         status: 'draft',
         pdf_storage_path: filePath,
         download_url: signedData?.signedUrl || null,
@@ -239,7 +257,6 @@ export async function POST(req: NextRequest) {
           ? new Date(Date.now() + 3600 * 1000).toISOString()
           : null,
         generated_at: new Date().toISOString(),
-        reviewed_by: generatedByUserId,
       })
       .select()
       .single();
