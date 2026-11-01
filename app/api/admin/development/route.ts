@@ -4,6 +4,8 @@ import {getSupabaseAdmin} from '@/lib/supabase';
 import {staffGuard,json,failure,token,hash} from '@/lib/development/server';
 import {registration,ageEligible,VERSION,DESTINATION} from '@/lib/development/schema';
 import {mailReady,sendPacket} from '@/lib/development/mail';
+import {RECIPIENTS,isRecipient,packetSubject,packetBody} from '@/lib/development/recipients';
+import {IMAGE_TYPES,detectImage,imageToPdf} from '@/lib/development/image-pdf';
 import {packetPdf} from '@/lib/development/pdf';
 export const dynamic='force-dynamic';
 export const runtime='nodejs';
@@ -12,13 +14,13 @@ const requiredKinds=['parent_original','education_original','referral','consent'
 export async function GET(req:Request){try{
 
  await staffGuard(req);const db=getSupabaseAdmin();const id=new URL(req.url).searchParams.get('id');
- if(!id){const {data,error}=await db.from('development_referrals').select('id,child_name,status,created_at,parent_submitted_at,education_submitted_at').order('created_at',{ascending:false}).limit(100);if(error)throw error;return json({cases:data,mail_configured:mailReady(),destination:DESTINATION});}
+ if(!id){const {data,error}=await db.from('development_referrals').select('id,child_name,status,created_at,parent_submitted_at,education_submitted_at').order('created_at',{ascending:false}).limit(100);if(error)throw error;return json({cases:data,mail_configured:mailReady(),destination:DESTINATION,recipients:RECIPIENTS});}
  const {data,error}=await db.from('development_referrals').select('id,child_name,birth_date,parent_name,phone,education_role,form_version,form_template,parent_answers,education_answers,parent_submitted_at,education_submitted_at,summary,status,approved_at,email_id,error_code,created_at').eq('id',id).single();if(error)throw error;
  const {data:documents,error:dErr}=await db.from('development_documents').select('id,kind').eq('referral_id',id);if(dErr)throw dErr;
  const documentId=new URL(req.url).searchParams.get('document');
  if(documentId?.startsWith('generated-')&&data.form_version===OFFICIAL_VERSION){const role=documentId==='generated-parent'?'parent':data.education_role;if(role==='none')return json({error:'אין מסגרת'},400);return new Response(new Uint8Array(await originalPdf(data,role)),{headers:{'Content-Type':'application/pdf','Cache-Control':'no-store','Content-Disposition':'attachment; filename=questionnaire.pdf'}});}
  if(documentId){const {data:doc}=await db.from('development_documents').select('storage_path').eq('referral_id',id).eq('id',documentId).single();if(!doc)return json({error:'מסמך לא נמצא'},404);const file=await db.storage.from('development-private').download(doc.storage_path);if(file.error)throw file.error;return new Response(await file.data.arrayBuffer(),{headers:{'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="document.pdf"','Cache-Control':'no-store'}});}
- return json({case:data,documents,mail_configured:mailReady(),destination:DESTINATION});
+ return json({case:data,documents,mail_configured:mailReady(),destination:DESTINATION,recipients:RECIPIENTS});
  }catch(e){return failure(e);}}
 export async function POST(req:Request){try{
 
@@ -26,8 +28,13 @@ export async function POST(req:Request){try{
  if(req.headers.get('content-type')?.includes('multipart/form-data')){
  if(Number(req.headers.get('content-length')||0)>5500000)return json({error:'קובץ גדול מדי'},413);
  const form=await req.formData(),id=String(form.get('id')),kind=String(form.get('kind')),file=form.get('file');
- if(!requiredKinds.includes(kind)||!(file instanceof File)||file.size>5242880||file.type!=='application/pdf')return json({error:'נדרש PDF עד 5MB'},400);
- const bytes=Buffer.from(await file.arrayBuffer());if(bytes.subarray(0,5).toString()!=='%PDF-')return json({error:'קובץ לא תקין'},400);
+ if(!requiredKinds.includes(kind)||!(file instanceof File)||file.size>5242880||(file.type!=='application/pdf'&&!IMAGE_TYPES[file.type]))return json({error:'נדרש PDF או תמונה (JPG/PNG) עד 5MB'},400);
+ let bytes:Buffer=Buffer.from(await file.arrayBuffer());
+ if(file.type==='application/pdf'){if(bytes.subarray(0,5).toString()!=='%PDF-')return json({error:'קובץ לא תקין'},400);}
+ else{const format=detectImage(bytes);if(!format)return json({error:'קובץ התמונה לא תקין'},400);
+  // Scanned referrals arrive as phone photos; the packet must stay PDF-only, so wrap the image in an A4 page.
+  try{bytes=await imageToPdf(bytes,format);}catch{return json({error:'המרת התמונה ל-PDF נכשלה. נסו תמונה אחרת או PDF'},400);}
+  if(bytes.length>5242880)return json({error:'הקובץ לאחר ההמרה גדול מדי'},413);}
  // Lock the case while replacing a document; approval and submissions cannot race the upload.
  const {data:before,error:readErr}=await db.from('development_referrals').select('status').eq('id',id).single();
  if(readErr)throw readErr;if(!['parent','education','review'].includes(before.status))return json({error:'התיק נעול'},409);
@@ -64,6 +71,8 @@ export async function POST(req:Request){try{
  const r=await db.from('development_referrals').update({summary:body.summary,approved_by:staff.id,approved_at:new Date().toISOString(),status:'approved'}).eq('id',row.id).eq('status','review').select('id').maybeSingle();if(r.error||!r.data)throw new Error('CONFLICT');return json({ok:true});
  }
  if(body.action==='send'){
+ const recipient=body.recipient??'institute';if(!isRecipient(recipient))return json({error:'נמען לא מוכר'},400);
+ if(recipient==='maccabi'&&body.confirmed!==true)return json({error:'שליחה למכבי דורשת אישור מפורש'},400);
  if(!mailReady())return json({error:'חיבור הדואר טרם הוגדר. לא נשלח מידע.'},503);
  if(row.status!=='approved'||!row.approved_at)return json({error:'נדרש אישור רפואי לפני שליחה; תיק שכבר נשלח לא נשלח שוב'},409);
  const {data:docs,error:dErr}=await db.from('development_documents').select('kind,storage_path').eq('referral_id',row.id);if(dErr)throw dErr;if(!required.every(k=>docs?.some(d=>d.kind===k)))return json({error:'חסרים מסמכים'},400);
@@ -71,7 +80,10 @@ export async function POST(req:Request){try{
  if(official){attachments.push({filename:'parent-original-completed.pdf',content:(await originalPdf(row,'parent')).toString('base64')});if(needsEducation)attachments.push({filename:'education-original-completed.pdf',content:(await originalPdf(row,row.education_role)).toString('base64')});}
  for(const d of docs!){const f=await db.storage.from('development-private').download(d.storage_path);if(f.error)throw f.error;attachments.push({filename:`${d.kind}.pdf`,content:Buffer.from(await f.data.arrayBuffer()).toString('base64')});}
  const locked=await db.from('development_referrals').update({status:'sending',dispatch_started_at:new Date().toISOString()}).eq('id',row.id).eq('status','approved').select('id').maybeSingle();if(locked.error)throw locked.error;if(!locked.data)return json({error:'שליחה כבר החלה'},409);
- try{const emailId=await sendPacket(row.id,attachments);const saved=await db.from('development_referrals').update({status:'accepted',email_id:emailId,error_code:null}).eq('id',row.id);if(saved.error)throw new Error('STATUS_SAVE');return json({ok:true,status:'accepted'});}
+ const to=RECIPIENTS[recipient].email,files=attachments.map(a=>a.filename);
+ try{const emailId=await sendPacket(row.id,attachments,{to,subject:packetSubject(recipient,row),body:packetBody(recipient,row,files)});const saved=await db.from('development_referrals').update({status:'accepted',email_id:emailId,error_code:null}).eq('id',row.id);if(saved.error)throw new Error('STATUS_SAVE');
+  await db.from('audit_log').insert({actor_id:staff.id,actor_type:'user',action:'development_packet_emailed',entity_type:'development_referral',entity_id:row.id,metadata:{to,recipient,files,gmail_message_id:emailId}});
+  return json({ok:true,status:'accepted',to});}
  catch{await db.from('development_referrals').update({status:'unknown',error_code:'VERIFY_PROVIDER_BEFORE_RETRY'}).eq('id',row.id);return json({error:'לא ניתן לאשר את מצב השליחה. יש לבדוק אצל ספק הדואר לפני ניסיון נוסף.'},502);}
  }
  return json({error:'פעולה לא נתמכת'},400);
