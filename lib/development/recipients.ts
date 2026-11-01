@@ -2,12 +2,19 @@ import { DESTINATION } from './schema';
 import { MACCABI_CHILDREN_CENTER_EMAIL } from '@/lib/maccabi/send-files';
 
 /** Where a reviewed child-development packet may be emailed. */
-export const RECIPIENTS = {
- institute: { email: DESTINATION, label: 'תיבת המכון (ד״ר נמוז)' },
- maccabi: { email: MACCABI_CHILDREN_CENTER_EMAIL, label: 'מכבי – מוקד מחוזי ילדים' },
-} as const;
+/** Maccabi Shfaram child-development institute (Kamal Jumblatt) – address printed on the clinic referral form (1.11.2026). */
+export const MACCABI_SHFARAM_CHILD_EMAIL = 'zfn_shraam_child@mac.org.il';
+export type RecipientSpec = { to: string[]; cc?: string[]; label: string; /** shown in the UI */ email: string };
+export const RECIPIENTS: Record<'all' | 'maccabi' | 'shfaram' | 'institute', RecipientSpec> = {
+ all: { to: [MACCABI_CHILDREN_CENTER_EMAIL, MACCABI_SHFARAM_CHILD_EMAIL], cc: [DESTINATION], label: 'לכולם – מוקד מחוזי ילדים + מכון שפרעם, העתק לתיבת המכון', email: `${MACCABI_CHILDREN_CENTER_EMAIL}, ${MACCABI_SHFARAM_CHILD_EMAIL}` },
+ maccabi: { to: [MACCABI_CHILDREN_CENTER_EMAIL], label: 'מכבי – מוקד מחוזי ילדים', email: MACCABI_CHILDREN_CENTER_EMAIL },
+ shfaram: { to: [MACCABI_SHFARAM_CHILD_EMAIL], label: 'מכבי – מכון להתפתחות הילד שפרעם', email: MACCABI_SHFARAM_CHILD_EMAIL },
+ institute: { to: [DESTINATION], label: 'תיבת המכון בלבד (ד״ר נמוז)', email: DESTINATION },
+};
 export type Recipient = keyof typeof RECIPIENTS;
-export const isRecipient = (v: unknown): v is Recipient => v === 'institute' || v === 'maccabi';
+export const isRecipient = (v: unknown): v is Recipient => typeof v === 'string' && v in RECIPIENTS;
+/** Anything that leaves the institute requires an explicit confirmation flag from the UI. */
+export const isExternal = (r: Recipient) => r !== 'institute';
 
 const FILE_LABELS: Record<string, string> = {
  'reviewed-summary.pdf': 'ריכוז הדיווחים שנבדק במכון',
