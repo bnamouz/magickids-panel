@@ -70,6 +70,13 @@ export async function POST(req:Request){try{
  if(!required.every(k=>docs?.some(d=>d.kind===k)))return json({error:official?'יש לצרף הפניה רפואית ולוודא את ההסכמות בשאלונים המקוריים':'יש לצרף את שני שאלוני המקור המלאים, הפניה והסכמה חתומה'},400);
  const r=await db.from('development_referrals').update({summary:body.summary,approved_by:staff.id,approved_at:new Date().toISOString(),status:'approved'}).eq('id',row.id).eq('status','review').select('id').maybeSingle();if(r.error||!r.data)throw new Error('CONFLICT');return json({ok:true});
  }
+ if(body.action==='reopen'){
+  // Approved but not yet sent: unlock so documents can be replaced and the summary re-approved. Sent cases stay locked.
+  if(row.status!=='approved')return json({error:'ניתן להחזיר לעריכה רק תיק מאושר שטרם נשלח'},409);
+  const r=await db.from('development_referrals').update({status:'review',approved_at:null,approved_by:null}).eq('id',row.id).eq('status','approved').select('id').maybeSingle();
+  if(r.error)throw r.error;if(!r.data)return json({error:'התיק השתנה בינתיים'},409);
+  await db.from('audit_log').insert({actor_id:staff.id,actor_type:'user',action:'development_case_reopened',entity_type:'development_referral',entity_id:row.id,metadata:{}});
+  return json({ok:true,status:'review'});}
  if(body.action==='send'){
  const recipient=body.recipient??'institute';if(!isRecipient(recipient))return json({error:'נמען לא מוכר'},400);
  if(isExternal(recipient)&&body.confirmed!==true)return json({error:'שליחה למכבי דורשת אישור מפורש'},400);
