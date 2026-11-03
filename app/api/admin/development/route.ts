@@ -20,7 +20,8 @@ export async function GET(req:Request){try{
  const documentId=new URL(req.url).searchParams.get('document');
  if(documentId?.startsWith('generated-')&&data.form_version===OFFICIAL_VERSION){const role=documentId==='generated-parent'?'parent':data.education_role;if(role==='none')return json({error:'אין מסגרת'},400);return new Response(new Uint8Array(await originalPdf(data,role)),{headers:{'Content-Type':'application/pdf','Cache-Control':'no-store','Content-Disposition':'attachment; filename=questionnaire.pdf'}});}
  if(documentId){const {data:doc}=await db.from('development_documents').select('storage_path').eq('referral_id',id).eq('id',documentId).single();if(!doc)return json({error:'מסמך לא נמצא'},404);const file=await db.storage.from('development-private').download(doc.storage_path);if(file.error)throw file.error;return new Response(await file.data.arrayBuffer(),{headers:{'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="document.pdf"','Cache-Control':'no-store'}});}
- return json({case:data,documents,mail_configured:mailReady(),destination:DESTINATION,recipients:RECIPIENTS});
+ const packetFiles=[{name:'reviewed-summary.pdf',label:'ריכוז הדיווחים שנבדק במכון'},...(data.form_version===OFFICIAL_VERSION?[{name:'parent-original-completed.pdf',label:'שאלון מכבי להורים – מלא'},...(data.education_role!=='none'?[{name:'education-original-completed.pdf',label:'שאלון מכבי למסגרת החינוכית – מלא'}]:[])]:[]),...documents.map((d:any)=>({name:`${d.kind}.pdf`,label:({referral:'הפניית רופא',consent:'הסכמת הורים חתומה',parent_original:'שאלון הורים – מקור',education_original:'שאלון מסגרת – מקור'} as Record<string,string>)[d.kind]||d.kind}))];
+ return json({case:data,documents,mail_configured:mailReady(),destination:DESTINATION,recipients:RECIPIENTS,packet_files:packetFiles});
  }catch(e){return failure(e);}}
 export async function POST(req:Request){try{
 
@@ -71,11 +72,14 @@ export async function POST(req:Request){try{
  const r=await db.from('development_referrals').update({summary:body.summary,approved_by:staff.id,approved_at:new Date().toISOString(),status:'approved'}).eq('id',row.id).eq('status','review').select('id').maybeSingle();if(r.error||!r.data)throw new Error('CONFLICT');return json({ok:true});
  }
  if(body.action==='reopen'){
-  // Approved but not yet sent: unlock so documents can be replaced and the summary re-approved. Sent cases stay locked.
-  if(row.status!=='approved')return json({error:'ניתן להחזיר לעריכה רק תיק מאושר שטרם נשלח'},409);
-  const r=await db.from('development_referrals').update({status:'review',approved_at:null,approved_by:null}).eq('id',row.id).eq('status','approved').select('id').maybeSingle();
+  // Unlock so documents can be replaced and the summary re-approved. Allowed when approved-but-unsent, or when the
+  // packet only went to the institute mailbox (internal copy). A case that already reached Maccabi stays locked.
+  if(row.status!=='approved'&&row.status!=='accepted')return json({error:'ניתן להחזיר לעריכה רק תיק מאושר או תיק שנשלח לתיבת המכון בלבד'},409);
+  if(row.status==='accepted'){const {data:sends}=await db.from('audit_log').select('metadata').eq('entity_type','development_referral').eq('entity_id',row.id).eq('action','development_packet_emailed');
+   if(sends?.some(x=>x.metadata?.recipient&&x.metadata.recipient!=='institute'))return json({error:'התיק כבר נשלח למכבי ואינו ניתן לעריכה'},409);}
+  const r=await db.from('development_referrals').update({status:'review',approved_at:null,approved_by:null,email_id:null}).eq('id',row.id).eq('status',row.status).select('id').maybeSingle();
   if(r.error)throw r.error;if(!r.data)return json({error:'התיק השתנה בינתיים'},409);
-  await db.from('audit_log').insert({actor_id:staff.id,actor_type:'user',action:'development_case_reopened',entity_type:'development_referral',entity_id:row.id,metadata:{}});
+  await db.from('audit_log').insert({actor_id:staff.id,actor_type:'user',action:'development_case_reopened',entity_type:'development_referral',entity_id:row.id,metadata:{previous_status:row.status,previous_email_id:row.email_id}});
   return json({ok:true,status:'review'});}
  if(body.action==='send'){
  const recipient=body.recipient??'institute';if(!isRecipient(recipient))return json({error:'נמען לא מוכר'},400);
@@ -87,9 +91,12 @@ export async function POST(req:Request){try{
  if(official){attachments.push({filename:'parent-original-completed.pdf',content:(await originalPdf(row,'parent')).toString('base64')});if(needsEducation)attachments.push({filename:'education-original-completed.pdf',content:(await originalPdf(row,row.education_role)).toString('base64')});}
  for(const d of docs!){const f=await db.storage.from('development-private').download(d.storage_path);if(f.error)throw f.error;attachments.push({filename:`${d.kind}.pdf`,content:Buffer.from(await f.data.arrayBuffer()).toString('base64')});}
  const locked=await db.from('development_referrals').update({status:'sending',dispatch_started_at:new Date().toISOString()}).eq('id',row.id).eq('status','approved').select('id').maybeSingle();if(locked.error)throw locked.error;if(!locked.data)return json({error:'שליחה כבר החלה'},409);
- const {to,cc}=RECIPIENTS[recipient],files=attachments.map(a=>a.filename);
- try{const emailId=await sendPacket(row.id,attachments,{to,cc,subject:packetSubject(recipient,row),body:packetBody(recipient,row,files)});const saved=await db.from('development_referrals').update({status:'accepted',email_id:emailId,error_code:null}).eq('id',row.id);if(saved.error)throw new Error('STATUS_SAVE');
-  await db.from('audit_log').insert({actor_id:staff.id,actor_type:'user',action:'development_packet_emailed',entity_type:'development_referral',entity_id:row.id,metadata:{to,cc:cc||[],recipient,files,gmail_message_id:emailId}});
+ const allFiles=attachments.map(a=>a.filename),wanted=Array.isArray(body.files)?body.files.filter((f:unknown)=>typeof f==='string'&&allFiles.includes(f)):allFiles;
+ if(!wanted.length){await db.from('development_referrals').update({status:'approved',dispatch_started_at:null}).eq('id',row.id).eq('status','sending');return json({error:'יש לסמן לפחות קובץ אחד לשליחה'},400);}
+ const selected=attachments.filter(a=>wanted.includes(a.filename));
+ const {to,cc}=RECIPIENTS[recipient],files=selected.map(a=>a.filename);
+ try{const emailId=await sendPacket(row.id,selected,{to,cc,subject:packetSubject(recipient,row),body:packetBody(recipient,row,files)});const saved=await db.from('development_referrals').update({status:'accepted',email_id:emailId,error_code:null}).eq('id',row.id);if(saved.error)throw new Error('STATUS_SAVE');
+  await db.from('audit_log').insert({actor_id:staff.id,actor_type:'user',action:'development_packet_emailed',entity_type:'development_referral',entity_id:row.id,metadata:{to,cc:cc||[],recipient,files,omitted:allFiles.filter(f=>!files.includes(f)),gmail_message_id:emailId}});
   return json({ok:true,status:'accepted',to:to.join(', ')});}
  catch{await db.from('development_referrals').update({status:'unknown',error_code:'VERIFY_PROVIDER_BEFORE_RETRY'}).eq('id',row.id);return json({error:'לא ניתן לאשר את מצב השליחה. יש לבדוק אצל ספק הדואר לפני ניסיון נוסף.'},502);}
  }
