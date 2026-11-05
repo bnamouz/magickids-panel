@@ -1,0 +1,57 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import {requestBookingId,requestBookingToken,bookingDate,bookingTime,bookingMessages} from './booking-ui';
+import './booking.css';
+type Price={label:string;price:number;note?:string};
+type Props={slug:string;name:string;treatment:string;pricing:Price[];duration:number|null};
+const statusText:Record<string,string>={awaiting_time:'הבקשה התקבלה · ממתינה לקביעת מועד',syncing:'המועד נקבע · הרישום ביומן מושלם',confirmed:'המועד נקבע ונרשם ביומן',closed:'הבקשה נסגרה'};
+/** Parent page for therapists who set the appointment time themselves.
+ *  No slot picker: the parent leaves details and preferences, the therapist
+ *  chooses the time in her portal, and the parent is notified by WhatsApp. */
+export default function ParentRequest({slug,name,treatment,pricing,duration}:Props){
+ const api=`/api/therapy/${encodeURIComponent(slug)}`;
+ const first=name.split(' ')[0];
+ const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[result,setResult]=useState<any>(null),[loading,setLoading]=useState(true),[tracking,setTracking]=useState('');
+ const [patient,setPatient]=useState(''),[contact,setContact]=useState(''),[phone,setPhone]=useState(''),[note,setNote]=useState(''),[consent,setConsent]=useState(false);
+ const proof=useRef({id:'',token:''}),lock=useRef(false);
+ async function call(body:unknown){const r=await fetch(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(bookingMessages[d.error]||'לא ניתן להשלים כרגע. נסו שוב או פנו למכון.');return d;}
+ async function loadStatus(){const d=await call({action:'status',...proof.current});setResult(d);}
+ useEffect(()=>{
+  const hash=new URLSearchParams(location.hash.slice(1)),id=hash.get('id')||'',token=hash.get('token')||'';
+  if(id&&token){proof.current={id,token};setTracking(location.href);void loadStatus().catch(e=>setMessage(e.message)).finally(()=>setLoading(false));}
+  else{proof.current={id:requestBookingId(),token:requestBookingToken()};setLoading(false);}
+ },[]);
+ async function run(fn:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(true);setMessage('');try{await fn();}catch(e){setMessage(e instanceof Error?e.message:'לא ניתן להשלים כרגע');}finally{setBusy(false);lock.current=false;}}
+ async function submit(){
+  if(!consent||!patient.trim()||!contact.trim()||!phone.trim())return;
+  await call({action:'request',...proof.current,patient,contact,phone,note,consent,website:''});
+  history.replaceState(null,'','#'+new URLSearchParams(proof.current).toString());
+  setTracking(location.href);await loadStatus();
+ }
+ const priceBox=<div className="rb-selection rb-price"><p className="rb-eyebrow">מחיר המפגש</p>{pricing.length?pricing.map(p=><div key={p.label}><strong>{p.label}</strong><bdi>{p.price} ₪</bdi>{p.note&&<span>{p.note}</span>}</div>):<p>המחיר נמסר בעת קביעת המועד.</p>}<span>התשלום מתבצע במכון. {first} מבצעת טיפולי {treatment} רגילים בלבד.</span></div>;
+ return <main className="rana-booking" dir="rtl"><header className="rb-brand"><svg aria-label="ילדי הקסם" viewBox="0 0 40 40" width="36" height="36" fill="none"><path d="M6 31V12l14 9 14-9v19M6 7l14 9L34 7" stroke="currentColor" strokeWidth="3.5"/><circle cx="20" cy="6" r="3" fill="currentColor"/></svg><div><strong>ילדי הקסם</strong><span>תיאום {treatment}</span></div><a href="/">לאתר המכון</a></header>
+  <section className="rb-intro"><p className="rb-eyebrow">{name} · {treatment}</p><h1>{result?'הבקשה שלכם לטיפול':`בקשת טיפול אצל ${first}`}</h1><p>משאירים פרטים והעדפות, ו{first} קובעת את מועד המפגש בעצמה. לאחר קביעת המועד תקבלו הודעת WhatsApp עם התאריך, השעה והכתובת.</p></section>
+  {message&&<p role="alert" className="rb-notice">{message}</p>}
+  {loading?<div className="rb-card" role="status">טוען…</div>:result?<section className="rb-card rb-receipt">
+   <span className={'rb-badge '+(result.status==='awaiting_time'?'pending':result.status)}>{statusText[result.status]||result.status}</span>
+   {result.starts_at?<><h2>{bookingDate(result.starts_at)} · <bdi>{bookingTime(result.starts_at)}–{bookingTime(result.ends_at)}</bdi></h2><p>משך המפגש: {result.duration} דקות · לפי שעון ישראל</p></>:<h2>המועד טרם נקבע</h2>}
+   {priceBox}
+   {result.status==='awaiting_time'&&<p>הבקשה הועברה ל{first}. היא תבחר מועד מתאים לפי ההעדפות שציינתם, ותקבלו הודעת WhatsApp למספר שמסרתם. אין להגיע לפני שנמסר לכם מועד.</p>}
+   {result.status==='syncing'&&<p>{first} קבעה מועד; רישום האירוע ביומן מושלם כעת.</p>}
+   {result.status==='confirmed'&&<p>המועד נקבע ונרשם ביומן של {first}. לשינוי או לביטול פנו למכון בטלפון 054-402-0043.</p>}
+   {result.status==='closed'&&<p>הבקשה נסגרה ואין מועד פעיל. אפשר לשלוח בקשה חדשה או לפנות למכון.</p>}
+   <div className="rb-actions"><button disabled={busy} onClick={()=>void run(loadStatus)}>רענון מצב הבקשה</button>{result.status==='closed'&&<a className="rb-button" href={`/therapy/${slug}`}>בקשה חדשה</a>}</div>
+   <label>הקישור האישי למעקב<input dir="ltr" readOnly value={tracking} onFocus={e=>e.currentTarget.select()}/></label><p className="rb-small">שמרו את הקישור במועדפים. הוא אישי; אין להעביר אותו לאחרים.</p>
+  </section>:<div className="rb-columns"><section className="rb-card"><h2>איך זה עובד</h2>
+   {priceBox}
+   <ol className="rb-steps"><li>ממלאים את פרטי הילד/ה וההורה ומציינים ימים ושעות שנוחים לכם.</li><li>{first} בוחרת מועד למפגש{duration?` (${duration} דקות)`:''} ורושמת אותו ביומן.</li><li>מקבלים הודעת WhatsApp עם המועד והכתובת: דאהר עומר אלזידאני 9, שפרעם.</li></ol>
+   <p className="rb-small">הבקשה אינה קביעת תור. אין להזין מידע רפואי בטופס.</p>
+  </section><section className="rb-card"><p className="rb-eyebrow">הבקשה שלכם</p><h2>פרטי ההורה והילד</h2>
+   <form onSubmit={e=>{e.preventDefault();void run(submit);}}><label>שם הילד/ה<input required minLength={2} maxLength={100} value={patient} onChange={e=>setPatient(e.target.value)} autoComplete="off" disabled={busy}/></label><label>שם ההורה / איש הקשר<input required minLength={2} maxLength={100} value={contact} onChange={e=>setContact(e.target.value)} autoComplete="name" disabled={busy}/></label><label>טלפון נייד (אליו תישלח הודעת המועד)<input required type="tel" dir="ltr" inputMode="tel" placeholder="0501234567" value={phone} maxLength={24} onChange={e=>setPhone(e.target.value)} autoComplete="tel" disabled={busy}/></label>
+    <label>ימים ושעות שנוחים לכם (לא חובה)<textarea className="rb-textarea" maxLength={300} rows={3} value={note} onChange={e=>setNote(e.target.value)} placeholder="לדוגמה: ימי שני או רביעי אחר הצהריים" disabled={busy}/></label>
+    <label className="rb-check"><input type="checkbox" required checked={consent} onChange={e=>setConsent(e.target.checked)} disabled={busy}/>אני מסכים/ה להעברת הפרטים למכון ול{first} לצורך תיאום הטיפול, ולקבלת הודעת WhatsApp עם המועד ותזכורת לפני המפגש. ידוע לי שהמחיר הוא {pricing[0]?`${pricing[0].price} ₪ ${pricing[0].note??''}`.trim():'כמפורט בעמוד'}.</label>
+    <button className="rb-primary rb-full" disabled={busy||!consent}>{busy?'שולח את הבקשה…':`שליחת בקשה ל${first}`}</button>
+   </form><p className="rb-small">לאחר השליחה יופיע קישור אישי למעקב. המועד נקבע על ידי {first} בלבד.</p></section></div>}
+  <footer className="rb-footer">ילדי הקסם · מרחב תיאום טיפולים · המחירים כוללים מע״מ</footer>
+ </main>;
+}

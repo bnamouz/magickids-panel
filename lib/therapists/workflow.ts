@@ -1,12 +1,16 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { emailOnce } from './mail';
 import { matchingTherapists, portalLink } from './server';
+import { slugForTherapist } from './parent-booking';
 import { syncTreatment } from './calendar';
 import { notifyOnce } from '@/lib/moxo/notification';
 import type { Therapist } from './schema';
 export async function notifyAssignment(id:string,t:Therapist){
  if(!t.active||Date.parse(t.token_expires_at)<=Date.now())return 'expired';
- return emailOnce(`treatment-assigned:${id}:${t.id}:${t.token_version}`,t.email,'פנייה לטיפול ממתינה לתיאום — ילדי הקסם',`שלום ${t.name},\nפנייה הוקצתה לך במכון ילדי הקסם. בקישור האישי ניתן לצפות בפרטי הקשר, לעדכן שעות עבודה ולבחור מועד לאחר תיאום עם ההורים.\n${portalLink(t)}\nהקישור אישי, אין להעבירו לאחרים.`);
+ // Therapists with a personal booking page get the link to that portal.
+ const slug=await slugForTherapist(t.id).catch(()=>null),base=portalLink(t);
+ const link=slug?`${base.split('/therapist#')[0]}/therapist/${slug}#${base.split('#')[1]}`:base;
+ return emailOnce(`treatment-assigned:${id}:${t.id}:${t.token_version}`,t.email,'פנייה לטיפול ממתינה לתיאום — ילדי הקסם',`שלום ${t.name},\nפנייה הוקצתה לך במכון ילדי הקסם. בקישור האישי ניתן לצפות בפרטי הקשר, לעדכן שעות עבודה ולבחור מועד לאחר תיאום עם ההורים.\n${link}\nהקישור אישי, אין להעבירו לאחרים.`);
 }
 export async function autoAssign(id:string){
  const db=getSupabaseAdmin(),r=await db.from('treatment_requests').select('id,treatment,therapist_id,status').eq('id',id).maybeSingle();
