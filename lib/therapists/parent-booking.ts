@@ -94,11 +94,12 @@ export async function therapistBookingData(therapistId:string,slug?:string) {
     .eq('therapist_id',therapistId).order('starts_at',{ascending:false}).limit(200);
   if(r.error)throw new BookingError('unavailable',503);
   const referrals=await getSupabaseAdmin().from('treatment_requests')
-    .select('id,patient_name,contact_name,phone,availability,status,scheduled_at,duration_minutes,calendar_sync,created_at')
+    .select('id,patient_name,contact_name,phone,availability,status,scheduled_at,duration_minutes,calendar_sync,created_at,parent_hash')
     .eq('therapist_id',therapistId).order('created_at',{ascending:false}).limit(200);
   if(referrals.error)throw new BookingError('unavailable',503);
   return {name:p.therapist.name,treatment:treatmentLabels(p.therapist.treatments),slug:p.slug,availability:p.availability,version:p.version,
-    referrals:referrals.data??[],
+    booking_mode:p.booking_mode??'slots',pricing:Array.isArray(p.pricing)?p.pricing:[],
+    referrals:(referrals.data??[]).map(({parent_hash,...r})=>({...r,from_parent_page:!!parent_hash})),
     requests:(r.data??[]).map(r=>({...r,status:r.status==='pending'&&Date.parse(r.expires_at)<=Date.now()?'expired':r.status}))};
 }
 export async function saveBookingHours(therapistId:string,version:number,availability:unknown) {

@@ -4,6 +4,8 @@ import { getCurrentStaff } from '@/lib/admin/auth';
 import { authenticateTherapist } from '@/lib/therapists/server';
 import { BookingError,bookingProfile,therapistBookingData,decideBooking,saveBookingHours,publicBookingSlots } from '@/lib/therapists/parent-booking';
 import {scheduleReferral} from '@/lib/therapists/referral-booking';
+import {closeTreatment} from '@/lib/therapists/workflow';
+import {notifyTherapistTimeSet} from '@/lib/therapists/therapist-time';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 const reply=(b:unknown,s=200)=>NextResponse.json(b,{status:s,headers:{'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'}});
@@ -25,7 +27,13 @@ export async function POST(req:NextRequest,{params}:{params:{slug:string}}){
   const requestId=z.string().uuid().parse(b.requestId);
   if(b.action==='schedule_referral'){
    if(b.confirmed!==true)return reply({error:'confirm_parent'},400);
-   return reply(await scheduleReferral(requestId,id,z.string().datetime().parse(b.start),staff?.id??null,params.slug));
+   const scheduled=await scheduleReferral(requestId,id,z.string().datetime().parse(b.start),staff?.id??null,params.slug);
+   // Therapist-set time: the parent is told by WhatsApp from the institute number (once per time).
+   const whatsapp=await notifyTherapistTimeSet(requestId,params.slug).catch(()=>'failed');
+   return reply({...scheduled,whatsapp});
+  }
+  if(b.action==='close_referral'){
+   try{return reply(await closeTreatment(requestId,id));}catch(e){return reply({error:e instanceof Error&&e.message==='syncing'?'busy':'unavailable'},409);}
   }
   if(['approve','reject','cancel'].includes(b.action))return reply(await decideBooking(requestId,id,b.action));
   return reply({error:'invalid_request'},400);

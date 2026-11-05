@@ -3,3 +3,4 @@
 @media(prefers-reduced-motion:reduce){.rana-booking *{transition:none!important}}
 .rana-booking bdi{white-space:nowrap}
 .rb-referral-booking{width:100%;max-width:560px;border-top:1px solid var(--rb-line);padding-top:16px}
+.rb-price>div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}.rb-price>div bdi{font-size:24px;font-weight:700;margin:0}.rb-price>div span{font-size:13px;color:var(--rb-muted);width:100%}.rb-price>span{display:block;font-size:13px;color:var(--rb-muted);margin-top:10px}.rb-price .rb-eyebrow{margin-bottom:8px}.rb-steps{padding-inline-start:22px;margin:0 0 12px}.rb-steps li{margin-bottom:8px}.rana-booking textarea.rb-textarea{width:100%;background:white;border:1px solid #bed1c7;border-radius:6px;padding:9px 10px;color:var(--rb-ink);font:inherit;margin-top:5px;resize:vertical}
