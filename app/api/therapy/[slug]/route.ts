@@ -32,8 +32,8 @@ export async function POST(req:NextRequest,{params}:Ctx){
    patient:b.patient,contact:b.contact,phone:b.phone,consent:b.consent,website:b.website});
   const ip=req.ip||req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()||'unknown';
   if(isTherapistTime(profile)){
-   const note=z.string().trim().max(300).parse(b.note??'');
-   return reply(await submitTherapistTimeRequest({...c,...fields,note},ip,params.slug));
+   const note=z.string().trim().max(300).parse(b.note??''),service=z.string().regex(/^[a-z0-9_-]{1,30}$/).optional().parse(b.service||undefined);
+   return reply(await submitTherapistTimeRequest({...c,...fields,note,service},ip,params.slug));
   }
   const start=z.string().datetime().parse(b.start);
   return reply(await submitBooking({...c,...fields,start},ip,params.slug));

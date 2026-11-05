@@ -1,3 +1,4 @@
+import type { RequestWindow } from './request-slots';
 import { createHmac, randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarClient } from '@/lib/google-calendar';
@@ -39,8 +40,12 @@ export async function googleBusy(calendarId:string,start:string,end:string):Prom
     return parseFreeBusy(result.data.calendars,[calendarId]);
   }catch{throw new BookingError('calendar_unavailable',503);}
 }
-export async function publicBookingSlots(slug?:string) {
+/** `duration` overrides the window duration (therapist-set requests carry the
+ *  duration of the service the parent chose, e.g. 45 vs 60 minutes). */
+export async function publicBookingSlots(slug?:string,duration?:number|null) {
   const p=await bookingProfile(slug),now=new Date(),db=getSupabaseAdmin();
+  if(duration&&[30,45,60,90].includes(duration))p.availability={...p.availability,windows:(p.availability.windows as RequestWindow[])
+    .map(w=>({...w,duration,end:w.start+Math.floor((w.end-w.start)/duration)*duration})).filter((w:RequestWindow)=>w.end>w.start)};
   const end=new Date(now.getTime()+29*86400000).toISOString();
   const [requests,legacy,external]=await Promise.all([
     db.from('therapist_booking_requests').select('starts_at,ends_at,status,expires_at').eq('therapist_id',p.therapist_id)
