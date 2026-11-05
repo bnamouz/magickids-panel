@@ -5,6 +5,7 @@ import { authenticateTherapist } from '@/lib/therapists/server';
 import { BookingError,bookingProfile,therapistBookingData,decideBooking,saveBookingHours,publicBookingSlots } from '@/lib/therapists/parent-booking';
 import {scheduleReferral} from '@/lib/therapists/referral-booking';
 import {closeTreatment} from '@/lib/therapists/workflow';
+import {getSupabaseAdmin} from '@/lib/supabase';
 import {notifyTherapistTimeSet} from '@/lib/therapists/therapist-time';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -22,7 +23,12 @@ export async function POST(req:NextRequest,{params}:{params:{slug:string}}){
   if(t&&t.id!==profile.therapist_id)return reply({error:'forbidden'},403);
   const id=profile.therapist_id;
   if(b.action==='read')return reply(await therapistBookingData(id,params.slug));
-  if(b.action==='referral_slots')return reply(await publicBookingSlots(params.slug));
+  if(b.action==='referral_slots'){
+   // Slots follow the duration of the service the parent chose (when known).
+   let duration:number|null=null;
+   if(typeof b.requestId==='string'){const r=await getSupabaseAdmin().from('treatment_requests').select('duration_minutes').eq('id',z.string().uuid().parse(b.requestId)).eq('therapist_id',id).maybeSingle();duration=r.data?.duration_minutes??null;}
+   return reply(await publicBookingSlots(params.slug,duration));
+  }
   if(b.action==='hours')return reply(await saveBookingHours(id,z.number().int().positive().parse(b.version),b.availability));
   const requestId=z.string().uuid().parse(b.requestId);
   if(b.action==='schedule_referral'){

@@ -19,7 +19,7 @@ export async function scheduleReferral(id:string,therapistId:string,start:string
   if(r.calendar_sync==='syncing')throw new BookingError('busy');
  }else{
   if(!['pending','contacted'].includes(r.status))throw new BookingError('invalid_state');
-  const available=await publicBookingSlots(slug),slot=available.slots.find(s=>s.start===start);
+  const available=await publicBookingSlots(slug,r.duration_minutes),slot=available.slots.find(s=>s.start===start);
   if(!slot)throw new BookingError('slot_taken');
   // Existing assignment, closure and scheduling endpoints respect 'syncing'.
   // Claim before booking so a reassignment cannot race the authorization check.
