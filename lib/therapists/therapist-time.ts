@@ -13,11 +13,12 @@ export const INSTITUTE_PHONE_DISPLAY = '054-402-0043';
 
 /** One bookable service. `key` identifies the parent's choice; `duration`
  *  (minutes) drives the slot length the therapist sees for that request. */
-export type PriceLine = { key: string; label: string; price: number; duration: number | null; note?: string };
+export type PriceLine = { key: string; label: string; price: number | null; duration: number | null; note?: string };
+/** `price: null` = service offered, price to be given by the team. */
 export function parsePricing(value: unknown): PriceLine[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(v => v && typeof v.label === 'string' && Number.isFinite(Number(v.price)))
-    .map((v, i) => ({ key: typeof v.key === 'string' && /^[a-z0-9_-]{1,30}$/.test(v.key) ? v.key : `s${i}`, label: String(v.label).slice(0, 120), price: Number(v.price),
+  return value.filter(v => v && typeof v.label === 'string' && (v.price === null || v.price === undefined || Number.isFinite(Number(v.price))))
+    .map((v, i) => ({ key: typeof v.key === 'string' && /^[a-z0-9_-]{1,30}$/.test(v.key) ? v.key : `s${i}`, label: String(v.label).slice(0, 120), price: v.price === null || v.price === undefined ? null : Number(v.price),
       duration: [30, 45, 60, 90].includes(Number(v.duration)) ? Number(v.duration) : null, ...(v.note ? { note: String(v.note).slice(0, 60) } : {}) }));
 }
 export const SERVICE_PREFIX = 'סוג טיפול: ';
@@ -35,7 +36,8 @@ export async function therapistTimeInfo(slug?: string) {
   const p = await bookingProfile(slug);
   const durations = [...new Set((p.availability.windows as { duration: number }[]).map(w => w.duration))];
   return { mode: 'therapist_time' as const, name: p.therapist.name, treatment: treatmentLabels(p.therapist.treatments), slug: p.slug,
-    pricing: parsePricing(p.pricing), duration: (durations.length === 1 ? durations[0] : null) as number | null, timeZone: 'Asia/Jerusalem' };
+    pricing: parsePricing(p.pricing), duration: (durations.length === 1 ? durations[0] : null) as number | null, timeZone: 'Asia/Jerusalem',
+    contact_phone: (p.contact_phone as string | null) ?? null };
 }
 
 /** Parent request without a time. Stored as a general treatment request that
@@ -46,7 +48,7 @@ export async function submitTherapistTimeRequest(b: { id: string; token: string;
   const pricing = parsePricing(p.pricing);
   const service = pricing.length === 1 ? pricing[0] : pricing.find(x => x.key === b.service);
   if (pricing.length > 1 && !service) throw new BookingError('invalid_request', 400);
-  const note = [service ? `${SERVICE_PREFIX}${service.label} · ${service.price} ₪${service.note ? ' ' + service.note : ''}` : '', b.note ? `העדפות: ${b.note}` : ''].filter(Boolean).join('\n');
+  const note = [service ? `${SERVICE_PREFIX}${service.label}${service.price !== null ? ` · ${service.price} ₪${service.note ? ' ' + service.note : ''}` : ''}` : '', b.note ? `העדפות: ${b.note}` : ''].filter(Boolean).join('\n');
   const db = getSupabaseAdmin();
   const secret = process.env.BOOKING_HASH_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!secret) throw new BookingError('unavailable', 503);
@@ -71,20 +73,23 @@ export async function submitTherapistTimeRequest(b: { id: string; token: string;
   // Tell the therapist right away (once per request); the worker retries later.
   const t = await db.from('therapists').select('*').eq('id', p.therapist_id).maybeSingle();
   if (t.data) await notifyAssignment(b.id, t.data).catch(() => null);
-  return { received: true, id: b.id };
+  return { received: true, id: b.id, contact_phone: (p.contact_phone as string | null) ?? null };
 }
 
 /** Parent tracking view for a therapist_time request. */
 export async function therapistTimeStatus(id: string, token: string) {
-  const r = await getSupabaseAdmin().from('treatment_requests')
+  const db = getSupabaseAdmin();
+  const r = await db.from('treatment_requests')
     .select('id,status,scheduled_at,duration_minutes,calendar_sync,therapist_id,created_at,availability')
     .eq('id', id).eq('parent_hash', bookingHash(token)).maybeSingle();
   if (r.error) throw new BookingError('unavailable', 503);
   if (!r.data) throw new BookingError('not_found', 404);
   const d = r.data;
+  const prof = d.therapist_id ? await db.from('therapist_booking_profiles').select('contact_phone').eq('therapist_id', d.therapist_id).maybeSingle() : null;
+  const contact_phone = (prof?.data?.contact_phone as string | null) ?? null;
   const status = d.status === 'closed' ? 'closed' : d.status === 'scheduled' ? (d.calendar_sync === 'synced' ? 'confirmed' : 'syncing') : 'awaiting_time';
   const line = (d.availability ?? '').split('\n')[0];
-  return { mode: 'therapist_time' as const, id: d.id, status, starts_at: d.scheduled_at, service: line.startsWith(SERVICE_PREFIX) ? line.slice(SERVICE_PREFIX.length) : null,
+  return { mode: 'therapist_time' as const, id: d.id, status, starts_at: d.scheduled_at, service: line.startsWith(SERVICE_PREFIX) ? line.slice(SERVICE_PREFIX.length) : null, contact_phone,
     ends_at: d.scheduled_at ? new Date(Date.parse(d.scheduled_at) + (d.duration_minutes ?? 0) * 60000).toISOString() : null,
     duration: d.duration_minutes, created_at: d.created_at };
 }
@@ -107,7 +112,7 @@ export async function notifyTherapistTimeSet(requestId: string, slug?: string) {
     `שלום ${d.contact_name},`,
     `נקבע לכם מפגש ${label} עם ${first} במכון ילדי הקסם עבור ${d.patient_name}:`,
     `יום ${fmtDate(d.scheduled_at)} בשעה ${fmtTime(d.scheduled_at)} (${d.duration_minutes} דקות).`,
-    price ? `עלות המפגש: ${price.price} ₪${price.note ? ' ' + price.note : ''}.` : '',
+    price && price.price !== null ? `עלות המפגש: ${price.price} ₪${price.note ? ' ' + price.note : ''}.` : '',
     `כתובת: ${INSTITUTE_ADDRESS}`,
     `מפה: ${INSTITUTE_MAP}`,
     `לשינוי או ביטול השיבו להודעה זו או התקשרו ${INSTITUTE_PHONE_DISPLAY}.`,

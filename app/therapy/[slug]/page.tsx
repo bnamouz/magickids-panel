@@ -14,7 +14,7 @@ export default async function Page({params}:{params:{slug:string}}){
  if(p===null)notFound();
  if(p&&isTherapistTime(p)){
   const info=await therapistTimeInfo(params.slug);
-  return <ParentRequest slug={info.slug} name={info.name} treatment={info.treatment.he} pricing={info.pricing} duration={info.duration}/>;
+  return <ParentRequest slug={info.slug} name={info.name} treatment={info.treatment.he} pricing={info.pricing} duration={info.duration} contactPhone={info.contact_phone}/>;
  }
  return <ParentBooking slug={params.slug}/>;
 }
