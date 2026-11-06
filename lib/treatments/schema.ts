@@ -1,9 +1,9 @@
 import { z } from 'zod';
-export const treatments = ['speech', 'occupational', 'emotional', 'parent-guidance', 'groups', 'other'] as const;
+export const treatments = ['speech', 'occupational', 'emotional', 'parent-guidance', 'groups', 'other', 'psychology'] as const;
 export const labels = {
- he: ['קלינאות תקשורת', 'ריפוי בעיסוק', 'טיפול רגשי', 'הדרכת הורים', 'חוגים וקבוצות', 'טיפול אחר'],
- ar: ['علاج النطق واللغة', 'العلاج الوظيفي', 'العلاج العاطفي', 'إرشاد الأهل', 'دورات ومجموعات', 'علاج آخر'],
- en: ['Speech and language', 'Occupational therapy', 'Emotional therapy', 'Parent guidance', 'Classes and groups', 'Other treatment'],
+ he: ['קלינאות תקשורת', 'ריפוי בעיסוק', 'טיפול רגשי', 'הדרכת הורים', 'חוגים וקבוצות', 'טיפול אחר', 'טיפול פסיכולוגי'],
+ ar: ['علاج النطق واللغة', 'العلاج الوظيفي', 'العلاج العاطفي', 'إرشاد الأهل', 'دورات ومجموعات', 'علاج آخر', 'علاج نفسي'],
+ en: ['Speech and language', 'Occupational therapy', 'Emotional therapy', 'Parent guidance', 'Classes and groups', 'Other treatment', 'Psychological therapy'],
 };
 const name = z.string().trim().min(2).max(100).refine(v => !/[\x00-\x1f]/.test(v));
 export const treatmentSchema = z.object({
