@@ -39,6 +39,17 @@ test('ready means both full submissions; drafts, bad scales and legacy status ar
   assert.equal(progress.intakeProgress([p,t],[{status:'cancelled'}]).readyToSchedule,true);
   assert.equal(progress.intakeProgress([p,t],[],'closed').readyToSchedule,false);
 });
+test('a new assessment is blocked only by an upcoming active visit',()=>{
+  const p=form('vanderbilt_parent'),t=form('vanderbilt_teacher');
+  const past='2026-01-07T14:00:00Z',future=new Date(Date.now()+7*86400000).toISOString();
+  assert.equal(progress.intakeProgress([p,t],[{status:'scheduled',scheduled_at:future}]).canBookAssessment,false);
+  assert.equal(progress.intakeProgress([p,t],[{status:'scheduled',scheduled_at:past}]).canBookAssessment,true);
+  assert.equal(progress.intakeProgress([p,t],[{status:'attended',scheduled_at:past}]).canBookAssessment,true);
+  assert.equal(progress.intakeProgress([p,t],[{status:'no_show',scheduled_at:past}]).canBookAssessment,true);
+  assert.equal(progress.intakeProgress([p,t],[{status:'cancelled',scheduled_at:future}]).canBookAssessment,true);
+  assert.equal(progress.intakeProgress([p,{...t,is_complete:false}],[]).canBookAssessment,false);
+  assert.equal(progress.intakeProgress([p,t],[{status:'scheduled',scheduled_at:past}]).stage,'scheduled');
+});
 
 // PostgreSQL-backed Supabase adapter: exercises conditional writes rather than
 // assuming that a late PATCH cannot overwrite a completed questionnaire.

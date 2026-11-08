@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
       if (forms.error || appointments.error) return NextResponse.json({ error: 'לא ניתן לאמת כרגע את מצב הקליטה' }, { status: 503 });
       const progress = intakeProgress(forms.data ?? [], appointments.data ?? [], session.status);
       if (!progress.bothComplete) return NextResponse.json({ error: 'יש להשלים ולשלוח את שאלוני ההורים והמורה לפני זימון לאבחון' }, { status: 409 });
-      if (progress.hasAppointment) return NextResponse.json({ error: 'כבר נקבעה פגישה לתיק הזה. יש לעדכן את הפגישה הקיימת.' }, { status: 409 });
+      if (progress.upcomingAppointment) return NextResponse.json({ error: 'כבר נקבעה פגישה עתידית לתיק הזה. יש לבטל אותה לפני זימון לאבחון חדש.' }, { status: 409 });
     }
     const patient = firstRelated<any>(session.patients);
     const parent = firstRelated<any>(session.parents);

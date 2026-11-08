@@ -10,6 +10,7 @@ import ClinicalNotes from '@/components/admin/ClinicalNotes';
 import ResponsesTable from '@/components/admin/ResponsesTable';
 import ScoreCard from '@/components/admin/ScoreCard';
 import BookAppointment from './BookAppointment';
+import AppointmentOutcome from '@/components/admin/AppointmentOutcome';
 import AppointmentConfirmation from '@/components/admin/AppointmentConfirmation';
 import ReportsList from './ReportsList';
 import ClinicalAssessment from '@/components/admin/ClinicalAssessment';
@@ -177,7 +178,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               <h2 className="font-bold text-slate-800 flex items-center gap-2">
                 <Calendar size={18} className="text-[#01696f]" /> פגישות
               </h2>
-              <BookAppointment sessionId={session.id} childName={childName} assessmentReady={progress.bothComplete && !progress.hasAppointment} parentEmail={parent?.email ?? ''} parentPhone={parent?.phone ?? ''} />
+              <BookAppointment sessionId={session.id} childName={childName} assessmentReady={progress.canBookAssessment} parentEmail={parent?.email ?? ''} parentPhone={parent?.phone ?? ''} />
             </div>
             {!appointments?.length ? (
               <p className="text-sm text-slate-500">טרם נקבעה פגישה</p>
@@ -207,6 +208,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
                       )}
                       {['scheduled','confirmed'].includes(a.status) && Date.parse(a.scheduled_at) > Date.now() &&
                         <AppointmentConfirmation id={a.id} email={parent?.email ?? ''} phone={parent?.phone ?? ''} start={a.scheduled_at} location={a.location} />}
+                      <AppointmentOutcome id={a.id} status={a.status} start={a.scheduled_at} />
                     </li>
                   );
                 })}
