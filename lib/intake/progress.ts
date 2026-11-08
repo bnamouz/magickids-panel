@@ -21,8 +21,11 @@ export function intakeProgress(questionnaires: QuestionnaireProgress[], appointm
   const parentComplete = questionnaireSubmitted(parent), teacherComplete = questionnaireSubmitted(teacher);
   const bothComplete = parentComplete && teacherComplete;
   const hasAppointment = appointments.some(appointment => ['scheduled', 'confirmed', 'attended', 'completed'].includes(appointment.status));
+  // A new assessment may be booked unless an active visit is still ahead; past visits
+  // (attended, no-show, or never marked) do not block a repeat assessment.
+  const upcomingAppointment = appointments.some(appointment => ['scheduled', 'confirmed'].includes(appointment.status) && (!appointment.scheduled_at || Date.parse(appointment.scheduled_at) > Date.now()));
   const stage: IntakeStage = CLOSED_INTAKE_STATUSES.includes(status) ? 'closed' : hasAppointment ? 'scheduled' : !parentComplete ? 'parent' : !teacherComplete ? 'teacher' : 'ready';
-  return { parentComplete, teacherComplete, bothComplete, hasAppointment, stage, readyToSchedule: stage === 'ready',
+  return { parentComplete, teacherComplete, bothComplete, hasAppointment, upcomingAppointment, canBookAssessment: bothComplete && !upcomingAppointment, stage, readyToSchedule: stage === 'ready',
     parentSubmittedAt: parentComplete ? parent!.submitted_at! : null, teacherSubmittedAt: teacherComplete ? teacher!.submitted_at! : null,
     readyAt: bothComplete ? new Date(Math.max(Date.parse(parent!.submitted_at!), Date.parse(teacher!.submitted_at!))).toISOString() : null };
 }
