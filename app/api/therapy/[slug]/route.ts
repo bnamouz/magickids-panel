@@ -28,8 +28,8 @@ export async function POST(req:NextRequest,{params}:Ctx){
   }
   const profile=await bookingProfile(params.slug); // 404 for unknown/disabled therapists before any write
   if(b.action!=='request')return reply({error:'invalid_request'},400);
-  const fields=treatmentSchema.pick({patient:true,contact:true,phone:true,consent:true,website:true}).parse({
-   patient:b.patient,contact:b.contact,phone:b.phone,consent:b.consent,website:b.website});
+  const fields=treatmentSchema.pick({patient:true,contact:true,phone:true,national_id:true,consent:true,website:true}).parse({
+   patient:b.patient,contact:b.contact,phone:b.phone,national_id:b.national_id,consent:b.consent,website:b.website});
   const ip=req.ip||req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()||'unknown';
   if(isTherapistTime(profile)){
    const note=z.string().trim().max(300).parse(b.note??''),service=z.string().regex(/^[a-z0-9_-]{1,30}$/).optional().parse(b.service||undefined);

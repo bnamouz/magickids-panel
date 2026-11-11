@@ -99,7 +99,7 @@ export async function therapistBookingData(therapistId:string,slug?:string) {
     .eq('therapist_id',therapistId).order('starts_at',{ascending:false}).limit(200);
   if(r.error)throw new BookingError('unavailable',503);
   const referrals=await getSupabaseAdmin().from('treatment_requests')
-    .select('id,patient_name,contact_name,phone,availability,status,scheduled_at,duration_minutes,calendar_sync,created_at,parent_hash')
+    .select('id,patient_name,national_id,contact_name,phone,availability,status,scheduled_at,duration_minutes,calendar_sync,created_at,parent_hash')
     .eq('therapist_id',therapistId).order('created_at',{ascending:false}).limit(200);
   if(referrals.error)throw new BookingError('unavailable',503);
   return {name:p.therapist.name,treatment:treatmentLabels(p.therapist.treatments),slug:p.slug,availability:p.availability,version:p.version,

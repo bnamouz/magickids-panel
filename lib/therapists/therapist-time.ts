@@ -42,7 +42,7 @@ export async function therapistTimeInfo(slug?: string) {
 
 /** Parent request without a time. Stored as a general treatment request that
  *  is pre-assigned to the therapist; the therapist picks the slot in her portal. */
-export async function submitTherapistTimeRequest(b: { id: string; token: string; patient: string; contact: string; phone: string; note: string; service?: string }, ip: string, slug?: string) {
+export async function submitTherapistTimeRequest(b: { id: string; token: string; patient: string; contact: string; phone: string; national_id: string; note: string; service?: string }, ip: string, slug?: string) {
   const p = await bookingProfile(slug);
   if (!isTherapistTime(p)) throw new BookingError('invalid_request', 400);
   const pricing = parsePricing(p.pricing);
@@ -53,23 +53,14 @@ export async function submitTherapistTimeRequest(b: { id: string; token: string;
   const secret = process.env.BOOKING_HASH_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!secret) throw new BookingError('unavailable', 503);
   const hash = bookingHash(b.token);
-  const existing = await db.from('treatment_requests').select('id,parent_hash,patient_name,contact_name,phone').eq('id', b.id).maybeSingle();
-  if (existing.error) throw new BookingError('unavailable', 503);
-  if (existing.data) {
-    const r = existing.data;
-    if (r.parent_hash !== hash || r.patient_name !== b.patient || r.contact_name !== b.contact || r.phone !== b.phone) throw new BookingError('invalid_retry');
-    return { received: true, id: b.id };
-  }
   const treatment = (p.therapist.treatments?.[0] as string | undefined) ?? 'other';
-  const result = await db.rpc('submit_treatment_request', { p_id: b.id, p_patient: b.patient, p_contact: b.contact, p_phone: b.phone,
-    p_ip: createHmac('sha256', secret).update(`treatment-ip:${ip}`).digest('hex'), p_treatment: treatment, p_language: 'he', p_availability: note });
+  const result = await db.rpc('submit_identified_treatment', { p_id: b.id, p_patient: b.patient, p_contact: b.contact, p_phone: b.phone,
+    p_ip: createHmac('sha256', secret).update(`treatment-ip:${ip}`).digest('hex'), p_treatment: treatment, p_language: 'he', p_availability: note,
+    p_national_id:b.national_id,p_therapist:p.therapist_id,p_parent_hash:hash,p_duration:service?.duration??null,p_reminder:true });
   if (result.error) throw new BookingError('unavailable', 503);
   if (result.data !== 'received') throw new BookingError(result.data, result.data === 'rate_limited' ? 429 : 409);
   // Bind to the therapist and keep the tracking capability. Consent on the page
   // covers the confirmation message and the reminder before the session.
-  const bound = await db.from('treatment_requests').update({ therapist_id: p.therapist_id, therapist: p.therapist.name, parent_hash: hash,
-    reminder_consent: true, duration_minutes: service?.duration ?? null, updated_at: new Date().toISOString() }).eq('id', b.id).eq('status', 'pending').select('id').maybeSingle();
-  if (bound.error || !bound.data) throw new BookingError('unavailable', 503);
   // Tell the therapist right away (once per request); the worker retries later.
   const t = await db.from('therapists').select('*').eq('id', p.therapist_id).maybeSingle();
   if (t.data) await notifyAssignment(b.id, t.data).catch(() => null);

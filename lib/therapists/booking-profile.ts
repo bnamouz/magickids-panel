@@ -46,7 +46,7 @@ export async function enableBookingProfile(therapistId: string, wantedSlug?: str
   let shared: string | null = null;
   try { await calendar.acl.insert({ calendarId, sendNotifications: true, requestBody: { role: 'reader', scope: { type: 'user', value: t.data.email } } }); shared = t.data.email; } catch { shared = null; }
   const availability = defaultAvailability(t.data.duration, Array.isArray(t.data.hours) ? t.data.hours : []);
-  const ins = await db.from('therapist_booking_profiles').insert({ therapist_id: therapistId, slug, calendar_id: calendarId, enabled: true, availability });
+  const ins = await db.from('therapist_booking_profiles').insert({ therapist_id: therapistId, slug, calendar_id: calendarId, enabled: true, availability, booking_mode:'therapist_time' });
   if (ins.error) return { error: 'save_failed' as const, calendarId };
   if (!t.data.active) await db.from('therapists').update({ active: true, updated_at: new Date().toISOString() }).eq('id', therapistId);
   return { slug, calendarId, created: true, shared };
