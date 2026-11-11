@@ -4,7 +4,7 @@ import ts from 'typescript';
 import {createRequire} from 'node:module';
 import {PGlite} from '@electric-sql/pglite';
 const require=createRequire(import.meta.url);
-function compile(file,overrides={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>overrides[n]??require(n),m,m.exports);return m.exports;}
+function compile(file,overrides={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>overrides[n]??(n==="@/lib/shared/national-id"?compile("lib/shared/national-id.ts"):require(n)),m,m.exports);return m.exports;}
 const db=new PGlite();
 await db.exec('create role anon;create role authenticated;create role service_role;');
 await db.exec(fs.readFileSync('supabase/migrations/20261002221819_class_interest_lists.sql','utf8'));

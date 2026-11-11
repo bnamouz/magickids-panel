@@ -17,9 +17,9 @@ export default async function Page({searchParams}:{searchParams:{lang?:string;tr
  const lang=searchParams.lang==='he'||searchParams.lang==='en'?searchParams.lang:'ar';
  const list=await bookable().catch(()=>[]);
  const t=(name:string,first:string,label:string)=>({
-  he:{title:`${label} אצל ${name}`,link:`בחירת שעה ושליחת בקשה לאישור ${first}`,note:`אפשר גם למלא את הטופס הכללי להלן ללא בחירת שעה. פנייה שתשויך ל${first} תופיע אצלה כממתינה לתיאום.`},
-  ar:{title:`${label} مع ${name}`,link:`اختيار موعد وإرسال طلب لموافقة ${first}`,note:`يمكن أيضًا إرسال النموذج العام أدناه دون اختيار ساعة. الطلب الذي يُسند لـ${first} يظهر لديها بانتظار التنسيق.`},
-  en:{title:`${label} with ${name}`,link:`Choose a time and request ${first}’s approval`,note:`You can also submit the general form below without choosing a time. Referrals assigned to ${first} appear in their queue awaiting scheduling.`},
+  he:{title:`${label} אצל ${name}`,link:`הגשת בקשת טיפול ל${first}`,note:`משאירים פרטים ללא בחירת שעה. ${first} תקבע את המועד לאחר קבלת הבקשה; הגשת הבקשה אינה אישור תור.`},
+  ar:{title:`${label} مع ${name}`,link:`إرسال طلب علاج إلى ${first}`,note:`اتركوا بياناتكم دون اختيار ساعة. تحدد ${first} الموعد بعد استلام الطلب؛ إرسال الطلب لا يعني تأكيد الموعد.`},
+  en:{title:`${label} with ${name}`,link:`Submit a treatment request to ${first}`,note:`Leave your details without choosing a time. ${first} will arrange the appointment after receiving your request; submitting does not confirm an appointment.`},
  }[lang]);
  return <>{list.map(x=>{const text=t(x.name,x.name.split(' ')[0],x.labels[lang]);return <aside key={x.slug} lang={lang} dir={lang==='en'?'ltr':'rtl'} className="max-w-3xl mx-auto my-5 p-5 rounded-lg border border-teal-200 bg-teal-50 space-y-2"><strong className="block text-teal-900">{text.title}</strong><a href={`/therapy/${x.slug}`} className="inline-block py-2 text-teal-800 underline font-semibold">{text.link}</a><p className="text-sm text-slate-700">{text.note}</p></aside>;})}<RequestForm language={lang} initialTreatment={searchParams.treatment??'other'}/></>;
 }

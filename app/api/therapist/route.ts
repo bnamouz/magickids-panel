@@ -13,7 +13,7 @@ export async function POST(req:NextRequest){
   const t=await authenticateTherapist(String(b.id??''),String(b.token??''));if(!t)return reply({error:'invalid_link'},403);
   const db=getSupabaseAdmin();
   if(b.action==='read'){
-   const r=await db.from('treatment_requests').select('id,patient_name,contact_name,phone,treatment,availability,status,scheduled_at,duration_minutes,calendar_sync').eq('therapist_id',t.id).in('status',['pending','contacted','scheduled']).order('created_at').limit(100);if(r.error)throw new Error('unavailable');
+   const r=await db.from('treatment_requests').select('id,patient_name,national_id,contact_name,phone,treatment,availability,status,scheduled_at,duration_minutes,calendar_sync').eq('therapist_id',t.id).in('status',['pending','contacted','scheduled']).order('created_at').limit(100);if(r.error)throw new Error('unavailable');
    return reply({profile:{id:t.id,name:t.name,hours:t.hours,leave_dates:t.leave_dates,duration:t.duration},requests:r.data,slots:await availableSlots(t)});
   }
   if(b.action==='hours'){const v=availabilitySchema.parse(b.availability);const r=await db.from('therapists').update({...v,updated_at:new Date().toISOString()}).eq('id',t.id);if(r.error)throw new Error('unavailable');return reply({saved:true});}

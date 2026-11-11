@@ -12,11 +12,9 @@ export async function POST(req: NextRequest) {
   const secret=process.env.BOOKING_HASH_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if(!secret) return reply({error:'unavailable'},503);
   const b=parsed.data;if(b.treatment==='groups')return reply({error:'use_classes',url:'/classes'},400);
-  const result=await getSupabaseAdmin().rpc('submit_treatment_request',{p_id:b.id,p_patient:b.patient,p_contact:b.contact,p_phone:b.phone,p_ip:createHmac('sha256',secret).update(`treatment-ip:${req.ip||'unknown'}`).digest('hex'),p_treatment:b.treatment,p_language:b.language,p_availability:b.availability});
+  const result=await getSupabaseAdmin().rpc('submit_identified_treatment',{p_id:b.id,p_patient:b.patient,p_contact:b.contact,p_phone:b.phone,p_ip:createHmac('sha256',secret).update(`treatment-ip:${req.ip||'unknown'}`).digest('hex'),p_treatment:b.treatment,p_language:b.language,p_availability:b.availability,p_national_id:b.national_id,p_therapist:null,p_parent_hash:null,p_duration:null,p_reminder:b.reminderConsent===true});
   if(result.error)return reply({error:'unavailable'},503);
   if(result.data!=='received')return reply({error:result.data},result.data==='rate_limited'?429:409);
-  const consent=await getSupabaseAdmin().from('treatment_requests').update({reminder_consent:b.reminderConsent===true}).eq('id',b.id);
-  if(consent.error)return reply({error:'unavailable'},503);
   await autoAssign(b.id).catch(()=>null);
   return reply({received:true,reference:b.id});
  }catch{return reply({error:'unavailable'},503);}

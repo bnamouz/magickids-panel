@@ -5,7 +5,7 @@ import {randomUUID,randomBytes} from 'node:crypto';
 import ts from 'typescript';
 import {PGlite} from '@electric-sql/pglite';
 const require=createRequire(import.meta.url);
-function compile(file,overrides={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>overrides[n]??require(n),m,m.exports);return m.exports;}
+function compile(file,overrides={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>overrides[n]??(n==='@/lib/shared/national-id'?compile('lib/shared/national-id.ts'):require(n)),m,m.exports);return m.exports;}
 const pg=new PGlite(),schedule=compile('lib/booking/schedule.ts');
 const slots=compile('lib/therapists/request-slots.ts',{'../booking/schedule':schedule});
 const names={
@@ -15,6 +15,8 @@ const names={
  save_therapy_booking_hours:['p_therapist','p_version','p_availability'],
  therapy_booking_valid_slot:['p_therapist','p_start','p_end'],
  schedule_treatment_request:['p_id','p_start','p_duration','p_therapist','p_staff'],
+ submit_identified_treatment:['p_id','p_patient','p_contact','p_phone','p_ip','p_treatment','p_language','p_availability','p_national_id','p_therapist','p_parent_hash','p_duration','p_reminder'],
+ submit_identified_moxo:['p_id','p_patient','p_contact','p_phone','p_language','p_date','p_start','p_national_id'],
 };
 const db={
  async rpc(name,args){try{const keys=names[name];const r=await pg.query(`select ${name}(${keys.map((_,i)=>'$'+(i+1)).join(',')}) as value`,keys.map(k=>args[k]!==null&&typeof args[k]==='object'?JSON.stringify(args[k]):args[k]));return {data:r.rows[0].value,error:null};}catch(error){return {data:null,error};}},
@@ -46,13 +48,22 @@ let passed=0;
 function pass(s){passed++;console.log('PASS',s);}
 try{
  await pg.exec('create role anon;create role authenticated;create role service_role;');
- for(const file of ['20260912062810_clinic_self_service.sql','20261002193341_therapists_and_treatment_workflow.sql','20261008052117_therapist_parent_booking.sql'])await pg.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+ await pg.exec(fs.readFileSync('db/migrations/20260909_moxo_requests.sql','utf8'));
+ for(const file of ['20260912062810_clinic_self_service.sql','20261002193341_therapists_and_treatment_workflow.sql','20261008052117_therapist_parent_booking.sql','20261105120000_therapist_booking_mode.sql','20261106150000_booking_profile_contact_phone.sql','20261002213054_moxo_tuesday_thursday_hourly.sql'])await pg.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+ const legacyTreatment=randomUUID(),legacyMoxo=randomUUID();
+ await pg.query("select submit_treatment_request($1,'Legacy child','Legacy parent','+972500000090','legacy-ip','speech','he','')",[legacyTreatment]);
+ await pg.query("select submit_moxo_preference($1,'Legacy child','Legacy parent','+972500000091','he',null,null)",[legacyMoxo]);
+ const beforeMigration=await pg.query("select to_jsonb(r) as row from treatment_requests r where id=$1 union all select to_jsonb(r) from moxo_requests r where id=$2",[legacyTreatment,legacyMoxo]);
+ await pg.exec(fs.readFileSync('supabase/migrations/20261111110000_request_national_ids.sql','utf8'));
+ const afterMigration=await pg.query("select to_jsonb(r)-'national_id' as row from treatment_requests r where id=$1 union all select to_jsonb(r)-'national_id' from moxo_requests r where id=$2",[legacyTreatment,legacyMoxo]);
+ assert.deepEqual(afterMigration.rows,beforeMigration.rows);
+ pass('additive identity migration leaves every existing request field unchanged');
  const tid=randomUUID();
  await pg.query("insert into therapists(id,name,email,treatments,hours) values($1,'Rana Test','test@example.com',array['emotional'],$2)",[tid,JSON.stringify([{day:5,start:510,end:900}])]);
  await pg.query('insert into therapist_booking_profiles(therapist_id,slug,calendar_id,enabled,availability) values($1,$2,$3,true,$4)',[tid,'rana',slots.RANA_CALENDAR_ID,JSON.stringify(slots.RANA_REQUEST_AVAILABILITY)]);
  const available=await service.publicBookingSlots();
  assert.equal(available.slots.length,28);assert.deepEqual(available.slots.slice(0,7).map(s=>s.duration),[60,60,60,60,60,45,45]);pass('live slots use correct Google calendar and mixed durations');
- const make=(i=0)=>({id:randomUUID(),token:randomBytes(32).toString('hex'),patient:'Test Child',contact:'Test Parent',phone:'+9725'+String(Math.floor(Math.random()*1e8)).padStart(8,'0'),start:available.slots[i].start});
+ const make=(i=0)=>({id:randomUUID(),token:randomBytes(32).toString('hex'),patient:'Test Child',contact:'Test Parent',national_id:'123456782',phone:'+9725'+String(Math.floor(Math.random()*1e8)).padStart(8,'0'),start:available.slots[i].start});
  const b=make();
  await service.submitBooking(b,'ip-a');assert.equal((await service.bookingStatus(b.id,b.token)).status,'pending');assert.equal(writes,0);
  await service.submitBooking(b,'ip-a');assert.equal((await pg.query('select count(*)::integer as n from therapist_booking_requests')).rows[0].n,1);pass('pending and idempotent submit; no Google write');
@@ -100,14 +111,59 @@ try{
   const a=(await pg.query(`select has_table_privilege('${role}','therapist_booking_requests','SELECT') as r,has_function_privilege('${role}','claim_therapy_booking(uuid,uuid,text,uuid)','EXECUTE') as f`)).rows[0];assert.deepEqual(a,{r:false,f:false});
  }pass('RLS and grants: no anonymous or authenticated database access');
  const treatmentSchema=compile('lib/treatments/schema.ts');
- const publicRoute=compile('app/api/therapy/[slug]/route.ts',{'@/lib/treatments/schema':treatmentSchema,'@/lib/therapists/parent-booking':{...service,submitBooking:async()=>({received:true})}});
+ const timeService=compile('lib/therapists/therapist-time.ts',{'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/moxo/notification':{notifyOnce:async()=>'accepted'},'./parent-booking':service,'./workflow':{notifyAssignment:async()=>null}});
+ const publicRoute=compile('app/api/therapy/[slug]/route.ts',{'@/lib/treatments/schema':treatmentSchema,'@/lib/therapists/parent-booking':{...service,submitBooking:async()=>({received:true})},'@/lib/therapists/therapist-time':timeService});
  const req=(body,origin='https://example.com')=>({ip:'test',headers:new Headers({origin}),nextUrl:new URL('https://example.com/api/therapy/rana'),text:async()=>JSON.stringify(body)});
  const ctx={params:{slug:'rana'}};
  assert.equal((await publicRoute.POST(req({...make(),action:'request',consent:true,website:''}),ctx)).status,200);
  assert.equal((await publicRoute.POST(req({...make(),action:'request',consent:false,website:''}),ctx)).status,400);
  assert.equal((await publicRoute.POST(req({},'https://evil.example'),ctx)).status,403);pass('public endpoint validates fields, consent and same-origin');
- const staffRoute=compile('app/api/therapist/[slug]/route.ts',{'@/lib/admin/auth':{getCurrentStaff:async()=>null},'@/lib/therapists/server':{authenticateTherapist:async()=>null},'@/lib/therapists/parent-booking':service,'@/lib/therapists/referral-booking':referralService});
+ const staffRoute=compile('app/api/therapist/[slug]/route.ts',{'@/lib/admin/auth':{getCurrentStaff:async()=>null},'@/lib/therapists/server':{authenticateTherapist:async()=>null},'@/lib/therapists/parent-booking':service,'@/lib/therapists/referral-booking':referralService,'@/lib/therapists/workflow':{closeTreatment:async()=>null},'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/therapists/therapist-time':timeService});
  assert.equal((await staffRoute.POST(req({action:'read'}),ctx)).status,403);pass('staff API rejects unauthenticated requests');
  assert.equal((await publicRoute.GET(req({}),{params:{slug:'nobody'}})).status,404);pass('unknown slug is not served');
+ await pg.query("update therapist_booking_profiles set booking_mode='therapist_time' where therapist_id=$1",[tid]);
+ const noTime={...make(),action:'request',consent:true,website:''};delete noTime.start;
+ assert.equal((await publicRoute.POST(req({...noTime,national_id:undefined}),ctx)).status,400);
+ assert.equal((await publicRoute.POST(req({...noTime,national_id:'123456789'}),ctx)).status,400);
+ const initialWrites=writes;
+ assert.equal((await publicRoute.POST(req(noTime),ctx)).status,200);
+ assert.equal((await publicRoute.POST(req(noTime),ctx)).status,200);
+ const saved=(await pg.query('select national_id,therapist_id,scheduled_at from treatment_requests where id=$1',[noTime.id])).rows[0];
+ assert.equal(saved.national_id,'123456782');assert.equal(saved.therapist_id,tid);assert.equal(saved.scheduled_at,null);
+ assert.equal(writes,initialWrites);pass('request-only flow requires valid ID, atomically saves assignment and never books a time');
+ const publicStatus=await timeService.therapistTimeStatus(noTime.id,noTime.token);
+ assert.equal(publicStatus.status,'awaiting_time');assert.equal('national_id' in publicStatus,false);
+ await assert.rejects(timeService.therapistTimeStatus(noTime.id,'0'.repeat(64)),/not_found/);pass('tracking requires capability and never exposes national ID');
+ assert.equal((await publicRoute.POST(req({...noTime,national_id:'000000018'}),ctx)).status,409);
+ pass('changed national ID cannot overwrite a submitted request');
+ const national=compile('lib/shared/national-id.ts');
+ for(const v of ['', '000000000','123456789','abcdefgh1'])assert.equal(national.nationalIdSchema.safeParse(v).success,false);
+ for(const v of ['123456782','١٢٣٤٥٦٧٨٢','۱۲۳۴۵۶۷۸۲'])assert.equal(national.nationalIdSchema.parse(v),'123456782');
+ pass('ID checksum, leading zeroes and Arabic/Persian numerals validated');
+ const moxoRoute=compile('app/api/moxo/requests/route.ts',{'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/moxo/schema':compile('lib/moxo/schema.ts')});
+ const mx={id:randomUUID(),patient_name:'Synthetic child',contact_name:'Synthetic parent',national_id:'123456782',phone:'+972500000022',language:'he',consent:true,website:''};
+ assert.equal((await moxoRoute.POST(req({...mx,national_id:undefined}))).status,400);
+ assert.equal((await moxoRoute.POST(req({...mx,national_id:'123456789'}))).status,400);
+ const mxResult=await moxoRoute.POST(req(mx));assert.equal(mxResult.status,200);
+ assert.equal('national_id' in await mxResult.json(),false);
+ assert.equal((await moxoRoute.POST(req(mx))).status,200);
+ assert.equal((await moxoRoute.POST(req({...mx,national_id:'000000018'}))).status,400);
+ const mxSaved=(await pg.query('select national_id,status,scheduled_at from moxo_requests where id=$1',[mx.id])).rows[0];
+ assert.deepEqual(mxSaved,{national_id:'123456782',status:'pending',scheduled_at:null});
+ assert.equal((await moxoRoute.POST(req(mx,'https://evil.example'))).status,403);
+ pass('MOXO requires and saves ID atomically, retains pending status, exact retries and same-origin');
+ const generic=compile('app/api/treatments/route.ts',{'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/treatments/schema':treatmentSchema,'@/lib/therapists/workflow':{autoAssign:async()=>null}});
+ const gb={id:randomUUID(),patient:'Synthetic child',contact:'Synthetic parent',national_id:'123456782',phone:'+972500000023',treatment:'emotional',language:'he',availability:'',consent:true,website:''};
+ assert.equal((await generic.POST(req({...gb,national_id:undefined}))).status,400);
+ assert.equal((await generic.POST(req(gb))).status,200);
+ await pg.query('update treatment_requests set therapist_id=$1 where id=$2',[tid,gb.id]);
+ assert.equal((await generic.POST(req(gb))).status,200);
+ assert.equal((await pg.query('select national_id from treatment_requests where id=$1',[gb.id])).rows[0].national_id,'123456782');
+ pass('general requests require ID and retry after automatic assignment');
+ for(const role of ['anon','authenticated']){
+  assert.equal((await pg.query(`select has_function_privilege('${role}','submit_identified_moxo(uuid,text,text,text,text,date,timestamptz,text)','EXECUTE') as allowed`)).rows[0].allowed,false);
+  assert.equal((await pg.query(`select has_function_privilege('${role}','submit_identified_treatment(uuid,text,text,text,text,text,text,text,text,uuid,text,integer,boolean)','EXECUTE') as allowed`)).rows[0].allowed,false);
+ }
+ pass('new identity submission functions remain service-role only');
  console.log(`SUCCESS ${passed} production-path checks, real SQL and mocked Google only`);
 }finally{await pg.close();}

@@ -2,6 +2,8 @@
 import {useEffect,useRef,useState} from 'react';
 import {requestBookingId,requestBookingToken,bookingDate,bookingTime,bookingMessages} from './booking-ui';
 import './booking.css';
+import NationalIdField from '@/components/NationalIdField';
+import {nationalIdSchema} from '@/lib/shared/national-id';
 type Price={key:string;label:string;price:number|null;duration:number|null;note?:string};
 type Props={slug:string;name:string;treatment:string;pricing:Price[];duration:number|null;contactPhone?:string|null};
 const fmtPhone=(p:string)=>p.replace(/^\+972(\d{2})(\d{3})(\d{4})$/,'0$1-$2-$3');
@@ -26,9 +28,11 @@ export default function ParentRequest({slug,name,treatment,pricing,duration,cont
   else{proof.current={id:requestBookingId(),token:requestBookingToken()};setLoading(false);}
  },[]);
  async function run(fn:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(true);setMessage('');try{await fn();}catch(e){setMessage(e instanceof Error?e.message:'לא ניתן להשלים כרגע');}finally{setBusy(false);lock.current=false;}}
- async function submit(){
+ async function submit(nationalId:string){
   if(!consent||!patient.trim()||!contact.trim()||!phone.trim()||(pricing.length>1&&!chosen))return;
-  await call({action:'request',...proof.current,patient,contact,phone,note,consent,website:'',service:chosen?.key});
+  const checked=nationalIdSchema.safeParse(nationalId);
+  if(!checked.success)throw new Error('יש להזין תעודת זהות תקינה של הילד/ה בת 9 ספרות.');
+  await call({action:'request',...proof.current,patient,contact,phone,national_id:checked.data,note,consent,website:'',service:chosen?.key});
   history.replaceState(null,'','#'+new URLSearchParams(proof.current).toString());
   setTracking(location.href);await loadStatus();
  }
@@ -53,8 +57,9 @@ export default function ParentRequest({slug,name,treatment,pricing,duration,cont
    <ol className="rb-steps"><li>ממלאים את פרטי הילד/ה וההורה ומציינים ימים ושעות שנוחים לכם.</li><li>{first} בוחרת מועד למפגש{pricing.length>1?' לפי סוג הטיפול שבחרתם':duration?` (${duration} דקות)`:''} ורושמת אותו ביומן.</li><li>{contactPhone?`מיד אחרי השליחה מקבלים את מספר הטלפון של ${first} ליצירת קשר ישיר, ו`:''}מקבלים הודעת WhatsApp עם המועד והכתובת: דאהר עומר אלזידאני 9, שפרעם.</li></ol>
    <p className="rb-small">הבקשה אינה קביעת תור. אין להזין מידע רפואי בטופס.</p>
   </section><section className="rb-card"><p className="rb-eyebrow">הבקשה שלכם</p><h2>פרטי ההורה והילד</h2>
-   <form onSubmit={e=>{e.preventDefault();void run(submit);}}>{pricing.length>1&&<fieldset className="rb-services"><legend>סוג הטיפול המבוקש</legend>{pricing.map(p=><label key={p.key} className={'rb-service-option'+(service===p.key?' selected':'')}><input type="radio" name="service" required value={p.key} checked={service===p.key} onChange={()=>setService(p.key)} disabled={busy}/><span><strong>{p.label}</strong><small>{p.price!==null?`${p.price} ₪ ${p.note??''}`:'המחיר יימסר על ידי הצוות'}{p.duration?` · ${p.duration} דקות`:''}</small></span></label>)}</fieldset>}<label>שם הילד/ה<input required minLength={2} maxLength={100} value={patient} onChange={e=>setPatient(e.target.value)} autoComplete="off" disabled={busy}/></label><label>שם ההורה / איש הקשר<input required minLength={2} maxLength={100} value={contact} onChange={e=>setContact(e.target.value)} autoComplete="name" disabled={busy}/></label><label>טלפון נייד (אליו תישלח הודעת המועד)<input required type="tel" dir="ltr" inputMode="tel" placeholder="0501234567" value={phone} maxLength={24} onChange={e=>setPhone(e.target.value)} autoComplete="tel" disabled={busy}/></label>
-    <label>ימים ושעות שנוחים לכם (לא חובה)<textarea className="rb-textarea" maxLength={300} rows={3} value={note} onChange={e=>setNote(e.target.value)} placeholder="לדוגמה: ימי שני או רביעי אחר הצהריים" disabled={busy}/></label>
+   <form onSubmit={e=>{e.preventDefault();const id=String(new FormData(e.currentTarget).get("national_id")??"");void run(()=>submit(id));}}>{pricing.length>1&&<fieldset className="rb-services"><legend>סוג הטיפול המבוקש</legend>{pricing.map(p=><label key={p.key} className={'rb-service-option'+(service===p.key?' selected':'')}><input type="radio" name="service" required value={p.key} checked={service===p.key} onChange={()=>setService(p.key)} disabled={busy}/><span><strong>{p.label}</strong><small>{p.price!==null?`${p.price} ₪ ${p.note??''}`:'המחיר יימסר על ידי הצוות'}{p.duration?` · ${p.duration} דקות`:''}</small></span></label>)}</fieldset>}<label>שם הילד/ה<input required minLength={2} maxLength={100} value={patient} onChange={e=>setPatient(e.target.value)} autoComplete="off" disabled={busy}/></label><label>שם ההורה / איש הקשר<input required minLength={2} maxLength={100} value={contact} onChange={e=>setContact(e.target.value)} autoComplete="name" disabled={busy}/></label><label>טלפון נייד (אליו תישלח הודעת המועד)<input required type="tel" dir="ltr" inputMode="tel" placeholder="0501234567" value={phone} maxLength={24} onChange={e=>setPhone(e.target.value)} autoComplete="tel" disabled={busy}/></label>
+    <NationalIdField disabled={busy}/>
+    <label>ימים ושעות שנוחים לכם (לא חובה)<textarea className="rb-textarea" maxLength={160} rows={3} value={note} onChange={e=>setNote(e.target.value)} placeholder="לדוגמה: ימי שני או רביעי אחר הצהריים" disabled={busy}/></label>
     <label className="rb-check"><input type="checkbox" required checked={consent} onChange={e=>setConsent(e.target.checked)} disabled={busy}/>אני מסכים/ה להעברת הפרטים למכון ול{first} לצורך תיאום הטיפול, ולקבלת הודעת WhatsApp עם המועד ותזכורת לפני המפגש. {priced?<>ידוע לי שהמחיר הוא {chosen&&chosen.price!==null?`${chosen.price} ₪ ${chosen.note??''}`.trim():'כמפורט בעמוד לפי סוג הטיפול שאבחר'}.</>:<>ידוע לי שעלות השירות תימסר לי על ידי הצוות.</>}</label>
     <button className="rb-primary rb-full" disabled={busy||!consent||(pricing.length>1&&!chosen)}>{busy?'שולח את הבקשה…':`שליחת בקשה ל${first}`}</button>
    </form><p className="rb-small">לאחר השליחה יופיע קישור אישי למעקב. המועד נקבע על ידי {first} בלבד.</p></section></div>}

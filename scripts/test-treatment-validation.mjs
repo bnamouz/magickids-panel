@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import ts from 'typescript';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
-function compile(file,overrides={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>overrides[n]??require(n),m,m.exports);return m.exports;}
+function compile(file,overrides={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>overrides[n]??(n==="@/lib/shared/national-id"?compile("lib/shared/national-id.ts"):require(n)),m,m.exports);return m.exports;}
 const schema=compile('lib/treatments/schema.ts');
-const body={id:'00000000-0000-4000-8000-000000000001',patient:'Test Child',contact:'Test Parent',phone:'0501234567',treatment:'speech',language:'he',availability:'',consent:true,website:''};
+const body={id:'00000000-0000-4000-8000-000000000001',patient:'Test Child',national_id:'123456782',contact:'Test Parent',phone:'0501234567',treatment:'speech',language:'he',availability:'',consent:true,website:''};
 for(const phone of ['0501234567','050-123 4567','+972501234567','00972501234567','٠٥٠١٢٣٤٥٦٧','\u200e0501234567\u200f'])assert.equal(schema.treatmentSchema.parse({...body,phone}).phone,'+972501234567');
 let writes=0;
 process.env.BOOKING_HASH_SECRET='test-only';
