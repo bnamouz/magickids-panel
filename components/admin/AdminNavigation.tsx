@@ -1,26 +1,49 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
-import { Bot, CalendarDays, ClipboardList, HeartPulse, LayoutDashboard, Menu, MessageSquare, Users, X } from 'lucide-react';
-const groups = [
- {title:'מרפאת הילדים',icon:HeartPulse,items:[['/admin/pediatrics-calendar','יומן ילדים ובקשות לרופא'],['/admin/clinic-patients','מטופלי המרפאה'],['/admin/clinic-hours','סגירת יומן ושינוי שעות']]},
- {title:'קשב ואבחונים',icon:ClipboardList,items:[['/admin/intake','קליטה וזימון לקשב'],['/admin/sessions','תיקי מטופלים'],['/admin/appointments','יומן פגישות המכון'],['/admin/moxo','בקשות MOXO'],['/admin/adhd-payments','אימות תשלומים לקשב'],['/admin/adhd-requests','בקשות לרופא — קשב']]},
- {title:'טיפולים וצוות',icon:Users,items:[['/admin/treatments','פניות וטיפולים'],['/admin/therapists','מטפלים ושעות עבודה'],['/admin/therapy','יומני בקשות למטפלים'],['/admin/recruitment','גיוס מטפלים']]},
- {title:'שירותי המכון',icon:CalendarDays,items:[['/admin/development','התפתחות הילד'],['/admin/classes','חוגים ומתעניינים'],['/admin/abroad','ליווי ילדים בחו״ל'],['/admin/reviews','חוות דעת ותמונות'],['/admin/leads','לידים ושימוש באתר']]},
- {title:'מזכירות AI',icon:Bot,items:[['/admin/secretaries','המזכירות והתחייבויות מכבי']]},
- {title:'שיחות',icon:MessageSquare,items:[['/admin/calls','שיחות שרה'],['/admin/personal/calls','שיחות נור'],['/admin/google-calendars','יומני גוגל — שיתוף'],['/admin/system-health','בריאות המערכת']]},
-];
-export default function AdminNavigation(){
- const pathname=usePathname();
- const [open,setOpen]=useState(false);
- const active=(href:string)=>pathname===href||pathname.startsWith(href+'/');
- const link=(href:string,label:string)=><Link key={href} href={href} aria-current={active(href)?'page':undefined} onClick={()=>setOpen(false)} className={`flex min-h-11 items-center rounded-lg px-3 py-2 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${active(href)?'bg-teal-700 text-white font-bold shadow-sm':'text-slate-600 hover:bg-teal-50 hover:text-teal-900'}`}>{label}</Link>;
- return <aside className="w-full lg:w-60 lg:shrink-0">
-  <button type="button" aria-expanded={open} aria-controls="staff-navigation" onClick={()=>setOpen(v=>!v)} className="flex w-full items-center justify-between rounded-xl border bg-white p-3 font-bold text-teal-900 lg:hidden">תפריט הצוות{open?<X size={20}/>:<Menu size={20}/>}</button>
-  <nav id="staff-navigation" aria-label="ניווט צוות לפי תחום" className={`${open?'block':'hidden'} mt-3 rounded-2xl border border-slate-200 bg-white p-3 lg:sticky lg:top-24 lg:mt-0 lg:block lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto`}>
-   <div className="mb-3 border-b pb-3"><Link href="/admin/dashboard" aria-current={pathname==='/admin/dashboard'?'page':undefined} onClick={()=>setOpen(false)} className={`flex min-h-11 items-center gap-2 rounded-lg px-3 font-bold ${pathname==='/admin/dashboard'?'bg-teal-700 text-white':'text-teal-900 hover:bg-teal-50'}`}><LayoutDashboard size={18}/>סביבת העבודה שלי</Link></div>
-   {groups.map(({title,icon:Icon,items})=><section key={title} className="mb-4 last:mb-0"><h2 className="mb-1 flex items-center gap-2 px-3 text-xs font-bold text-slate-500"><Icon size={15} aria-hidden="true"/>{title}</h2><div className="space-y-0.5">{items.map(([href,label])=>link(href,label))}</div></section>)}
-  </nav>
- </aside>;
+import { useEffect, useState } from 'react';
+import { BarChart3, CalendarDays, ChevronDown, LayoutDashboard, Menu, MessageSquare, Settings2, Users, X } from 'lucide-react';
+import { DASHBOARD_HREF, DASHBOARD_LABEL, NAV_FOLDERS, isActivePath, locatePath } from './nav-config';
+const ICONS = { calendar: CalendarDays, patients: Users, communication: MessageSquare, marketing: BarChart3, management: Settings2 } as const;
+const STORE = 'mk-nav-folder';
+export default function AdminNavigation({ footer }: { footer?: React.ReactNode }) {
+  const pathname = usePathname();
+  const activeFolder = locatePath(pathname)?.folder.id ?? null;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [openFolder, setOpenFolder] = useState<string | null>(activeFolder);
+  // Follow the current page; on pages outside every folder, restore the folder last used.
+  useEffect(() => {
+    if (activeFolder) { setOpenFolder(activeFolder); return; }
+    try { const saved = window.localStorage.getItem(STORE); if (saved && NAV_FOLDERS.some(f => f.id === saved)) setOpenFolder(saved); } catch {}
+  }, [activeFolder]);
+  function toggle(id: string) {
+    setOpenFolder(current => {
+      const next = current === id ? null : id;
+      try { if (next) window.localStorage.setItem(STORE, next); else window.localStorage.removeItem(STORE); } catch {}
+      return next;
+    });
+  }
+  const onDashboard = pathname === DASHBOARD_HREF;
+  return <aside className="mk-sidebar">
+    <div className="mk-sidebar-head">
+      <Link href={DASHBOARD_HREF} className="mk-brand" onClick={() => setMenuOpen(false)}><strong>ילדי הקסם</strong><span>סביבת העבודה לצוות</span></Link>
+      <button type="button" aria-expanded={menuOpen} aria-controls="staff-navigation" onClick={() => setMenuOpen(v => !v)} className="mk-menu-button">תפריט הצוות{menuOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}</button>
+    </div>
+    <nav id="staff-navigation" aria-label="ניווט צוות לפי תיקייה" className="mk-nav" data-open={menuOpen ? 'true' : 'false'}>
+      <Link href={DASHBOARD_HREF} aria-current={onDashboard ? 'page' : undefined} onClick={() => setMenuOpen(false)} className="mk-nav-home"><LayoutDashboard size={17} aria-hidden="true" />{DASHBOARD_LABEL}</Link>
+      <p className="mk-nav-caption">תיקיות</p>
+      {NAV_FOLDERS.map(({ id, title, items }) => {
+        const Icon = ICONS[id as keyof typeof ICONS], open = openFolder === id;
+        return <section key={id} className="mk-folder" data-active={activeFolder === id ? 'true' : undefined}>
+          <button type="button" aria-expanded={open} aria-controls={`staff-folder-${id}`} onClick={() => toggle(id)} className="mk-folder-button">
+            <Icon size={17} aria-hidden="true" /><span>{title}</span><span className="mk-folder-count" aria-hidden="true">{items.length}</span><ChevronDown size={15} aria-hidden="true" className="mk-folder-chevron" />
+          </button>
+          <div id={`staff-folder-${id}`} hidden={!open} className="mk-folder-items">
+            {items.map(([href, label]) => <Link key={href} href={href} aria-current={isActivePath(pathname, href) ? 'page' : undefined} onClick={() => setMenuOpen(false)} className="mk-nav-link">{label}</Link>)}
+          </div>
+        </section>;
+      })}
+    </nav>
+    {footer && <div className="mk-sidebar-foot">{footer}</div>}
+  </aside>;
 }
