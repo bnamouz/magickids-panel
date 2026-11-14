@@ -64,3 +64,42 @@
 - No live test requests, notifications, temporary staff accounts or appointment
   writes were created. Staff screen visual QA remains excluded without an
   authorized staff session.
+
+# Staff dashboard home redesign (2026-11-14)
+
+## Existing flows that must keep working
+- /admin/dashboard requires an authenticated staff user before any data loads.
+- Case search: GET /admin/dashboard?q=…#case-directory opens the case
+  directory with results, paging, archive view and restore.
+- Every former data panel stays reachable: unified calendar with sync alert
+  and sync button, today's institute appointments, calls needing follow-up
+  with "טופל", pending treatment requests, cases ready to schedule and cases
+  without progress with edit / archive / admin-only permanent delete.
+- Intake counters link to /admin/intake by stage; seven quick links unchanged.
+- A source that fails to load shows an alert and is never shown as empty.
+- All 23 staff destinations stay in the navigation with current-page
+  semantics and the mobile "תפריט הצוות" toggle; logout stays available.
+- Other admin pages and /admin/login keep rendering.
+
+## Requested change
+- Apply the approved mockup (https://magickids-home-mockup.pplx.app):
+  five-folder sidebar, breadcrumb top bar, "סקירה יומית" heading with the
+  growth illustration, one KPI strip, a single prioritised "דורש טיפול"
+  queue with tabs and filter, upcoming appointments, aspiration illustration,
+  perspective entrance and a motion on/off control.
+- No schema, API, storage or agent changes. Presentation and grouping only.
+
+## Checked 2026-11-14 (local, synthetic data only)
+- Type check clean; scripts/test-dashboard.mjs 8/8 including new checks for
+  queue order, single highlighted item, preserved links and true totals.
+- Browser at 1440, 1280x650, 820 and 375: no horizontal overflow, tabs,
+  filter, clear, show-all, per-case actions, delete dialog positioned on the
+  viewport, case search, folder toggle and restore, client navigation,
+  breadcrumb, mobile menu.
+- States: empty data, every source failing, calendar sync mismatch,
+  assistant role. Motion: stored preference applied before paint, OS
+  reduced-motion disables entrance and tilt.
+- /admin/login is outside the new shell and unchanged.
+- Not verifiable without an authorised staff session: the production UI
+  with real data. Some admin pages cannot render against the local mock
+  for reasons unrelated to this change (missing synthetic fields).

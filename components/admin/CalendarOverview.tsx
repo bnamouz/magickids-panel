@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import {loadCalendarAgenda} from '@/lib/calendar-agenda';
 import CalendarSyncButton from './CalendarSyncButton';
-export default async function CalendarOverview({limit=12}:{limit?:number}){
- const data=await loadCalendarAgenda().catch(()=>null);
+type Agenda=Awaited<ReturnType<typeof loadCalendarAgenda>>;
+/** Pass `data` when the page has already loaded the agenda, so it is fetched once. */
+export default async function CalendarOverview({limit=12,data:preloaded}:{limit?:number;data?:Agenda|null}){
+ const data=preloaded!==undefined?preloaded:await loadCalendarAgenda().catch(()=>null);
  const labels:Record<string,string>={synced:'נרשם ביומן',pending:'ממתין לסנכרון / אישור',syncing:'בתהליך סנכרון',none:'טרם סונכרן',failed:'הסנכרון נכשל',conflict:'התנגשות — נדרשת בדיקה',cancelling:'ביטול בתהליך',not_configured:'היומן אינו מוגדר'};
  const health=data?.health;const stale=!health?.last_run||Date.now()-Date.parse(health.last_run)>26*60*60000;
  return <section className="space-y-4 rounded-2xl border bg-white p-5" aria-label="תורים ומצב סנכרון">

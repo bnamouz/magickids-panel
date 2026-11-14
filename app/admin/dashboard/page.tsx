@@ -1,83 +1,136 @@
 import {loadDashboardArchive} from '@/lib/intake/dashboard-archive';
-import CaseActions from '@/components/admin/CaseActions';
 import CalendarOverview from '@/components/admin/CalendarOverview';
 import { loadIntakeQueue } from '@/lib/intake/queue';
 import { caseDirectory } from '@/lib/intake/directory';
 import CaseDirectory from '@/components/admin/CaseDirectory';
+import WorkQueue, { type WorkItem } from '@/components/admin/dashboard/WorkQueue';
+import ReplayIntro from '@/components/admin/dashboard/ReplayIntro';
 import Link from 'next/link';
 import { loadCallFollowUps } from '@/lib/voice/follow-up';
-import FollowUpButton from '@/components/admin/FollowUpButton';
+import { loadCalendarAgenda } from '@/lib/calendar-agenda';
 import { requireStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { Users, Clock, AlertTriangle, CheckCircle2, ArrowLeft, CalendarDays, FilePlus2, Search, RefreshCw, MessageSquare, PhoneCall } from 'lucide-react';
+import { Users, CheckCircle2, ArrowLeft, CalendarDays, FilePlus2, Search, RefreshCw, MessageSquare } from 'lucide-react';
 export const dynamic = 'force-dynamic';
+const TZ='Asia/Jerusalem';
+const dayKey=(value:string|number|Date)=>new Intl.DateTimeFormat('en-CA',{timeZone:TZ}).format(new Date(value));
+const clock=(value:string)=>new Date(value).toLocaleTimeString('he-IL',{timeZone:TZ,hour:'2-digit',minute:'2-digit'});
+const CALL_LIMIT=8,READY_LIMIT=8;
 export default async function DashboardPage({searchParams={}}:{searchParams?:{q?:string;page?:string;archive?:string;deleted?:string}}){
  const staff=await requireStaff();
  const supabase=getSupabaseAdmin();
- const [allCases,stuck,todayAppointments,treatmentRequests,hidden,callFollowUps]=await Promise.all([
+ const [allCases,stuck,todayAppointments,treatmentRequests,hidden,callFollowUps,agenda]=await Promise.all([
   loadIntakeQueue({includeArchived:true}).catch(()=>null),
   supabase.from('v_stuck_sessions').select('*').limit(5),
   supabase.from('v_today_appointments').select('*').order('scheduled_at',{ascending:true}).limit(10),
   supabase.from('treatment_requests').select('id,patient_name,contact_name,status,created_at',{count:'exact'}).in('status',['pending','contacted']).order('created_at',{ascending:false}).limit(5),
   loadDashboardArchive().catch(()=>null),
   loadCallFollowUps(supabase).catch(()=>null),
+  loadCalendarAgenda().catch(()=>null),
  ]);
+ const today=dayKey(Date.now()),tomorrow=dayKey(Date.now()+86400000),yesterday=dayKey(Date.now()-86400000);
+ const when=(value:string)=>{const key=dayKey(value);return `${key===today?'היום':key===yesterday?'אתמול':new Date(value).toLocaleDateString('he-IL',{timeZone:TZ,day:'numeric',month:'numeric'})} ב־${clock(value)}`;};
  const archived=searchParams.archive==='1';
+ const canDelete=staff.role==='admin';
  const visibleCases=allCases&&hidden?allCases.filter(row=>!hidden.has(row.id)):null;
  const queue=visibleCases?.filter(row=>!['closed','cancelled','reported'].includes(row.status))??null;
  const directory=allCases&&hidden?caseDirectory(archived?allCases.filter(row=>hidden.has(row.id)):visibleCases!,searchParams.q,searchParams.page):null;
  const ready=queue?.filter(row=>row.readyToSchedule)??[];
- const stats=[
-  {label:'תיקי קשב פעילים',value:queue?.length,icon:Users,href:'/admin/intake?stage=all',color:'text-teal-700 bg-teal-50'},
-  {label:'ממתינים לשאלון הורה',value:queue?.filter(row=>row.stage==='parent').length,icon:Clock,href:'/admin/intake?stage=parent',color:'text-amber-700 bg-amber-50'},
-  {label:'ממתינים לשאלון מורה',value:queue?.filter(row=>row.stage==='teacher').length,icon:Clock,href:'/admin/intake?stage=teacher',color:'text-blue-700 bg-blue-50'},
-  {label:'מוכנים לזימון',value:queue?ready.length:undefined,icon:CheckCircle2,href:'/admin/intake?stage=ready',color:'text-emerald-700 bg-emerald-50'},
+ const stuckFailed=!!stuck.error||!hidden;
+ const stuckRows:any[]=stuckFailed?[]:(stuck.data??[]).filter((row:any)=>!hidden!.has(row.id));
+ const requestRows=treatmentRequests.error?[]:treatmentRequests.data??[];
+ const requestCount=treatmentRequests.error?0:treatmentRequests.count??requestRows.length;
+
+ // One list, most urgent first: calls that need a person, new treatment requests, cases ready to book, cases without progress.
+ const items:WorkItem[]=[
+  ...(callFollowUps??[]).slice(0,CALL_LIMIT).map((c):WorkItem=>({key:'call-'+c.id,kind:'call',kindLabel:'שיחה',title:c.child_name||c.caller_name||'מתקשר לא מזוהה',badge:c.reason,tone:'warn',meta:[when(c.call_started_at||c.created_at),c.next_action||c.purpose].filter(Boolean).join(' · '),href:`/admin/calls/${c.id}`,action:'פתיחת השיחה',callId:c.id,linkedCaseId:c.linked_case_id})),
+  ...requestRows.map((row):WorkItem=>({key:'request-'+row.id,kind:'request',kindLabel:'פנייה לטיפול',title:row.patient_name,badge:row.status==='pending'?'פנייה חדשה':'נוצר קשר',tone:row.status==='pending'?'warn':'info',meta:[`איש קשר: ${row.contact_name}`,row.created_at?`התקבלה ${when(row.created_at)}`:''].filter(Boolean).join(' · '),href:'/admin/treatments',action:'לתיאום'})),
+  ...ready.slice(0,READY_LIMIT).map((row):WorkItem=>({key:'ready-'+row.id,kind:'case',kindLabel:'תיק קשב',title:row.childName,titleHref:'/admin/sessions/'+row.id,badge:'מוכן לזימון',tone:'ok',meta:'שאלון הורים ומורה הושלמו',href:'/admin/sessions/'+row.id+'#appointments',action:'תיק וזימון',caseId:row.id})),
+  ...stuckRows.map((row):WorkItem=>({key:'stuck-'+row.id,kind:'case',kindLabel:'תיק קשב',title:row.child_name,badge:`ללא התקדמות ${row.days_stuck} ימים`,tone:'warn',meta:statusLabel(row.status),href:`/admin/sessions/${row.id}`,action:'פתיחת התיק',caseId:row.id})),
  ];
- return <div className="space-y-6">
-  {searchParams.deleted==='1'&&<p role="status" className="rounded-xl bg-teal-50 p-4 text-teal-800">התיק הוסר לצמיתות מהרשימה.</p>}
-  <header className="flex flex-wrap items-start justify-between gap-3"><div><p className="mb-1 text-sm text-slate-500">{new Date().toLocaleDateString('he-IL',{timeZone:'Asia/Jerusalem',weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p><h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">שלום {staff.full_name.split(' ')[0]}</h1><p className="mt-2 text-sm text-slate-600">התורים, הפניות והתיקים — מה צריך לקדם היום?</p></div><a href="/admin/dashboard" className="inline-flex min-h-11 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"><RefreshCw size={16}/>רענון נתונים</a></header>
-  <section aria-label="חיפוש תיק" className="rounded-2xl bg-teal-800 p-5 text-white sm:p-6"><form action="/admin/dashboard#case-directory" method="get" className="flex flex-wrap items-end gap-3"><label htmlFor="dashboard-search" className="min-w-0 flex-1 basis-64"><span className="mb-2 block font-bold">איזה תיק מחפשים?</span><input id="dashboard-search" name="q" defaultValue={searchParams.q??''} maxLength={120} placeholder="שם הילד/ה או שם ההורה" className="min-h-12 w-full rounded-xl border border-transparent bg-white px-4 text-slate-900 placeholder:text-slate-500 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"/></label><button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 font-bold text-teal-900 hover:bg-teal-50"><Search size={18}/>חיפוש תיק</button></form><p className="mt-2 text-xs text-teal-100">החיפוש כולל גם תיקים שהסתיימו ותיקים שכבר הופק בהם דוח.</p></section>
-  <section aria-labelledby="quick-actions"><h2 id="quick-actions" className="mb-3 text-sm font-bold text-slate-600">פעולות נפוצות</h2><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-   <QuickLink href="/admin/pediatrics-calendar" title="יומן מרפאת הילדים" detail="צפייה בתורים וקביעת תור חדש" icon={<CalendarDays size={22}/>}/>
-   <QuickLink href="/admin/clinic-hours" title="סגירת יומן ושינוי שעות" detail="סגירה או שעות אחרות ליום בודד" icon={<CalendarDays size={22}/>}/>
-   <QuickLink href="/admin/pediatrics-calendar#doctor-requests" title="בקשות לרופא ללא תור" detail="בקשות היום ביומן המרפאה" icon={<MessageSquare size={22}/>}/>
-   <QuickLink href="/admin/adhd-requests" title="בקשות לרופא — קשב" detail="בקשות ללא תור במרפאת הקשב" icon={<MessageSquare size={22}/>}/>
-   <QuickLink href="/admin/leads" title="לידים ושימוש באתר" detail="כל הפונים מכל הערוצים ומדידת ביקורים" icon={<Users size={22}/>}/>
-   <QuickLink href="/admin/intake" title="קליטה וזימון לקשב" detail="השלמת שאלונים ותיאום פגישה" icon={<CheckCircle2 size={22}/>}/>
-   <QuickLink href="/onboarding/public" title="פתיחת תיק חדש" detail="מעבר לטופס ההרשמה להורים" icon={<FilePlus2 size={22}/>}/>
-  </div></section>
-  <section aria-labelledby="intake-overview"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 id="intake-overview" className="font-bold text-slate-800">תמונת מצב · קליטת קשב</h2><Link href="/admin/intake" className="text-sm font-semibold text-teal-700 underline">לכל תהליכי הקליטה</Link></div>{queue===null&&<ErrorRow text="לא ניתן לטעון את נתוני הקליטה. המספרים אינם זמינים כרגע."/>}<div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{stats.map(({label,value,icon:Icon,href,color})=><Link key={label} href={href} className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-teal-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700"><div className="mb-3 flex items-center justify-between gap-2"><span className={`rounded-lg p-2 ${color}`}><Icon size={18}/></span><ArrowLeft size={15} className="text-slate-400"/></div><b className="block text-3xl text-slate-900">{value??'—'}</b><span className="mt-1 block text-sm text-slate-600">{label}</span></Link>)}</div></section>
-  <CalendarOverview/>
-  <section aria-labelledby="today-work"><h2 id="today-work" className="mb-3 text-lg font-bold text-slate-900">לעבודה היום</h2><div className="grid gap-4 xl:grid-cols-2">
-   <Panel title="פגישות המכון היום" icon={<CalendarDays size={20}/>} href="/admin/appointments">
-    <p className="mb-2 text-xs text-slate-500">עד 10 פגישות, לפי שעה. תורי הילדים ובקשות לרופא מוצגים ביומן המרפאה.</p>
-    {todayAppointments.error?<ErrorRow text="לא ניתן לטעון את פגישות היום. נסו לרענן."/>:!todayAppointments.data?.length?<EmptyRow text="אין פגישות מכון מתוזמנות היום"/>:<ul className="divide-y divide-slate-100">{todayAppointments.data.map((row:any)=><li key={row.id} className="flex items-center gap-3 py-3"><time dateTime={row.scheduled_at} className="rounded-lg bg-teal-50 px-3 py-2 font-mono font-bold text-teal-800" dir="ltr">{new Date(row.scheduled_at).toLocaleTimeString('he-IL',{timeZone:'Asia/Jerusalem',hour:'2-digit',minute:'2-digit'})}</time><div className="min-w-0 flex-1"><b className="break-words text-sm text-slate-800">{row.child_name}</b><p className="text-xs text-slate-500">{appointmentLabel(row.appointment_type)}{row.duration_min?` · ${row.duration_min} דקות`:''}</p></div><Link href="/admin/appointments" aria-label={`פרטי הפגישה של ${row.child_name}`} className="p-2 text-teal-700"><ArrowLeft size={18}/></Link></li>)}</ul>}
-   </Panel>
-   <Panel title="שיחות שדורשות טיפול" icon={<PhoneCall size={20}/>} href="/admin/calls">
-    <p className="mb-2 text-xs text-slate-500">שיחות של שרה מ־14 הימים האחרונים: הסלמות, שגיאות, פעולות שנכשלו ובקשות להמשך.</p>
-    {callFollowUps===null?<ErrorRow text="לא ניתן לטעון את השיחות. אין בכך אישור שאין שיחות לטיפול."/>:!callFollowUps.length?<EmptyRow text="אין שיחות שממתינות לטיפול"/>:<ul className="divide-y divide-slate-100">{callFollowUps.slice(0,8).map(c=><li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div className="min-w-0 flex-1"><b className="text-sm text-slate-800">{c.child_name||c.caller_name||'מתקשר לא מזוהה'}</b> <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{c.reason}</span><p className="mt-1 text-xs text-slate-500">{new Date(c.call_started_at||c.created_at).toLocaleString('he-IL',{timeZone:'Asia/Jerusalem',dateStyle:'short',timeStyle:'short'})}{c.next_action?` · ${c.next_action}`:c.purpose?` · ${c.purpose}`:''}</p></div><div className="flex items-center gap-2">{c.linked_case_id&&<Link href={`/admin/sessions/${c.linked_case_id}#calls`} className="text-xs font-semibold text-teal-800 underline">תיק</Link>}<Link href={`/admin/calls/${c.id}`} className="text-xs font-semibold text-teal-800 underline">שיחה</Link><FollowUpButton callId={c.id}/></div></li>)}</ul>}
-    {callFollowUps&&callFollowUps.length>8&&<p className="mt-2 text-xs text-slate-500">ועוד {callFollowUps.length-8} שיחות ביומן השיחות.</p>}
-   </Panel>
-   <Panel title="פניות לטיפול — ממתינות לתיאום" icon={<Users size={20}/>} href="/admin/treatments">
-    {treatmentRequests.error?<ErrorRow text="לא ניתן לטעון את הפניות לטיפול. נסו לרענן."/>:<><p className="mb-2 text-sm text-slate-500"><b className="text-lg text-slate-900">{treatmentRequests.count??0}</b> פניות ממתינות · מוצגות עד 5 פניות אחרונות</p>{!treatmentRequests.data?.length?<EmptyRow text="אין פניות שממתינות לתיאום"/>:<ul className="divide-y divide-slate-100">{treatmentRequests.data.map(row=><li key={row.id}><Link href="/admin/treatments" className="flex flex-wrap items-center justify-between gap-2 rounded py-3 hover:bg-slate-50"><div><b className="text-sm text-slate-800">{row.patient_name}</b><p className="text-xs text-slate-500">איש קשר: {row.contact_name}</p></div><span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.status==='pending'?'bg-amber-50 text-amber-800':'bg-blue-50 text-blue-800'}`}>{row.status==='pending'?'פנייה חדשה':'נוצר קשר'}</span></Link></li>)}</ul>}</>}
-    <Link href="/admin/treatments?status=closed" className="mt-3 inline-block text-xs text-teal-700 underline">פניות שנסגרו</Link>
-   </Panel>
-  </div></section>
-  <details open={!!searchParams.q||!!searchParams.page||archived} className="rounded-2xl border border-slate-200 bg-white"><summary className="cursor-pointer rounded-2xl p-5 font-bold text-teal-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700">כל התיקים ותשובות השאלונים <span className="font-normal text-sm text-slate-500">· פתיחת המאגר והחיפוש המלא</span></summary><div className="px-3 pb-1"><CaseDirectory result={directory} archived={archived} canDelete={staff.role==='admin'}/></div></details>
-  <div className="grid gap-4 xl:grid-cols-2">
-   <Panel title="מוכנים לזימון לפגישה" icon={<CheckCircle2 size={20} className="text-emerald-600"/>} href="/admin/intake?stage=ready">
-    {queue===null?<ErrorRow text="לא ניתן לטעון את רשימת הממתינים לזימון."/>:ready.length===0?<EmptyRow text="אין תיקים שממתינים לזימון לאחר השלמת שני השאלונים"/>:<><p className="text-xs text-slate-500">מוצגים עד 8 תיקים שהשלימו את שני השאלונים.</p><ul className="divide-y divide-slate-100">{ready.slice(0,8).map(row=><li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div><Link href={'/admin/sessions/'+row.id} className="text-sm font-bold text-teal-800 hover:underline">{row.childName}</Link><p className="mt-1 text-xs text-slate-500">שאלון הורים ומורה הושלמו</p></div><Link href={'/admin/sessions/'+row.id+'#appointments'} className="rounded-lg border border-teal-200 px-3 py-2 text-sm font-bold text-teal-800 hover:bg-teal-50">תיק וזימון ←</Link><CaseActions id={row.id} name={row.childName} canDelete={staff.role==='admin'}/></li>)}</ul></>}
-   </Panel>
-   <Panel title="תיקים שדורשים המשך טיפול" icon={<AlertTriangle size={20} className="text-amber-600"/>} href="/admin/sessions?filter=stuck">
-    {stuck.error||!hidden?<ErrorRow text="לא ניתן לטעון את התיקים שדורשים טיפול. נסו לרענן."/>:!stuck.data?.length?<EmptyRow text="אין תיקים מסומנים להמשך טיפול"/>:<ul className="divide-y divide-slate-100">{stuck.data.filter((row:any)=>!hidden?.has(row.id)).map((row:any)=><li key={row.id}><Link href={`/admin/sessions/${row.id}`} className="flex items-center justify-between gap-3 rounded py-3 hover:bg-slate-50"><div><b className="text-sm text-slate-800">{row.child_name}</b><p className="mt-1 text-xs text-slate-500">{statusLabel(row.status)} · ללא התקדמות {row.days_stuck} ימים</p></div><ArrowLeft size={18} className="shrink-0 text-slate-400"/></Link><CaseActions id={row.id} name={row.child_name} canDelete={staff.role==='admin'}/></li>)}</ul>}
-   </Panel>
+ const errors=[
+  callFollowUps===null&&'לא ניתן לטעון את השיחות. אין בכך אישור שאין שיחות לטיפול.',
+  treatmentRequests.error&&'לא ניתן לטעון את הפניות לטיפול. נסו לרענן.',
+  queue===null&&'לא ניתן לטעון את רשימת הממתינים לזימון.',
+  stuckFailed&&'לא ניתן לטעון את התיקים שדורשים טיפול. נסו לרענן.',
+ ].filter(Boolean) as string[];
+ const notes=[
+  callFollowUps&&callFollowUps.length>CALL_LIMIT&&`מוצגות ${CALL_LIMIT} שיחות; עוד ${callFollowUps.length-CALL_LIMIT} ביומן השיחות.`,
+  requestCount>requestRows.length&&`מוצגות ${requestRows.length} הפניות האחרונות מתוך ${requestCount}.`,
+  ready.length>READY_LIMIT&&`מוצגים ${READY_LIMIT} תיקים מוכנים לזימון מתוך ${ready.length}.`,
+  'שיחות: של שרה מ־14 הימים האחרונים — הסלמות, שגיאות, פעולות שנכשלו ובקשות להמשך.',
+ ].filter(Boolean) as string[];
+
+ const todayRows=agenda?.rows.filter(row=>dayKey(row.start)===today)??[];
+ const upcoming=agenda?.rows.slice(0,6)??[];
+ const dayLabel=(value:string)=>{const key=dayKey(value);return key===today?'היום':key===tomorrow?'מחר':new Date(value).toLocaleDateString('he-IL',{timeZone:TZ,day:'numeric',month:'numeric'});};
+ const kpis=[
+  {label:'תורים שנותרו היום',value:agenda?`${todayRows.length}${agenda.truncated?'+':''}`:undefined,href:'/admin/appointments',note:!agenda?'היומן המאוחד לא נטען':todayRows.length?`הקרוב ב־${clock(todayRows[0].start)} · ${todayRows[0].service}`:'אין תורים נוספים היום',warn:!agenda},
+  {label:'פניות לטיפול ממתינות',value:treatmentRequests.error?undefined:requestCount,href:'/admin/treatments',note:treatmentRequests.error?'הפניות לא נטענו':'ממתינות לתיאום מול ההורים',warn:!!treatmentRequests.error},
+  {label:'שיחות לטיפול',value:callFollowUps?.length,href:'/admin/calls',note:callFollowUps?'מ־14 הימים האחרונים':'השיחות לא נטענו',warn:!callFollowUps},
+  {label:'מוכנים לזימון',value:queue?ready.length:undefined,href:'/admin/intake?stage=ready',note:queue?'שני השאלונים הושלמו':'נתוני הקליטה לא נטענו',warn:!queue},
+ ];
+ const intake=[
+  {label:'תיקי קשב פעילים',value:queue?.length,href:'/admin/intake?stage=all'},
+  {label:'ממתינים לשאלון הורה',value:queue?.filter(row=>row.stage==='parent').length,href:'/admin/intake?stage=parent'},
+  {label:'ממתינים לשאלון מורה',value:queue?.filter(row=>row.stage==='teacher').length,href:'/admin/intake?stage=teacher'},
+ ];
+ return <div className="mk-dash">
+  {searchParams.deleted==='1'&&<p role="status" className="mk-flash">התיק הוסר לצמיתות מהרשימה.</p>}
+  <header className="mk-heading">
+   <div className="mk-heading-copy">
+    <p className="mk-date">{new Date().toLocaleDateString('he-IL',{timeZone:TZ,weekday:'long',day:'numeric',month:'long',year:'numeric'})} · שלום {staff.full_name.split(' ')[0]}</p>
+    <h1>סקירה יומית</h1>
+    <p className="mk-subtitle">מקום לצמוח. מרחב להתקדם.</p>
+    <div className="mk-heading-links"><a href="/admin/dashboard" className="mk-text-link"><RefreshCw size={14} aria-hidden="true"/>רענון נתונים</a><ReplayIntro/></div>
+   </div>
+   {/* eslint-disable-next-line @next/next/no-img-element */}
+   <div className="mk-scene" aria-hidden="true"><img src="/dashboard/growth-3d.webp" alt="" width={959} height={540} decoding="async"/></div>
+  </header>
+  <form action="/admin/dashboard#case-directory" method="get" role="search" aria-label="חיפוש תיק" className="mk-search">
+   <label htmlFor="dashboard-search"><span className="sr-only">איזה תיק מחפשים?</span><Search size={18} aria-hidden="true"/><input id="dashboard-search" name="q" defaultValue={searchParams.q??''} maxLength={120} placeholder="חיפוש תיק: שם הילד/ה או שם ההורה" className="mk-search-input"/></label>
+   <button className="mk-button mk-button-primary">חיפוש תיק</button>
+   <p className="mk-search-hint">החיפוש כולל גם תיקים שהסתיימו ותיקים שכבר הופק בהם דוח.</p>
+  </form>
+  <section aria-label="מדדי היום" className="mk-kpis">{kpis.map(({label,value,href,note,warn})=><Link key={label} href={href} className="mk-kpi"><span className="mk-kpi-label">{label}</span><b className="mk-kpi-value">{value??'—'}</b><span className="mk-kpi-note" data-tone={warn?'warn':undefined}>{note}</span></Link>)}</section>
+  <section aria-labelledby="intake-overview" className="mk-intake"><h2 id="intake-overview">קליטת קשב</h2>{queue===null&&<span role="alert" className="mk-badge" data-tone="warn">לא ניתן לטעון את נתוני הקליטה. המספרים אינם זמינים כרגע.</span>}{intake.map(({label,value,href})=><Link key={label} href={href} className="mk-intake-link"><b>{value??'—'}</b>{label}</Link>)}<Link href="/admin/intake" className="mk-intake-link mk-intake-all">לכל תהליכי הקליטה</Link></section>
+  <div className="mk-grid">
+   <WorkQueue items={items} counts={{call:callFollowUps?.length??0,request:requestCount,case:ready.length+stuckRows.length}} failed={{call:callFollowUps===null,request:!!treatmentRequests.error,case:queue===null||stuckFailed}} errors={errors} notes={notes} canDelete={canDelete}/>
+   <div className="mk-side">
+    <section className="mk-panel mk-quiet" aria-labelledby="agenda-title">
+     <div className="mk-panel-head"><h2 id="agenda-title">התורים הקרובים</h2><Link href="/admin/appointments" className="mk-panel-link" aria-label="לכל התורים ביומן">לכל התורים</Link></div>
+     {!agenda?<p role="alert" className="mk-alert">לא ניתן לטעון את היומן המאוחד. אין להסיק שאין תורים.</p>:!upcoming.length?<p className="mk-empty">אין תורים עתידיים ברשומות שנבדקו.</p>:<ul className="mk-agenda">{upcoming.map((row,index)=><li key={row.key} data-next={index===0?'true':undefined}>{index===0&&<span className="mk-next-label">התור הבא</span>}<Link href={row.href} className="mk-appt"><time dateTime={row.start}><bdi>{clock(row.start)}</bdi><small>{dayLabel(row.start)}</small></time><span className="mk-appt-body"><b>{row.name}</b><small>{row.service}</small>{row.state!=='synced'&&<small data-tone="warn">ממתין לאישור או לסנכרון</small>}</span></Link></li>)}</ul>}
+    </section>
+    <section className="mk-panel mk-quiet" aria-labelledby="quick-actions">
+     <div className="mk-panel-head"><h2 id="quick-actions">פעולות נפוצות</h2></div>
+     <ul className="mk-shortcuts">
+      <QuickLink href="/admin/pediatrics-calendar" title="יומן מרפאת הילדים" detail="צפייה בתורים וקביעת תור חדש" icon={<CalendarDays size={18}/>}/>
+      <QuickLink href="/admin/clinic-hours" title="סגירת יומן ושינוי שעות" detail="סגירה או שעות אחרות ליום בודד" icon={<CalendarDays size={18}/>}/>
+      <QuickLink href="/admin/pediatrics-calendar#doctor-requests" title="בקשות לרופא ללא תור" detail="בקשות היום ביומן המרפאה" icon={<MessageSquare size={18}/>}/>
+      <QuickLink href="/admin/adhd-requests" title="בקשות לרופא — קשב" detail="בקשות ללא תור במרפאת הקשב" icon={<MessageSquare size={18}/>}/>
+      <QuickLink href="/admin/leads" title="לידים ושימוש באתר" detail="כל הפונים מכל הערוצים ומדידת ביקורים" icon={<Users size={18}/>}/>
+      <QuickLink href="/admin/intake" title="קליטה וזימון לקשב" detail="השלמת שאלונים ותיאום פגישה" icon={<CheckCircle2 size={18}/>}/>
+      <QuickLink href="/onboarding/public" title="פתיחת תיק חדש" detail="מעבר לטופס ההרשמה להורים" icon={<FilePlus2 size={18}/>}/>
+     </ul>
+    </section>
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <figure className="mk-aspiration"><img src="/dashboard/aspiration-3d.webp" alt="" width={959} height={540} loading="lazy" decoding="async"/><figcaption>כל צעד קטן פותח אפשרות גדולה.</figcaption></figure>
+   </div>
   </div>
-  <p className="text-xs text-slate-500">הנתונים נטענים בפתיחת הדף. לעדכון לאחר פעולה אפשר ללחוץ על ״רענון נתונים״.</p>
+  <section aria-labelledby="today-work">
+   <h2 id="today-work" className="mk-section-title">יומן ותורים</h2>
+   <div className="mk-grid">
+    <CalendarOverview data={agenda}/>
+    <section className="mk-panel" aria-labelledby="today-institute">
+     <div className="mk-panel-head"><h2 id="today-institute">פגישות המכון היום</h2><Link href="/admin/appointments" className="mk-panel-link" aria-label="הצגת הכול: פגישות המכון היום">הצגת הכול</Link><p>עד 10 פגישות, לפי שעה. תורי הילדים ובקשות לרופא מוצגים ביומן המרפאה.</p></div>
+     {todayAppointments.error?<p role="alert" className="mk-alert">לא ניתן לטעון את פגישות היום. נסו לרענן.</p>:!todayAppointments.data?.length?<p className="mk-empty">אין פגישות מכון מתוזמנות היום</p>:<ul className="mk-today">{todayAppointments.data.map((row:any)=><li key={row.id}><time dateTime={row.scheduled_at} dir="ltr">{clock(row.scheduled_at)}</time><div><b>{row.child_name}</b><p>{appointmentLabel(row.appointment_type)}{row.duration_min?` · ${row.duration_min} דקות`:''}</p></div><Link href="/admin/appointments" aria-label={`פרטי הפגישה של ${row.child_name}`} className="mk-today-link"><ArrowLeft size={18} aria-hidden="true"/></Link></li>)}</ul>}
+    </section>
+   </div>
+  </section>
+  <details open={!!searchParams.q||!!searchParams.page||archived} className="mk-directory" data-region="case-directory"><summary className="mk-directory-summary">כל התיקים ותשובות השאלונים <span>· פתיחת המאגר והחיפוש המלא</span></summary><div className="px-3 pb-1"><CaseDirectory result={directory} archived={archived} canDelete={canDelete}/></div></details>
+  <p className="mk-footnote">הנתונים נטענים בפתיחת הדף. לעדכון לאחר פעולה אפשר ללחוץ על ״רענון נתונים״.</p>
  </div>;
 }
-function QuickLink({href,title,detail,icon}:{href:string;title:string;detail:string;icon:React.ReactNode}){return <Link href={href} className="group flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-teal-500 hover:bg-teal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700"><span className="rounded-lg bg-teal-50 p-2 text-teal-700" aria-hidden="true">{icon}</span><span><b className="block text-sm text-slate-800">{title}</b><span className="mt-1 block text-xs leading-5 text-slate-500">{detail}</span></span></Link>;}
-function Panel({title,icon,href,children}:{title:string;icon:React.ReactNode;href:string;children:React.ReactNode}){return <section className="rounded-2xl border border-slate-200 bg-white p-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-teal-700">{icon}<h2 className="font-bold text-slate-800">{title}</h2></div><Link href={href} aria-label={`הצגת הכול: ${title}`} className="text-xs font-semibold text-teal-700 underline">הצגת הכול</Link></div>{children}</section>;}
-function EmptyRow({text}:{text:string}){return <p className="rounded-lg bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">{text}</p>;}
-function ErrorRow({text}:{text:string}){return <p role="alert" className="my-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{text}</p>;}
+function QuickLink({href,title,detail,icon}:{href:string;title:string;detail:string;icon:React.ReactNode}){return <li><Link href={href} className="mk-shortcut"><span aria-hidden="true">{icon}</span><span><b>{title}</b><span>{detail}</span></span></Link></li>;}
 function appointmentLabel(value:string){return {assessment:'אבחון קשב',followup:'מעקב',treatment:'טיפול',moxo:'מבדק MOXO'}[value]??value;}
 function statusLabel(value:string){return {created:'תיק חדש',parent_form_started:'שאלון הורה בתהליך',parent_form_done:'שאלון הורה הושלם',teacher_link_sent:'קישור למורה נוצר',teacher_form_started:'שאלון מורה בתהליך',teacher_form_done:'שאלון מורה הושלם',profile_ready:'מוכן לזימון',scheduled:'תור נקבע',completed:'הושלם',cancelled:'בוטל'}[value]??value;}

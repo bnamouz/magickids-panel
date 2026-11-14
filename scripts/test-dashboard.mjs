@@ -119,8 +119,11 @@ test('dashboard authenticates before fetching data and keeps archived cases out 
   const html = renderToStaticMarkup(await Dashboard({ searchParams: { q: 'ארכיון' } }));
   assert.ok(html.includes('ילד בדיקת ארכיון'));
   assert.ok(html.includes('>202<'));
-  const readyPanel = html.slice(html.indexOf('<h2 class="font-bold text-slate-800">מוכנים לזימון לפגישה'));
-  assert.ok(!readyPanel.includes('ילד בדיקת ארכיון'));
+  const queueStart = html.indexOf('data-region="work-queue"'), queueEnd = html.indexOf('data-region="case-directory"');
+  assert.ok(queueStart > 0 && queueEnd > queueStart);
+  const workQueue = html.slice(queueStart, queueEnd);
+  assert.ok(workQueue.includes('מוכן לזימון'));
+  assert.ok(!workQueue.includes('ילד בדיקת ארכיון'));
   const WithArchive=compile('app/admin/dashboard/page.tsx',{...overrides,'@/lib/intake/dashboard-archive':{loadDashboardArchive:async()=>new Set(['synthetic-204'])}}).default;
   const visible=renderToStaticMarkup(await WithArchive({searchParams:{q:'ארכיון'}}));
   assert.ok(!visible.includes('ילד בדיקת ארכיון'));
@@ -155,8 +158,56 @@ test('dashboard distinguishes failed data from empty queues and sorts appointmen
   assert.ok(html.includes('לא ניתן לטעון את פגישות היום'));
   assert.ok(html.includes('לא ניתן לטעון את הפניות לטיפול'));
   assert.ok(html.includes('לא ניתן לטעון את התיקים שדורשים טיפול'));
+  assert.ok(html.includes('לא ניתן לטעון את השיחות'));
+  assert.ok(html.includes('לא ניתן לטעון את רשימת הממתינים לזימון'));
+  assert.ok(html.includes('לא ניתן לטעון את היומן המאוחד'));
+  assert.ok(html.includes('נתונים חלקיים'));
   assert.ok(!html.includes('אין פגישות מכון מתוזמנות היום'));
   assert.ok(!html.includes('אין פניות שממתינות לתיאום'));
+  assert.ok(!html.includes('אין כרגע פריטים שממתינים לטיפול'));
+  assert.ok(!html.includes('אין תורים עתידיים'));
+});
+
+test('daily overview merges every source into one work queue and keeps each action', async () => {
+  const session = id => ({ id, status: 'created', createdAt: '2026-08-01T00:00:00Z', childName: 'ילד ' + id, parentName: 'הורה', stage: id === 'r1' ? 'ready' : 'parent', readyToSchedule: id === 'r1' });
+  const soon = new Date(Date.now() + 60_000).toISOString();
+  const tables = {
+    v_stuck_sessions: { data: [{ id: 's1', child_name: 'ילד תקוע', status: 'created', days_stuck: 9 }, { id: 'hidden-1', child_name: 'ילד מוסתר', status: 'created', days_stuck: 30 }] },
+    v_today_appointments: { data: [] },
+    treatment_requests: { data: [{ id: 't1', patient_name: 'ילד פנייה', contact_name: 'הורה פנייה', status: 'pending', created_at: soon }], count: 7 },
+  };
+  const overrides = {
+    'next/link': { default: link, __esModule: true },
+    '@/components/admin/CalendarOverview': { default: ({ data }) => { assert.equal(data.rows.length, 2); return null; }, __esModule: true },
+    '@/lib/intake/dashboard-archive': { loadDashboardArchive: async () => new Set(['hidden-1']) },
+    '@/lib/intake/queue': { loadIntakeQueue: async () => [session('r1'), session('p1')] },
+    '@/lib/voice/follow-up': { loadCallFollowUps: async () => [{ id: 'c1', created_at: soon, call_started_at: soon, caller_name: 'מתקשר', child_name: null, next_action: 'לחזור להורה', purpose: null, linked_case_id: 'r1', reason: 'הסלמה לצוות' }] },
+    '@/lib/calendar-agenda': { loadCalendarAgenda: async () => ({ rows: [
+      { key: 'a', start: soon, end: soon, name: 'תור קרוב', service: 'אבחון קשב', href: '/admin/sessions/r1', state: 'synced', eventKey: null },
+      { key: 'b', start: '2099-01-01T10:00:00Z', end: '2099-01-01T11:00:00Z', name: 'תור רחוק', service: 'MOXO', href: '/admin/moxo', state: 'pending', eventKey: null }], health: null, truncated: false }) },
+    '@/lib/supabase': { getSupabaseAdmin: () => ({ from: table => ({ select() { return this; }, in() { return this; }, order() { return this; }, limit: async () => tables[table] }) }) },
+    '@/lib/admin/auth': { requireStaff: async () => ({ full_name: 'צוות בדיקה', role: 'assistant' }) },
+  };
+  const Dashboard = compile('app/admin/dashboard/page.tsx', overrides).default;
+  const html = renderToStaticMarkup(await Dashboard({}));
+  const queue = html.slice(html.indexOf('data-region="work-queue"'), html.indexOf('aria-labelledby="agenda-title"'));
+  // Order: call, treatment request, ready case, stuck case. The first item is the single highlighted one.
+  const order = ['מתקשר', 'ילד פנייה', 'ילד r1', 'ילד תקוע'].map(name => queue.indexOf(name));
+  assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), String(order));
+  assert.equal(queue.split('data-priority="true"').length - 1, 1);
+  assert.ok(!queue.includes('ילד מוסתר'));
+  for (const href of ['/admin/calls/c1', '/admin/sessions/r1#calls', '/admin/treatments', '/admin/sessions/r1#appointments', '/admin/sessions/r1"', '/admin/sessions/s1', '/admin/calls"', '/admin/intake?stage=ready', '/admin/sessions?filter=stuck', '/admin/treatments?status=closed'])
+    assert.ok(queue.includes(`href="${href.replace(/"$/, '')}${href.endsWith('"') ? '"' : ''}`), href);
+  assert.ok(queue.includes('טופל'));
+  assert.ok(queue.includes('מוצגות 1 הפניות האחרונות מתוך 7'));
+  // True totals: 1 call + 7 requests + 2 cases.
+  assert.ok(queue.includes('>10<'));
+  assert.ok(html.includes('הקרוב ב־'));
+  assert.ok(html.includes('תור רחוק') && html.includes('ממתין לאישור או לסנכרון'));
+  for (const href of ['/admin/pediatrics-calendar', '/admin/clinic-hours', '/admin/pediatrics-calendar#doctor-requests', '/admin/adhd-requests', '/admin/leads', '/admin/intake', '/onboarding/public', '/admin/intake?stage=all', '/admin/intake?stage=parent', '/admin/intake?stage=teacher', '/admin/appointments'])
+    assert.ok(html.includes(`href="${href}"`), href);
+  assert.ok(html.includes('action="/admin/dashboard#case-directory"') && html.includes('name="q"'));
+  assert.ok(html.includes('רענון נתונים'));
 });
 
 test('staff navigation keeps every destination available with current-page semantics and mobile toggle', () => {
@@ -170,7 +221,11 @@ test('staff navigation keeps every destination available with current-page seman
   assert.match(html, /href="\/admin\/sessions" aria-current="page"/);
   assert.match(html, /aria-controls="staff-navigation"/);
   assert.match(html, /id="staff-navigation"/);
-  for (const route of ['pediatrics-calendar','intake','appointments','moxo','treatments','therapists','therapy','recruitment','development','classes','abroad','reviews','secretaries','calls','personal/calls']) {
+  assert.match(html, /aria-expanded="true" aria-controls="staff-folder-patients"/);
+  assert.equal(html.split('aria-current="page"').length - 1, 1);
+  assert.ok(html.includes('href="/admin/dashboard"'));
+  for (const route of ['pediatrics-calendar','clinic-patients','clinic-hours','intake','sessions','appointments','moxo','adhd-payments','adhd-requests','treatments','therapists','therapy','recruitment','development','classes','abroad','reviews','leads','secretaries','calls','personal/calls','google-calendars','system-health']) {
+    assert.equal(html.split(`href="/admin/${route}"`).length - 1, 1, route);
     assert.ok(html.includes(`href="/admin/${route}"`), route);
     assert.ok(fs.existsSync(path.join(root, 'app/admin', route, 'page.tsx')), route);
   }
