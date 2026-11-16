@@ -2,6 +2,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from '@/components/booking/booking.module.css';
+import { isValidIsraeliId, normalizeIsraeliId } from '@/lib/israeli-id';
 type Language = 'he' | 'ar' | 'en';
 const copy = {
   brand: ['מכון ילדי הקסם','معهد أطفال السحر','Magic Kids Institute'],
@@ -15,6 +16,8 @@ const copy = {
   existing: ['כבר התחלתם? חזרו לקישור האישי שקיבלתם לשאלון. אין צורך לפתוח תיק נוסף.','بدأتم من قبل؟ عودوا إلى رابط الاستبيان الشخصي الذي تلقيتموه. لا حاجة لفتح ملف آخر.','Already started? Return to your personal questionnaire link. There is no need to open another file.'],
   headings: ['פרטי הילד/ה|פרטי המורה|פרטי ההורה והסכמה','تفاصيل الطفل/ة|تفاصيل المعلم/ة|تفاصيل ولي الأمر والموافقة','Child details|Teacher details|Parent details and consent'],
   first: ['שם פרטי','الاسم الأول','First name'], last: ['שם משפחה','اسم العائلة','Last name'],
+  childId: ['תעודת זהות של הילד/ה (9 ספרות)','رقم هوية الطفل/ة (9 أرقام)','Child’s ID number (9 digits)'],
+  idInvalid: ['מספר תעודת הזהות של הילד/ה אינו תקין. יש להקליד 9 ספרות, כולל ספרת הביקורת, כפי שמופיע בספח.','رقم هوية الطفل/ة غير صحيح. يرجى إدخال 9 أرقام، بما فيها رقم التدقيق، كما يظهر في ملحق الهوية.','The child’s ID number is not valid. Enter all 9 digits, including the check digit.'],
   birth: ['תאריך לידה','تاريخ الميلاد','Date of birth'], gender: ['מין','الجنس','Sex'],
   genders: ['זכר|נקבה|אחר','ذكر|أنثى|آخر','Male|Female|Other'],
   grade: ['כיתה','الصف','Grade'], school: ['בית ספר','المدرسة','School'],
@@ -32,10 +35,10 @@ const copy = {
   home: ['חזרה לאתר המכון','العودة إلى موقع المعهد','Institute website'], help: ['עזרה מהמכון','مساعدة من المعهد','Contact the institute'],
   clinicalLanguage: ['','الاستبيانات الطبية متاحة حالياً بالعبرية.','The clinical questionnaires are currently in Hebrew.'],
 } as const;
-type Data = { child_first_name:string; child_last_name:string; birth_date:string; gender:string; grade:string; school:string; teacher_name:string; teacher_phone:string; parent_name:string; parent_phone:string; parent_email:string; relation:string; consent:boolean };
+type Data = { child_first_name:string; child_last_name:string; child_id:string; birth_date:string; gender:string; grade:string; school:string; teacher_name:string; teacher_phone:string; parent_name:string; parent_phone:string; parent_email:string; relation:string; consent:boolean };
 export default function OnboardingForm({ demo, initialLanguage }: { demo:boolean; initialLanguage:Language }) {
   const router = useRouter(), [language,setLanguage] = useState(initialLanguage), [step,setStep] = useState(1);
-  const [data,setData] = useState<Data>({child_first_name:'',child_last_name:'',birth_date:'',gender:'male',grade:'',school:'',teacher_name:'',teacher_phone:'',parent_name:'',parent_phone:'',parent_email:'',relation:'mother',consent:false});
+  const [data,setData] = useState<Data>({child_first_name:'',child_last_name:'',child_id:'',birth_date:'',gender:'male',grade:'',school:'',teacher_name:'',teacher_phone:'',parent_name:'',parent_phone:'',parent_email:'',relation:'mother',consent:false});
   const [loading,setLoading] = useState(false), [error,setError] = useState('');
   const t = (key:keyof typeof copy) => copy[key][language === 'he' ? 0 : language === 'ar' ? 1 : 2];
   const origin = 'https://magickidsinstitute.com';
@@ -43,9 +46,10 @@ export default function OnboardingForm({ demo, initialLanguage }: { demo:boolean
   function update<K extends keyof Data>(key:K,value:Data[K]){setData(previous=>({...previous,[key]:value}));}
   async function next(event:FormEvent<HTMLFormElement>){
     event.preventDefault();setError('');
+    if(step===1&&!isValidIsraeliId(data.child_id)){setError(t('idInvalid'));return;}
     if(step===1){const birth=new Date(data.birth_date),now=new Date();let age=now.getFullYear()-birth.getFullYear();if(now.getMonth()<birth.getMonth()||(now.getMonth()===birth.getMonth()&&now.getDate()<birth.getDate()))age--;if(!Number.isFinite(birth.getTime())||age<6||age>80){setError(t('age'));return;}}
     if(step<3){setStep(step+1);return;}if(loading||!data.consent)return;setLoading(true);
-    try{const response=await fetch('/api/intake',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const result=await response.json();if(!response.ok||!result.parent_token){setError(language==='he'&&typeof result.error==='string'?result.error:t('error'));return;}router.push('/questionnaire/parent/'+encodeURIComponent(result.parent_token));}catch{setError(t('error'));}finally{setLoading(false);}
+    try{const response=await fetch('/api/intake',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,child_id:normalizeIsraeliId(data.child_id)})});const result=await response.json();if(!response.ok||!result.parent_token){const idRejected=!!result.error&&typeof result.error==='object'&&'child_id' in result.error;if(idRejected)setStep(1);setError(idRejected?t('idInvalid'):language==='he'&&typeof result.error==='string'?result.error:t('error'));return;}router.push('/questionnaire/parent/'+encodeURIComponent(result.parent_token));}catch{setError(t('error'));}finally{setLoading(false);}
   }
   const input=(key:Exclude<keyof Data,'consent'>,label:keyof typeof copy,type='text',required=false,maxLength=120)=><label key={key}><span>{t(label)}</span><input value={data[key]} onChange={event=>update(key,event.target.value)} type={type} required={required} maxLength={maxLength} minLength={type==='tel'&&required?7:undefined} dir={type==='tel'||type==='email'?'ltr':undefined}/></label>;
   const select=(key:'gender'|'relation',label:'gender'|'relation',values:string[],labels:'genders'|'relations')=><label><span>{t(label)}</span><select className="w-full border border-slate-300 rounded-lg p-3 bg-white" value={data[key]} onChange={event=>update(key,event.target.value)}>{values.map((value,index)=><option key={value} value={value}>{t(labels).split('|')[index]}</option>)}</select></label>;
@@ -54,7 +58,7 @@ export default function OnboardingForm({ demo, initialLanguage }: { demo:boolean
     <main className={styles.main}><aside className={styles.intro}><span className={styles.eyebrow}>{t('clinic')}</span><h1>{t('title')}</h1><p>{t('intro')}</p><ol className="space-y-3 mt-6">{t('steps').split('|').map((label,index)=><li key={label} className="flex items-center gap-3"><span className="w-7 h-7 rounded-full bg-white/15 text-center text-sm" aria-hidden="true">{index+1}</span>{label}</li>)}</ol><div className={styles.doctor}><img src={origin+'/assets/doctor.jpg'} width={72} height={88} alt={t('doctor')}/><div><strong>{t('doctor')}</strong><span>{t('role')}</span></div></div><a href="https://wa.me/972544020043" className={styles.phone}><span>{t('help')}</span><b dir="ltr">054-402-0043</b></a><a className={styles.home} href={origin+'/index.html?lang='+language}>{t('home')}</a></aside>
     <section className={styles.panel} aria-labelledby="intake-title"><p className={styles.muted}>{t('existing')}</p><h2 id="intake-title">{t('form')}</h2><p className="text-sm text-[#01696f] mt-2 mb-4">{step} / 3 · {t('headings').split('|')[step-1]}</p><div className="flex gap-2 mb-6" aria-hidden="true">{[1,2,3].map(value=><span key={value} className={'h-1.5 flex-1 rounded-full '+(step>=value?'bg-[#075a5d]':'bg-slate-100')}/>)}</div>
     {demo?<a className={styles.primary} href="/questionnaire/parent/demo">מצב הדגמה — לשאלון</a>:<form onSubmit={next}><fieldset disabled={loading} className={styles.fields}><legend className="sr-only">{t('headings').split('|')[step-1]}</legend>
-      {step===1&&<><div className="grid sm:grid-cols-2 gap-4">{input('child_first_name','first','text',true,80)}{input('child_last_name','last','text',true,80)}</div>{input('birth_date','birth','date',true)}{select('gender','gender',['male','female','other'],'genders')}<div className="grid sm:grid-cols-2 gap-4">{input('grade','grade')}{input('school','school')}</div></>}
+      {step===1&&<><div className="grid sm:grid-cols-2 gap-4">{input('child_first_name','first','text',true,80)}{input('child_last_name','last','text',true,80)}</div><label><span>{t('childId')}</span><input value={data.child_id} onChange={event=>update('child_id',normalizeIsraeliId(event.target.value).replace(/[^0-9]/g,'').slice(0,9))} type="text" inputMode="numeric" autoComplete="off" required minLength={9} maxLength={9} dir="ltr"/></label>{input('birth_date','birth','date',true)}{select('gender','gender',['male','female','other'],'genders')}<div className="grid sm:grid-cols-2 gap-4">{input('grade','grade')}{input('school','school')}</div></>}
       {step===2&&<><p className={styles.muted}>{t('teacherHint')}</p>{input('teacher_name','teacherName')}{input('teacher_phone','teacherPhone','tel',false,25)}</>}
       {step===3&&<>{select('relation','relation',['mother','father','guardian','other'],'relations')}{input('parent_name','name','text',true)}{input('parent_phone','phone','tel',true,25)}{input('parent_email','email','email',false,254)}<label className={styles.consent}><input type="checkbox" required checked={data.consent} onChange={event=>update('consent',event.target.checked)}/><span>{t('consent')}</span></label>{t('clinicalLanguage')&&<p className={styles.muted}>{t('clinicalLanguage')}</p>}</>}
     </fieldset>{error&&<p role="alert" className={styles.error}>{error}</p>}<div className="flex items-center gap-3 mt-3">{step>1&&<button type="button" disabled={loading} onClick={()=>{setStep(step-1);setError('');}} className="px-5 py-3 mt-5 rounded-xl border border-slate-300">{t('back')}</button>}<button type="submit" className={styles.primary} disabled={loading}>{t(loading?'saving':step===3?'submit':'next')}</button></div></form>}</section></main>

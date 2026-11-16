@@ -171,3 +171,13 @@ test('staff booking API enforces two submitted questionnaires and denies unauthe
   }
   assert.equal(writes,4);
 });
+
+test('the public onboarding form collects every field the intake API requires',()=>{
+  // Regression: the API began requiring child_id while this form did not ask for it, so every submission failed with a generic error.
+  const api=fs.readFileSync(path.join(root,'app/api/intake/route.ts'),'utf8'), form=fs.readFileSync(path.join(root,'components/intake/OnboardingForm.tsx'),'utf8');
+  const schema=api.slice(api.indexOf('z.object({'),api.indexOf('export async function POST'));
+  const required=[...schema.matchAll(/^\s*([a-z_]+)\s*:(.*)$/gm)].filter(([, ,rule])=>!/optional\(\)|default\(/.test(rule)).map(([,key])=>key);
+  assert.ok(required.includes('child_id')&&required.includes('parent_phone'),'schema parsing found the required fields');
+  const state=form.match(/useState<Data>\(\{([^}]*)\}\)/)[1];
+  for(const key of required)assert.match(state,new RegExp('(^|,)'+key+':'),`OnboardingForm state is missing ${key}`);
+});
