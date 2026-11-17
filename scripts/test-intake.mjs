@@ -181,3 +181,133 @@ test('the public onboarding form collects every field the intake API requires',(
   const state=form.match(/useState<Data>\(\{([^}]*)\}\)/)[1];
   for(const key of required)assert.match(state,new RegExp('(^|,)'+key+':'),`OnboardingForm state is missing ${key}`);
 });
+
+// A child who already has a file continues it instead of receiving a second one.
+function intakeDb(pg, failures = {}) {
+  const run = async (sql, params) => { try { return { rows: (await pg.query(sql, params)).rows, error: null }; } catch (error) { return { rows: null, error }; } };
+  return {
+    async rpc(name, a) {
+      assert.equal(name, 'create_intake_session');
+      const patient = (await pg.query('insert into patients(first_name,last_name,birth_date) values($1,$2,$3) returning id', [a.p_first_name, a.p_last_name, a.p_birth_date])).rows[0].id;
+      const parent = (await pg.query('insert into parents(patient_id,full_name,phone) values($1,$2,$3) returning id', [patient, a.p_parent_name, a.p_parent_phone])).rows[0].id;
+      const token = 'p_' + randomUUID().replace(/-/g, '');
+      const session = (await pg.query("insert into intake_sessions(patient_id,primary_parent_id,parent_token,parent_token_expires_at) values($1,$2,$3,now()+interval '30 days') returning id", [patient, parent, token])).rows[0].id;
+      return { data: session, error: null };
+    },
+    from(table) {
+      let action = 'select', columns = '*', values, filters = [], one = false;
+      const q = {
+        select(value = '*') { columns = value; return q; },
+        eq(key, value) { filters.push([key + '=', value]); return q; },
+        in(key, value) { filters.push([key + '= any', value]); return q; },
+        is(key, value) { assert.equal(value, null); filters.push([key + ' is null']); return q; },
+        insert(value) { action = 'insert'; values = value; return q; },
+        update(value) { action = 'update'; values = value; return q; },
+        single() { one = true; return q; }, maybeSingle() { one = true; return q; },
+        then(resolve, reject) { return (async () => {
+          if (failures.lookup && action === 'select' && table === 'patients') return { data: null, error: new Error('simulated lookup failure') };
+          const params = [], param = v => { params.push(v !== null && typeof v === 'object' && !Array.isArray(v) ? JSON.stringify(v) : v); return '$' + params.length; };
+          let sql = action === 'select' ? `select ${columns} from ${table}` : action === 'update' ? `update ${table} set ${Object.entries(values).map(([k, v]) => `${k}=${param(v)}`).join(',')}`
+            : `insert into ${table}(${Object.keys(values).join(',')}) values(${Object.values(values).map(param).join(',')})`;
+          if (filters.length) sql += ' where ' + filters.map(([op, v]) => v === undefined ? op : op.endsWith('any') ? `${op}(${param(v)})` : op + param(v)).join(' and ');
+          if (action !== 'select') sql += ' returning ' + columns;
+          const r = await run(sql, params);
+          return r.error ? { data: null, error: r.error } : { data: one ? r.rows[0] ?? null : r.rows, error: null };
+        })().then(resolve, reject); },
+      };
+      return q;
+    },
+  };
+}
+test('the intake form continues an existing file instead of opening a second one', async t => {
+  const pg = new PGlite(), failures = {};
+  await pg.exec(`
+    create table patients(id uuid primary key default gen_random_uuid(),first_name text,last_name text,birth_date text,national_id text,gender text,grade text,school text,medical_notes text,archived_at timestamptz);
+    create table parents(id uuid primary key default gen_random_uuid(),patient_id uuid,full_name text,phone text,relation text,email text,consent_given boolean,consent_at timestamptz,consent_version text,consent_ip text);
+    create table intake_sessions(id uuid primary key default gen_random_uuid(),patient_id uuid,primary_parent_id uuid,status text default 'created',parent_token text,parent_token_expires_at timestamptz,reason_for_referral text,teacher_name text,teacher_phone text,created_at timestamptz default now());
+    create table dashboard_case_archive(session_id uuid primary key);
+    create table audit_log(id serial primary key,actor_type text,action text,entity_type text,entity_id uuid,metadata jsonb);
+    create table notifications(id serial primary key,session_id uuid,recipient_type text,channel text,template text,scheduled_for timestamptz,status text,payload jsonb);`);
+  const route = compile('app/api/intake/route.ts', { '@/lib/supabase': { getSupabaseAdmin: () => intakeDb(pg, failures) } });
+  const base = { child_first_name: 'نور', child_last_name: 'Test', child_id: '123456782', birth_date: '2015-03-04', parent_name: 'Parent One', parent_phone: '050-111-2233', relation: 'mother', consent: true };
+  const post = async body => { const r = await route.POST({ headers: new Headers({ origin: 'https://app.test' }), json: async () => ({ ...base, ...body }) }); return { status: r.status, body: await r.json() }; };
+  const count = async table => (await pg.query(`select count(*)::int n from ${table}`)).rows[0].n;
+  const outcomes = async () => (await pg.query("select metadata->>'outcome' o from audit_log where action='intake_repeat_attempt' order by id")).rows.map(r => r.o);
+  try {
+    const first = await post({});
+    assert.equal(first.status, 200); assert.equal(first.body.existing, undefined); assert.equal(await count('patients'), 1);
+
+    await t.test('same child and a phone on the file: same link, nothing new is created', async () => {
+      for (const parent_phone of ['0501112233', '+972 50 111 2233', '٠٥٠١١١٢٢٣٣']) {
+        const again = await post({ parent_phone, child_first_name: 'Nour', birth_date: '2015-03-05' });
+        assert.equal(again.status, 200); assert.equal(again.body.existing, true); assert.equal(again.body.parent_token, first.body.parent_token);
+        assert.equal(again.body.parent_url, 'https://app.test/questionnaire/parent/' + first.body.parent_token); assert.equal('session_id' in again.body, false);
+      }
+      assert.equal(await count('patients'), 1); assert.equal(await count('intake_sessions'), 1); assert.equal(await count('parents'), 1);
+      assert.deepEqual(await outcomes(), ['continued', 'continued', 'continued']);
+    });
+    await t.test('a lapsed link is renewed without changing it', async () => {
+      await pg.exec("update intake_sessions set parent_token_expires_at='2020-01-01'");
+      const again = await post({});
+      assert.equal(again.body.parent_token, first.body.parent_token);
+      assert.equal((await pg.query('select parent_token_expires_at>now() ok from intake_sessions')).rows[0].ok, true);
+    });
+    await t.test('another phone never receives the link and learns of the file only with the birth date', async () => {
+      const other = await post({ parent_phone: '0529998877' });
+      assert.equal(other.status, 409); assert.equal(other.body.code, 'existing_file');
+      const guess = await post({ parent_phone: '0529998877', birth_date: '2014-01-01' });
+      assert.equal(guess.status, 409); assert.equal(guess.body.code, 'details_mismatch');
+      for (const reply of [other, guess]) { assert.equal(typeof reply.body.error, 'string'); assert.equal(JSON.stringify(reply.body).includes(first.body.parent_token), false); assert.equal('parent_token' in reply.body, false); }
+      assert.equal(await count('patients'), 1);
+      const logged = (await pg.query("select entity_id,metadata from audit_log order by id desc limit 1")).rows[0];
+      assert.equal(logged.entity_id, first.body.session_id); assert.equal(logged.metadata.parent_phone, '0529998877');
+    });
+    await t.test('a finished file is not reopened or duplicated', async () => {
+      await pg.exec("update intake_sessions set status='reported'");
+      const ended = await post({});
+      assert.equal(ended.status, 409); assert.equal(ended.body.code, 'existing_file_ended'); assert.equal(await count('patients'), 1);
+      await pg.exec("update intake_sessions set status='booked'");
+    });
+    await t.test('of two files for one child, the parent is sent to the one further along', async () => {
+      const patient = (await pg.query("insert into patients(first_name,last_name,birth_date,national_id) values('نور','Test','2015-03-04','123456782') returning id")).rows[0].id;
+      await pg.query("insert into parents(patient_id,full_name,phone) values($1,'Parent One','0501112233')", [patient]);
+      await pg.query("insert into intake_sessions(patient_id,status,parent_token,parent_token_expires_at) values($1,'created','p_newer_empty_file',now()+interval '30 days')", [patient]);
+      assert.equal((await post({})).body.parent_token, first.body.parent_token);
+      await pg.query('delete from intake_sessions where patient_id=$1', [patient]); await pg.query('delete from parents where patient_id=$1', [patient]); await pg.query('delete from patients where id=$1', [patient]);
+    });
+    await t.test('cancelled, staff-archived and archived-patient files do not block a new file', async () => {
+      await pg.exec("update intake_sessions set status='cancelled'");
+      const afterCancel = await post({});
+      assert.equal(afterCancel.status, 200); assert.equal(afterCancel.body.existing, undefined); assert.notEqual(afterCancel.body.parent_token, first.body.parent_token); assert.equal(await count('patients'), 2);
+      await pg.query('insert into dashboard_case_archive(session_id) values($1)', [afterCancel.body.session_id]);
+      const afterArchive = await post({});
+      assert.equal(afterArchive.status, 200); assert.equal(afterArchive.body.existing, undefined); assert.equal(await count('patients'), 3);
+      await pg.exec('update patients set archived_at=now()');
+      assert.equal((await post({})).body.existing, undefined); assert.equal(await count('patients'), 4);
+    });
+    await t.test('files opened before the ID was collected match on phone, birth date and first name; a twin still gets a file', async () => {
+      await pg.exec('truncate patients,parents,intake_sessions,dashboard_case_archive,audit_log');
+      const old = await post({ child_first_name: 'מֹשֶׁה', child_id: '000000018' });
+      await pg.exec('update patients set national_id=null');
+      const again = await post({ child_first_name: ' משה ', child_id: '000000026' });
+      assert.equal(again.status, 200); assert.equal(again.body.existing, true); assert.equal(again.body.parent_token, old.body.parent_token);
+      assert.equal((await post({ child_first_name: 'משה', child_id: '000000026', parent_phone: '0529998877' })).body.existing, undefined);
+      assert.equal((await post({ child_first_name: 'אהרן', child_id: '000000034' })).body.existing, undefined);
+      assert.equal(await count('patients'), 3);
+    });
+    await t.test('a failed lookup does not stop a family from opening a file', async () => {
+      await pg.exec('truncate patients,parents,intake_sessions,dashboard_case_archive,audit_log');
+      failures.lookup = true;
+      const opened = await post({});
+      assert.equal(opened.status, 200); assert.equal(typeof opened.body.parent_token, 'string'); assert.equal(await count('patients'), 1);
+      failures.lookup = false;
+    });
+  } finally { await pg.close(); }
+});
+test('the status page accepts every personal-link format the system issues', () => {
+  const { intakeLinkTokenSchema } = compile('lib/intake/tokens.ts');
+  for (const token of ['p_' + 'Ab9_-'.repeat(6) + 'Xy', 't_' + 'Zy8_-'.repeat(6) + 'Ab', 'a'.repeat(48), randomUUID()]) assert.equal(intakeLinkTokenSchema.safeParse(token).success, true);
+  for (const token of ['', 'p_short', 'x_' + 'a'.repeat(32), 'a'.repeat(47), 'p_' + 'a'.repeat(32) + '/']) assert.equal(intakeLinkTokenSchema.safeParse(token).success, false);
+  const page = fs.readFileSync(path.join(root, 'app/onboarding/status/[token]/page.tsx'), 'utf8');
+  assert.match(page, /intakeLinkTokenSchema\.safeParse\(params\.token\)/); assert.doesNotMatch(page, /uuid\(\)\.safeParse\(params\.token\)/);
+});

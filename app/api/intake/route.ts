@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { isValidIsraeliId, normalizeIsraeliId } from '@/lib/israeli-id';
 import { asciiDigits } from '@/lib/phone-digits';
+import { EXISTING_MESSAGES, findExistingFile, usableParentToken, type ExistingFile } from '@/lib/intake/existing-file';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -28,8 +29,8 @@ const intakeSchema = z.object({
 });
 
 /**
- * POST /api/intake – create a new intake session
- * Public endpoint used by /register form.
+ * POST /api/intake – open a file, or continue the one the child already has.
+ * Public endpoint used by the onboarding and /register forms.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -53,6 +54,31 @@ export async function POST(req: NextRequest) {
         { error: 'גיל המטופל/ת חייב להיות בין 6 ל-80 שנה. בדוק את תאריך הלידה.' },
         { status: 400 }
       );
+    }
+
+    // A child who already has a file continues it; a second file is never opened for the same child.
+    // If the lookup itself fails the form still works: a duplicate can be merged, a blocked parent cannot register.
+    let existing: ExistingFile | null = null;
+    try {
+      existing = await findExistingFile(supabase, { nationalId: d.child_id, birthDate: d.birth_date, firstName: d.child_first_name, parentPhone: d.parent_phone });
+    } catch (e) {
+      console.error('[intake] existing-file lookup failed', e);
+    }
+    if (existing) {
+      // The personal link is returned only to a phone already on the file. Anyone else learns that a file
+      // exists only when the birth date agrees as well, and never sees anything from the file.
+      const token = existing.phoneMatch && !existing.ended ? await usableParentToken(supabase, existing) : null;
+      const outcome = token ? 'continued' : !existing.phoneMatch ? (existing.birthMatch ? 'existing_file' : 'details_mismatch') : existing.ended ? 'existing_file_ended' : 'link_unavailable';
+      await supabase.from('audit_log').insert({
+        actor_type: 'parent', action: 'intake_repeat_attempt', entity_type: 'intake_session', entity_id: existing.sessionId,
+        metadata: { outcome, matched_by: existing.via, parent_name: d.parent_name, parent_phone: d.parent_phone },
+      }).then(() => null, () => null);
+      if (token) {
+        const origin = req.headers.get('origin') || `https://${req.headers.get('host')}`;
+        return NextResponse.json({ ok: true, existing: true, parent_token: token, parent_url: `${origin}/questionnaire/parent/${token}` });
+      }
+      const code = outcome as keyof typeof EXISTING_MESSAGES;
+      return NextResponse.json({ error: EXISTING_MESSAGES[code], code }, { status: code === 'link_unavailable' ? 503 : 409 });
     }
 
     // Create session via RPC

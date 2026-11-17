@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { intakeProgress } from '@/lib/intake/progress';
+import { intakeLinkTokenSchema } from '@/lib/intake/tokens';
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'מצב תהליך הקליטה | ילדי הקסם', robots: { index: false, follow: false }, referrer: 'no-referrer' as const };
 export default async function IntakeStatusPage({ params }: { params: { token: string } }) {
-  if (!z.string().uuid().safeParse(params.token).success) notFound();
+  if (!intakeLinkTokenSchema.safeParse(params.token).success) notFound();
   const db = getSupabaseAdmin();
   const { data: session, error } = await db.from('intake_sessions').select('id,status,parent_token_expires_at').eq('parent_token', params.token).maybeSingle();
   if (error) return <Notice text="לא ניתן לטעון כרגע את מצב התהליך. נסו שוב בהמשך."/>;

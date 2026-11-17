@@ -227,7 +227,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               <ul className="space-y-2 text-xs">
                 {audit.slice(0, 8).map((a: any) => (
                   <li key={a.id} className="border-r-2 border-r-slate-200 pr-2">
-                    <div className="text-slate-700">{a.action}</div>
+                    <div className="text-slate-700">{a.action === 'intake_repeat_attempt' ? `ניסיון לפתוח תיק נוסף מהטופס הציבורי · ${a.metadata?.outcome === 'continued' ? 'הופנה לתיק הזה' : 'לא נפתח תיק, הופנה למכון'}${a.metadata?.parent_name ? ` · ${a.metadata.parent_name}` : ''}${a.metadata?.parent_phone ? ` ${a.metadata.parent_phone}` : ''}` : a.action}</div>
                     <div className="text-slate-400">
                       {new Date(a.created_at).toLocaleString('he-IL')} · {a.actor_type==='staff'||a.actor_type==='user'?'צוות המכון':a.actor_type}
                     </div>
