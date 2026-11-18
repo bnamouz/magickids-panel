@@ -42,7 +42,7 @@ const initial: FormState = {
 export default function RegisterPage() {
   const [form, setForm] = useState<FormState>(initial);
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ parent_url: string } | null>(null);
+  const [result, setResult] = useState<{ parent_url: string; existing?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -83,7 +83,7 @@ export default function RegisterPage() {
         }
         setError(msg);
       } else {
-        setResult({ parent_url: data.parent_url }); track('step', 'registered');
+        setResult({ parent_url: data.parent_url, existing: !!data.existing }); track('step', data.existing ? 'existing_file' : 'registered');
       }
     } catch (e: any) {
       setError('שגיאה בחיבור לשרת. בדוק את החיבור לאינטרנט ונסה שוב.');
@@ -102,20 +102,20 @@ export default function RegisterPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 mb-2">הרישום הושלם בהצלחה</h1>
-            <p className="text-slate-600">תודה. הצוות שלנו יצור עמך קשר בהקדם.</p>
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">{result.existing ? 'כבר קיים תיק עבור הילד/ה' : 'הרישום הושלם בהצלחה'}</h1>
+            <p className="text-slate-600">{result.existing ? 'לא נפתח תיק נוסף. אפשר להמשיך מהנקודה שבה עצרתם; מה שכבר מילאתם נשמר.' : 'תודה. הצוות שלנו יצור עמך קשר בהקדם.'}</p>
           </div>
 
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 mb-4">
-            <p className="font-semibold text-slate-900 mb-2">השלב הבא — מילוי שאלון ההורה</p>
+            <p className="font-semibold text-slate-900 mb-2">{result.existing ? 'המשך בתיק הקיים' : 'השלב הבא — מילוי שאלון ההורה'}</p>
             <p className="text-slate-700 text-sm mb-4">
-              כדי להתקדם באבחון, אנא מלא את שאלון הוונדרבילט להורה. השאלון אורך כ-10 דקות.
+              {result.existing ? 'הקישור מוביל לשאלון ההורים או למצב התהליך בתיק.' : 'כדי להתקדם באבחון, אנא מלא את שאלון הוונדרבילט להורה. השאלון אורך כ-10 דקות.'}
             </p>
             <a
               href={result.parent_url}
               className="inline-block w-full text-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-6 rounded-xl transition"
             >
-              מעבר לשאלון ההורה
+              {result.existing ? 'המשך לתיק הקיים' : 'מעבר לשאלון ההורה'}
             </a>
           </div>
 
