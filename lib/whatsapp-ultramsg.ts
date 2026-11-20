@@ -52,6 +52,8 @@ export async function sendWhatsAppText(args: {
 export async function sendInstituteWhatsAppText(args: {
   toPhone: string;
   body: string;
+  /** Optional UltraMsg referenceId, echoed back in webhooks (used by the institute bot to recognise its own replies). */
+  referenceId?: string;
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
   const { ownerWhatsAppIdentity } = await import('@/lib/appointments/owner-whatsapp-identity');
   const identity = await ownerWhatsAppIdentity();
@@ -62,7 +64,7 @@ export async function sendInstituteWhatsAppText(args: {
     const res = await fetch(`${BASE}/${instance}/messages/chat`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ token, to: args.toPhone, body: args.body, priority: '10' }).toString(),
+      body: new URLSearchParams({ token, to: args.toPhone, body: args.body, priority: '10', ...(args.referenceId ? { referenceId: args.referenceId } : {}) }).toString(),
       redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(10000),
     });
     const data = await res.json().catch(() => ({}));
