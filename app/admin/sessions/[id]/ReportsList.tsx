@@ -7,6 +7,8 @@ interface Props {
   sessionId: string;
   childName: string;
   hasParentForm: boolean;
+  /** Adult track: the report is built from the person's own self-report and is sent to them. */
+  adult?: boolean;
 }
 
 interface ReportRow {
@@ -18,7 +20,7 @@ interface ReportRow {
   pdf_storage_path: string | null;
 }
 
-export default function ReportsList({ sessionId, childName, hasParentForm }: Props) {
+export default function ReportsList({ sessionId, childName, hasParentForm, adult = false }: Props) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export default function ReportsList({ sessionId, childName, hasParentForm }: Pro
     if (
       !confirm(
         `לפתוח WhatsApp עם דוח ל-${childName}?\n\n` +
-          `המערכת תיצור קישור הורדה (תוקף 7 ימים), תפתח את WhatsApp עם מספר ההורה והודעה מוכנה — אתה רק לוחץ שלח.\n\n` +
+          `המערכת תיצור קישור הורדה (תוקף 7 ימים), תפתח את WhatsApp עם מספר ${adult ? 'הנבדק/ת' : 'ההורה'} והודעה מוכנה — אתה רק לוחץ שלח.\n\n` +
           `הסטטוס יעודכן ל'נשלח'.`,
       )
     ) return;
@@ -142,7 +144,7 @@ export default function ReportsList({ sessionId, childName, hasParentForm }: Pro
           <button
             onClick={handleGenerate}
             disabled={!hasParentForm || generating}
-            title={!hasParentForm ? 'צריך שאלון הורה מלא לפני הפקת דוח' : 'הפקת דוח אבחון חדש'}
+            title={!hasParentForm ? (adult ? 'צריך שאלון הערכה עצמית מלא לפני הפקת דוח' : 'צריך שאלון הורה מלא לפני הפקת דוח') : 'הפקת דוח אבחון חדש'}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#01696f] text-white text-sm font-semibold hover:bg-[#014a4f] disabled:bg-slate-300 disabled:cursor-not-allowed"
           >
             {generating ? (
@@ -180,9 +182,11 @@ export default function ReportsList({ sessionId, childName, hasParentForm }: Pro
         <div className="text-center py-8 text-slate-500 border border-dashed border-slate-200 rounded-lg">
           <FileText size={32} className="mx-auto mb-2 text-slate-300" />
           <p className="text-sm">טרם הופק דוח לתיק זה</p>
-          {hasParentForm && (
+          {hasParentForm ? (
             <p className="text-xs mt-1">לחץ "הפק דוח חדש" למעלה</p>
-          )}
+          ) : adult ? (
+            <p className="text-xs mt-1">הדוח יופק לאחר שהנבדק/ת ישלים את שאלון ההערכה העצמית</p>
+          ) : null}
         </div>
       ) : (
         <ul className="space-y-2">
@@ -229,7 +233,7 @@ export default function ReportsList({ sessionId, childName, hasParentForm }: Pro
                       onClick={() => handleSendWhatsApp(r.id)}
                       disabled={sendingId === r.id}
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60"
-                      title="שלח דוח ב-WhatsApp להורה"
+                      title={adult ? 'שלח דוח ב-WhatsApp לנבדק/ת' : 'שלח דוח ב-WhatsApp להורה'}
                     >
                       {sendingId === r.id ? (
                         <Loader2 size={14} className="animate-spin" />

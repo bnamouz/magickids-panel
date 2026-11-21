@@ -153,3 +153,51 @@ export function evaluateDsm5(a: ClinicalAssessment, ev: ReturnType<typeof sympto
 
 export const labelOf = (list: readonly (readonly [string, string])[], key: string) => list.find(([k]) => k === key)?.[1] ?? key;
 export const SEVERITY_HE: Record<Severity, string> = { mild: 'קלה', moderate: 'בינונית', severe: 'חמורה' };
+
+/**
+ * Adult track. The stored keys are the same as in the child form (one assessment table, one evaluation);
+ * only the wording shown to the physician and printed in the report differs. Keys that make no sense for an
+ * adult are left out, and a few adult-only ones are added.
+ */
+export const DSM5_ADULT_HE: Record<string, string> = {
+  A1a: 'אינו/ה שם/ה לב לפרטים או עושה טעויות של חוסר תשומת לב בעבודה או במטלות',
+  A1b: 'מתקשה לשמור על קשב לאורך זמן (קריאה, ישיבות, שיחות ארוכות)',
+  A1c: 'נראה/ית כמי שאינו/ה מקשיב/ה כשמדברים אליו/ה ישירות',
+  A1d: 'אינו/ה משלים/ה משימות ומתקשה לסיים את הפרטים האחרונים',
+  A1e: 'מתקשה בארגון משימות, זמן וסדר',
+  A1f: 'נמנע/ת ממשימות הדורשות מאמץ שכלי מתמשך או דוחה אותן',
+  A1g: 'מאבד/ת חפצים נחוצים (מפתחות, ארנק, טלפון, מסמכים)',
+  A1h: 'מוסח/ת בקלות על ידי גירויים חיצוניים או מחשבות שאינן קשורות',
+  A1i: 'שכחן/ית בפעילויות יומיומיות (פגישות, התחייבויות, תשלומים)',
+  A2a: 'מתנועע/ת בחוסר שקט בידיים או ברגליים בישיבה ממושכת',
+  A2b: 'קם/ה מהמקום במצבים שבהם מצופה להישאר לשבת',
+  A2c: 'תחושת אי-שקט פנימי וקושי להישאר במנוחה',
+  A2d: 'מתקשה לעסוק בפעילות פנאי בשקט או לנוח',
+  A2e: '"בתנועה מתמדת", פועל/ת כאילו "מונע/ת על ידי מנוע"',
+  A2f: 'מדבר/ת יתר על המידה',
+  A2g: 'עונה לפני שהשאלה הושלמה או משלים/ה משפטים של אחרים',
+  A2h: 'מתקשה לחכות לתורו/ה',
+  A2i: 'נכנס/ת לדברי אחרים או מתערב/ת בפעילותם',
+};
+/** Symptom wording for the track: the DSM-5 examples for adults, or the child wording. */
+export const symptomText = (s: { code: string; he: string }, adult: boolean) => (adult ? DSM5_ADULT_HE[s.code] : undefined) ?? s.he;
+
+type LabelList = readonly (readonly [string, string])[];
+const CHILD_LISTS = { settings: SETTINGS as LabelList, impairmentDomains: IMPAIRMENT_DOMAINS as LabelList, differentials: DIFFERENTIALS as LabelList, comorbidities: COMORBIDITIES as LabelList, plan: PLAN_OPTIONS as LabelList };
+const ADULT_LISTS: typeof CHILD_LISTS = {
+  settings: [['home', 'בית'], ['school', 'עבודה / לימודים'], ['social', 'חברתי'], ['other', 'אחר (נהיגה, קהילה, פנאי)']],
+  impairmentDomains: [['academic', 'תעסוקתי / לימודי'], ['social', 'חברתי'], ['family', 'זוגי / משפחתי / ניהול הבית'], ['emotional', 'רגשי / דימוי עצמי'], ['behavioral', 'אימפולסיביות (נהיגה, כספים, החלטות)'], ['daily', 'תפקוד יומיומי וארגון']],
+  differentials: [
+    ['anxiety', 'הפרעת חרדה'], ['depression', 'דיכאון / הפרעת מצב רוח'], ['bipolar', 'הפרעה דו-קוטבית'], ['sleep', 'הפרעת שינה'], ['medication', 'השפעת תרופות / חומרים / אלכוהול'],
+    ['thyroid', 'תת/יתר פעילות בלוטת התריס'], ['neuro', 'מצב נוירולוגי (אפילפסיה, טיקים, חבלת ראש)'], ['trauma', 'טראומה / גורמי דחק'], ['learning', 'לקות למידה'], ['asd', 'ספקטרום אוטיסטי'],
+    ['personality', 'הפרעת אישיות'], ['hearing_vision', 'ליקוי שמיעה / ראייה'], ['intellectual', 'תפקוד שכלי גבולי'],
+  ],
+  comorbidities: [['anxiety', 'חרדה'], ['depression', 'דיכאון'], ['bipolar', 'הפרעה דו-קוטבית'], ['sleep', 'הפרעת שינה'], ['substance', 'שימוש בחומרים / אלכוהול'], ['learning', 'לקות למידה'], ['tics', 'טיקים / טורט'], ['asd', 'ASD'], ['personality', 'הפרעת אישיות']],
+  plan: [
+    ['parent_training', 'הדרכה פסיכו-חינוכית ואימון אישי (קואצ׳ינג)'], ['school_accommodations', 'התאמות בעבודה / בלימודים'], ['medication', 'טיפול תרופתי'], ['emotional', 'טיפול רגשי / CBT'],
+    ['ot', 'ריפוי בעיסוק'], ['didactic', 'אבחון פסיכו-דידקטי להתאמות בלימודים'], ['moxo', 'מבחן ביצוע ממוחשב (MOXO)'], ['neuro_referral', 'הפניה לפסיכיאטר / נוירולוג'],
+    ['labs', 'בדיקות דם / א.ק.ג / לחץ דם'], ['follow_up', 'מעקב במרפאה'],
+  ],
+};
+/** Option lists of the assessment form for the track. */
+export const assessmentLists = (adult: boolean) => adult ? ADULT_LISTS : CHILD_LISTS;

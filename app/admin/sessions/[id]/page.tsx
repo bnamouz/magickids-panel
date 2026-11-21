@@ -139,16 +139,14 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           {/* Reports — always visible section */}
           <ClinicalAssessment sessionId={session.id} />
 
-          {isAdult
-            ? <div className="card text-sm text-slate-600"><h2 className="mb-1 font-bold text-slate-800">דוח אבחון</h2>הפקת דוח אוטומטי ושליחה לקופה עדיין אינן זמינות במסלול המבוגרים. ההערכה הקלינית, הממצאים וההערות נשמרים בתיק כרגיל.</div>
-            : <>
+          {/* Adult file: `parentComplete` is the submitted self-report. Sending to the health fund is a child-track flow. */}
           <ReportsList
             sessionId={session.id}
             childName={childName}
             hasParentForm={progress.parentComplete}
+            adult={isAdult}
           />
-          <SendToMaccabi sessionId={session.id} childName={childName} nationalId={patient?.national_id ?? null} canSend={canEditReports(staff)} />
-            </>}
+          {!isAdult && <SendToMaccabi sessionId={session.id} childName={childName} nationalId={patient?.national_id ?? null} canSend={canEditReports(staff)} />}
 
           {/* Responses tabs */}
           {!isAdult && (parentQ || teacherQ) && (
