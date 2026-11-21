@@ -8,8 +8,8 @@
 import OpenAI from 'openai';
 import type { VanderbiltScore } from './vanderbilt-scoring';
 import {
-  COMORBIDITIES, DIFFERENTIALS, DSM5_HYPERACTIVITY, DSM5_INATTENTION, IMPAIRMENT_DOMAINS, PLAN_OPTIONS, SETTINGS, SEVERITY_HE,
-  ageYears, effectivePresence, evaluateDsm5, labelOf, symptomEvidence, type ClinicalAssessment, type Dsm5Evaluation,
+  DSM5_HYPERACTIVITY, DSM5_INATTENTION, SEVERITY_HE,
+  ageYears, assessmentLists, effectivePresence, evaluateDsm5, labelOf, symptomEvidence, type ClinicalAssessment, type Dsm5Evaluation,
 } from './adhd/dsm5';
 
 export const REPORT_PROMPT_VERSION = 'v2';
@@ -37,6 +37,9 @@ export type Dsm5CriterionRow = { criterion: 'A' | 'B' | 'C' | 'D' | 'E'; title: 
 
 export interface GeneratedReport {
   reportKind: 'full' | 'preliminary';
+  /** Adult reports (lib/adult-report.ts) reuse this shape: `recommendations.parents` then holds the advice to the
+   *  person assessed and `recommendations.educational` the adjustments at work or in studies. */
+  audience?: 'child' | 'adult';
   background: string;
   sources: string;
   history: string;
@@ -123,7 +126,8 @@ function scoreBlock(title: string, score: VanderbiltScore, freeText?: string | n
   return parts;
 }
 
-function assessmentBlock(a: ClinicalAssessment, evaluation: Dsm5Evaluation): string[] {
+export function assessmentBlock(a: ClinicalAssessment, evaluation: Dsm5Evaluation, adult = false): string[] {
+  const { settings: SETTINGS, impairmentDomains: IMPAIRMENT_DOMAINS, differentials: DIFFERENTIALS, comorbidities: COMORBIDITIES, plan: PLAN_OPTIONS } = assessmentLists(adult);
   const tri = (v: string) => v === 'yes' ? 'כן' : v === 'no' ? 'לא' : 'לא ידוע';
   const parts = ['\n# הערכה קלינית של הרופא (מולאה במהלך האבחון)'];
   parts.push(`קריטריון B – הופעה לפני גיל 12: ${tri(a.onsetBefore12)}${a.onsetAge ? `; גיל הופעה משוער: ${a.onsetAge}` : ''}${a.onsetNotes ? `; ${a.onsetNotes}` : ''}`);
@@ -135,10 +139,10 @@ function assessmentBlock(a: ClinicalAssessment, evaluation: Dsm5Evaluation): str
   parts.push(`תחלואה נלווית: ${a.comorbidities.length ? a.comorbidities.map((k) => labelOf(COMORBIDITIES, k)).join(', ') : 'לא סומנה'}${a.comorbidityNotes ? `; ${a.comorbidityNotes}` : ''}`);
   const text = (label: string, v?: string) => { if (v?.trim()) parts.push(`${label}: ${v.trim()}`); };
   text('תצפית קלינית במהלך האבחון', a.observation);
-  text('היסטוריה התפתחותית', a.developmentalHistory);
+  text(adult ? 'היסטוריה התפתחותית ותסמינים בילדות' : 'היסטוריה התפתחותית', a.developmentalHistory);
   text('היסטוריה רפואית', a.medicalHistory);
   text('היסטוריה משפחתית', a.familyHistory);
-  text('תפקוד לימודי והיסטוריה בית-ספרית', a.schoolHistory);
+  text(adult ? 'היסטוריה לימודית ותעסוקתית' : 'תפקוד לימודי והיסטוריה בית-ספרית', a.schoolHistory);
   text('בדיקה גופנית ונוירולוגית', a.physicalExam);
   text('בדיקות ואבחונים נוספים', a.testsResults);
   text('חוזקות ומשאבים', a.strengths);
@@ -215,7 +219,8 @@ const asStr = (v: unknown) => typeof v === 'string' ? v.trim() : '';
 const asArr = (v: unknown) => Array.isArray(v) ? v.map(asStr).filter(Boolean) : [];
 
 /** Coerce the model output into the strict GeneratedReport shape (never trust the JSON blindly). */
-export function normalizeGeneratedReport(raw: unknown, evaluation: Dsm5Evaluation, reportKind: 'full' | 'preliminary'): GeneratedReport {
+export function normalizeGeneratedReport(raw: unknown, evaluation: Dsm5Evaluation, reportKind: 'full' | 'preliminary', audience: 'child' | 'adult' = 'child'): GeneratedReport {
+  const adult = audience === 'adult';
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const rec = (r.recommendations && typeof r.recommendations === 'object' ? r.recommendations : {}) as Record<string, unknown>;
   const fallbackDsm5: Dsm5CriterionRow[] = [
@@ -232,25 +237,27 @@ export function normalizeGeneratedReport(raw: unknown, evaluation: Dsm5Evaluatio
     return { criterion: fb.criterion, title: asStr(m?.title) || fb.title, finding: asStr(m?.finding) || fb.finding, status: (['met', 'not_met', 'partial', 'unknown'].includes(st) ? st : fb.status) as Dsm5CriterionRow['status'] };
   });
   const out: GeneratedReport = {
-    reportKind,
+    reportKind, audience,
     background: asStr(r.background), sources: asStr(r.sources), history: asStr(r.history), questionnaireFindings: asStr(r.questionnaireFindings), observation: asStr(r.observation),
     dsm5, clinicalImpression: asStr(r.clinicalImpression), diagnosis: asStr(r.diagnosis), presentationAndSeverity: asStr(r.presentationAndSeverity), differential: asStr(r.differential),
-    recommendations: { parents: asArr(rec.parents), educational: asArr(rec.educational), medical: asArr(rec.medical), therapeutic: asArr(rec.therapeutic), followUp: asStr(rec.followUp) },
+    recommendations: { parents: asArr(adult ? rec.personal ?? rec.parents : rec.parents), educational: asArr(adult ? rec.workStudy ?? rec.educational : rec.educational), medical: asArr(rec.medical), therapeutic: asArr(rec.therapeutic), followUp: asStr(rec.followUp) },
     summary: asStr(r.summary), disclaimers: asArr(r.disclaimers),
   };
   if (!out.clinicalImpression || !out.diagnosis) throw new Error('OpenAI response missing required fields');
-  if (reportKind === 'preliminary' && !out.disclaimers.some((d) => /ראשוני|שאלונ/.test(d))) out.disclaimers.unshift('דוח זה הוא סיכום ראשוני המבוסס על שאלוני Vanderbilt בלבד; אבחנה סופית של ADHD מחייבת השלמת הערכה קלינית של הרופא לפי קריטריוני DSM-5.');
+  if (reportKind === 'preliminary' && !out.disclaimers.some((d) => /ראשוני|שאלונ/.test(d))) out.disclaimers.unshift(adult
+    ? 'דוח זה הוא סיכום ראשוני המבוסס על שאלון הערכה עצמית בלבד; אבחנה סופית של ADHD מחייבת השלמת הערכה קלינית של הרופא לפי קריטריוני DSM-5.'
+    : 'דוח זה הוא סיכום ראשוני המבוסס על שאלוני Vanderbilt בלבד; אבחנה סופית של ADHD מחייבת השלמת הערכה קלינית של הרופא לפי קריטריוני DSM-5.');
   return out;
 }
 
-export async function generateReportContent(input: ReportInput): Promise<{ report: GeneratedReport; evaluation: Dsm5Evaluation; tokensIn: number | null; tokensOut: number | null }> {
+/** One call to the report model: system + user prompt in, parsed JSON and token usage out. */
+export async function runReportModel(system: string, prompt: string): Promise<{ parsed: unknown; tokensIn: number | null; tokensOut: number | null }> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
-  const { prompt, evaluation, reportKind } = buildUserPrompt(input);
   const client = new OpenAI({ apiKey });
   const completion = await client.chat.completions.create({
     model: REPORT_MODEL,
-    messages: [{ role: 'system', content: buildSystemPrompt() }, { role: 'user', content: prompt }],
+    messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }],
     response_format: { type: 'json_object' },
     temperature: 0.25,
     max_tokens: 6000,
@@ -259,5 +266,12 @@ export async function generateReportContent(input: ReportInput): Promise<{ repor
   if (!content) throw new Error('OpenAI returned empty response');
   let parsed: unknown;
   try { parsed = JSON.parse(content); } catch (e) { throw new Error(`Invalid JSON from OpenAI: ${(e as Error).message}`); }
-  return { report: normalizeGeneratedReport(parsed, evaluation, reportKind), evaluation, tokensIn: completion.usage?.prompt_tokens ?? null, tokensOut: completion.usage?.completion_tokens ?? null };
+  return { parsed, tokensIn: completion.usage?.prompt_tokens ?? null, tokensOut: completion.usage?.completion_tokens ?? null };
+}
+
+export async function generateReportContent(input: ReportInput): Promise<{ report: GeneratedReport; evaluation: Dsm5Evaluation; tokensIn: number | null; tokensOut: number | null }> {
+  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
+  const { prompt, evaluation, reportKind } = buildUserPrompt(input);
+  const { parsed, tokensIn, tokensOut } = await runReportModel(buildSystemPrompt(), prompt);
+  return { report: normalizeGeneratedReport(parsed, evaluation, reportKind), evaluation, tokensIn, tokensOut };
 }

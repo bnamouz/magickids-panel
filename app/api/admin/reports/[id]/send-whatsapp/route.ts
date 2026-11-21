@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { sessionTrack } from '@/lib/intake/adult';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -111,8 +112,21 @@ export async function POST(
       [patient.first_name, patient.last_name].filter(Boolean).join(' ') || 'ילד';
     const parentName = parent?.full_name || 'הורה יקר';
 
+    // Adult file: the report goes to the person assessed, who is also the contact of the file.
+    const adult = (await sessionTrack(supabase, report.session_id)) === 'adult';
+    const adultMessage =
+      `שלום ${parent?.full_name || childName},\n\n` +
+      `מצורף דוח אבחון קשב וריכוז שלך.\n\n` +
+      `הדוח כולל ניתוח של שאלון ההערכה העצמית, התרשמות קלינית והמלצות להמשך.\n\n` +
+      `לינק להורדת ה-PDF (בתוקף ל-7 ימים):\n${signed.signedUrl}\n\n` +
+      `לכל שאלה, אשמח לעמוד לרשותך.\n\n` +
+      `בברכה,\n` +
+      `ד"ר בסים נמוז\n` +
+      `מכון ילדי הקסם`;
+
     const defaultMessage =
       messageOverride ||
+      (adult ? adultMessage : '') ||
       `שלום ${parentName},\n\n` +
         `מצורף דוח אבחון קשב וריכוז עבור ${childName}.\n\n` +
         `הדוח כולל ניתוח מפורט של השאלונים, התרשמות קלינית והמלצות המשך.\n\n` +

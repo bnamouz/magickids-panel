@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  COMORBIDITIES, DIFFERENTIALS, DSM5_HYPERACTIVITY, DSM5_INATTENTION, IMPAIRMENT_DOMAINS, PLAN_OPTIONS, SETTINGS,
-  ageYears, emptyAssessment, evaluateDsm5, effectivePresence, type ClinicalAssessment as Data, type Presence, type Tri,
+  DSM5_HYPERACTIVITY, DSM5_INATTENTION, ageYears, assessmentLists, emptyAssessment, evaluateDsm5, effectivePresence, symptomText,
+  type ClinicalAssessment as Data, type Presence, type Tri,
 } from '@/lib/adhd/dsm5';
 
 type Evidence = Record<string, { parent: number | null; teacher: number | null; parentPositive: boolean; teacherPositive: boolean }>;
@@ -78,6 +78,8 @@ export default function ClinicalAssessment({ sessionId }: { sessionId: string })
   if (!loaded) return <section className="card" dir="rtl"><p className="text-sm text-slate-500">טוען הערכה קלינית…</p></section>;
 
   const ev = loaded.evidence, age = ageYears(loaded.birthDate), ro = !loaded.canEdit, self = !!loaded.selfReport;
+  // Adult file: the same stored keys, worded for an adult.
+  const lists = assessmentLists(self);
   const result = evaluateDsm5(data, ev, age);
   const filled = Object.keys(data.symptoms).length;
 
@@ -88,7 +90,7 @@ export default function ClinicalAssessment({ sessionId }: { sessionId: string })
     return (
       <tr key={s.code} className={val === 'present' ? 'bg-teal-50/60' : ''}>
         <td className="py-1.5 pl-2 text-xs text-slate-500">{s.code}</td>
-        <td className="py-1.5 pl-2 text-sm">{s.he}</td>
+        <td className="py-1.5 pl-2 text-sm">{symptomText(s, self)}</td>
         <td className="py-1.5 text-center">{cell(e?.parent ?? null, self ? 'דיווח עצמי' : 'הורה')}</td>
         {!self && <td className="py-1.5 text-center">{cell(e?.teacher ?? null, 'מורה')}</td>}
         <td className="py-1.5">
@@ -164,47 +166,47 @@ export default function ClinicalAssessment({ sessionId }: { sessionId: string })
             <h3 className="font-bold text-slate-800">קריטריון B – הופעה לפני גיל 12</h3>
             <TriPick disabled={ro} value={data.onsetBefore12} onChange={(v) => update({ onsetBefore12: v })} />
             <label className="block text-sm">גיל הופעה משוער <input readOnly={ro} value={data.onsetAge ?? ''} onChange={(e) => update({ onsetAge: e.target.value })} className="mr-2 w-24 rounded border border-slate-300 p-1 text-sm" placeholder="למשל 5" /></label>
-            <Area label="פירוט" value={data.onsetNotes ?? ''} onChange={(v) => update({ onsetNotes: v })} readOnly={ro} rows={2} hint="מתי ומי הבחין לראשונה" />
+            <Area label="פירוט" value={data.onsetNotes ?? ''} onChange={(v) => update({ onsetNotes: v })} readOnly={ro} rows={2} hint={self ? 'מה זכור מהילדות, ומי יכול לאשר (הורה, תעודות)' : 'מתי ומי הבחין לראשונה'} />
           </div>
           <div className="space-y-2 rounded-xl border border-slate-200 p-3">
             <h3 className="font-bold text-slate-800">קריטריון C – נוכחות בשתי מסגרות לפחות</h3>
-            <div className="flex flex-wrap gap-2">{SETTINGS.map(([k, he]) => <Chip disabled={ro} key={k} on={data.settings.includes(k)} onClick={() => toggle('settings', k)}>{he}</Chip>)}</div>
+            <div className="flex flex-wrap gap-2">{lists.settings.map(([k, he]) => <Chip disabled={ro} key={k} on={data.settings.includes(k)} onClick={() => toggle('settings', k)}>{he}</Chip>)}</div>
             <Area label="פירוט" value={data.settingsNotes ?? ''} onChange={(v) => update({ settingsNotes: v })} readOnly={ro} rows={2} />
           </div>
         </div>
 
         <div className="space-y-2 rounded-xl border border-slate-200 p-3">
           <h3 className="font-bold text-slate-800">קריטריון D – ממצאי הפגיעה התפקודית</h3>
-          <div className="flex flex-wrap gap-2">{IMPAIRMENT_DOMAINS.map(([k, he]) => <Chip disabled={ro} key={k} on={data.impairmentDomains.includes(k)} onClick={() => toggle('impairmentDomains', k)}>{he}</Chip>)}</div>
+          <div className="flex flex-wrap gap-2">{lists.impairmentDomains.map(([k, he]) => <Chip disabled={ro} key={k} on={data.impairmentDomains.includes(k)} onClick={() => toggle('impairmentDomains', k)}>{he}</Chip>)}</div>
           <div className="flex flex-wrap items-center gap-2 text-sm">חומרת הפגיעה:
             {(['mild', 'moderate', 'severe'] as const).map((s) => <Chip disabled={ro} key={s} on={data.impairmentSeverity === s} onClick={() => update({ impairmentSeverity: data.impairmentSeverity === s ? '' : s })} tone="amber">{{ mild: 'קלה', moderate: 'בינונית', severe: 'חמורה' }[s]}</Chip>)}
           </div>
-          <Area label="תיאור הממצאים" value={data.impairmentFindings ?? ''} onChange={(v) => update({ impairmentFindings: v })} readOnly={ro} rows={4} hint="הישגים לימודיים, יחסים חברתיים, תפקוד בבית, דימוי עצמי – דוגמאות קונקרטיות" />
+          <Area label="תיאור הממצאים" value={data.impairmentFindings ?? ''} onChange={(v) => update({ impairmentFindings: v })} readOnly={ro} rows={4} hint={self ? 'עבודה או לימודים, ניהול הבית והכספים, זוגיות ומשפחה, נהיגה, דימוי עצמי – דוגמאות קונקרטיות' : 'הישגים לימודיים, יחסים חברתיים, תפקוד בבית, דימוי עצמי – דוגמאות קונקרטיות'} />
         </div>
 
         <div className="space-y-2 rounded-xl border border-slate-200 p-3">
           <h3 className="font-bold text-slate-800">קריטריון E – אבחנה מבדלת ושלילת הסברים חלופיים</h3>
           <p className="text-xs text-slate-500">סמנו מצבים שנבדקו ונשללו (או אינם מסבירים את התמונה):</p>
-          <div className="flex flex-wrap gap-2">{DIFFERENTIALS.map(([k, he]) => <Chip disabled={ro} key={k} on={data.differentialsExcluded.includes(k)} onClick={() => toggle('differentialsExcluded', k)}>{he}</Chip>)}</div>
+          <div className="flex flex-wrap gap-2">{lists.differentials.map(([k, he]) => <Chip disabled={ro} key={k} on={data.differentialsExcluded.includes(k)} onClick={() => toggle('differentialsExcluded', k)}>{he}</Chip>)}</div>
           <Area label="הערות אבחנה מבדלת" value={data.differentialNotes ?? ''} onChange={(v) => update({ differentialNotes: v })} readOnly={ro} rows={2} />
           <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">התסמינים אינם מוסברים טוב יותר על ידי הפרעה אחרת: <TriPick disabled={ro} value={data.notBetterExplained} onChange={(v) => update({ notBetterExplained: v })} /></div>
         </div>
 
         <div className="space-y-2 rounded-xl border border-slate-200 p-3">
           <h3 className="font-bold text-slate-800">תחלואה נלווית (קומורבידיות)</h3>
-          <div className="flex flex-wrap gap-2">{COMORBIDITIES.map(([k, he]) => <Chip disabled={ro} key={k} on={data.comorbidities.includes(k)} onClick={() => toggle('comorbidities', k)} tone="amber">{he}</Chip>)}</div>
+          <div className="flex flex-wrap gap-2">{lists.comorbidities.map(([k, he]) => <Chip disabled={ro} key={k} on={data.comorbidities.includes(k)} onClick={() => toggle('comorbidities', k)} tone="amber">{he}</Chip>)}</div>
           <Area label="פירוט" value={data.comorbidityNotes ?? ''} onChange={(v) => update({ comorbidityNotes: v })} readOnly={ro} rows={2} />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <Area label="תצפית קלינית במהלך האבחון" value={data.observation ?? ''} onChange={(v) => update({ observation: v })} readOnly={ro} rows={5} hint="קשר עין, שיתוף פעולה, רמת פעילות, אימפולסיביות, שפה, מצב רוח, התמדה במטלות" />
-          <Area label="היסטוריה התפתחותית" value={data.developmentalHistory ?? ''} onChange={(v) => update({ developmentalHistory: v })} readOnly={ro} rows={5} hint="הריון, לידה, אבני דרך מוטוריות ושפתיות, גן" />
-          <Area label="היסטוריה רפואית" value={data.medicalHistory ?? ''} onChange={(v) => update({ medicalHistory: v })} readOnly={ro} rows={4} hint="מחלות, אשפוזים, תרופות, אלרגיות, שינה, תיאבון, שמיעה/ראייה" />
+          <Area label={self ? 'היסטוריה התפתחותית ותסמינים בילדות' : 'היסטוריה התפתחותית'} value={data.developmentalHistory ?? ''} onChange={(v) => update({ developmentalHistory: v })} readOnly={ro} rows={5} hint={self ? 'תפקוד בילדות ובבית הספר, מידע מהורה או מתעודות אם קיים, אבחונים קודמים' : 'הריון, לידה, אבני דרך מוטוריות ושפתיות, גן'} />
+          <Area label="היסטוריה רפואית" value={data.medicalHistory ?? ''} onChange={(v) => update({ medicalHistory: v })} readOnly={ro} rows={4} hint={self ? 'מחלות רקע, מחלות לב ויתר לחץ דם, תרופות קבועות, שינה, אלכוהול וחומרים, אבחנות נפשיות' : 'מחלות, אשפוזים, תרופות, אלרגיות, שינה, תיאבון, שמיעה/ראייה'} />
           <Area label="היסטוריה משפחתית" value={data.familyHistory ?? ''} onChange={(v) => update({ familyHistory: v })} readOnly={ro} rows={4} hint="ADHD, לקויות למידה, הפרעות נפשיות במשפחה" />
-          <Area label="תפקוד לימודי והיסטוריה בית-ספרית" value={data.schoolHistory ?? ''} onChange={(v) => update({ schoolHistory: v })} readOnly={ro} rows={4} hint="הישגים, הערכות קודמות, התאמות קיימות, שיעורי עזר" />
-          <Area label="בדיקה גופנית ונוירולוגית" value={data.physicalExam ?? ''} onChange={(v) => update({ physicalExam: v })} readOnly={ro} rows={4} hint="גובה/משקל, ל״ד, דופק, בדיקה נוירולוגית, טיקים, דיסמורפיזם" />
-          <Area label="בדיקות ואבחונים נוספים" value={data.testsResults ?? ''} onChange={(v) => update({ testsResults: v })} readOnly={ro} rows={3} hint="MOXO/TOVA, אבחון דידקטי, שמיעה, ראייה, מעבדה" />
-          <Area label="חוזקות ומשאבים של הילד/ה" value={data.strengths ?? ''} onChange={(v) => update({ strengths: v })} readOnly={ro} rows={3} />
+          <Area label={self ? 'היסטוריה לימודית ותעסוקתית' : 'תפקוד לימודי והיסטוריה בית-ספרית'} value={data.schoolHistory ?? ''} onChange={(v) => update({ schoolHistory: v })} readOnly={ro} rows={4} hint={self ? 'השכלה, התאמות בעבר, יציבות תעסוקתית, קשיים חוזרים בעבודה או בלימודים' : 'הישגים, הערכות קודמות, התאמות קיימות, שיעורי עזר'} />
+          <Area label="בדיקה גופנית ונוירולוגית" value={data.physicalExam ?? ''} onChange={(v) => update({ physicalExam: v })} readOnly={ro} rows={4} hint={self ? 'משקל, ל״ד, דופק, בדיקה נוירולוגית, טיקים' : 'גובה/משקל, ל״ד, דופק, בדיקה נוירולוגית, טיקים, דיסמורפיזם'} />
+          <Area label="בדיקות ואבחונים נוספים" value={data.testsResults ?? ''} onChange={(v) => update({ testsResults: v })} readOnly={ro} rows={3} hint={self ? 'MOXO/TOVA, אבחון פסיכו-דידקטי, א.ק.ג, מעבדה' : 'MOXO/TOVA, אבחון דידקטי, שמיעה, ראייה, מעבדה'} />
+          <Area label={self ? 'חוזקות ומשאבים של הנבדק/ת' : 'חוזקות ומשאבים של הילד/ה'} value={data.strengths ?? ''} onChange={(v) => update({ strengths: v })} readOnly={ro} rows={3} />
         </div>
 
         <div className="space-y-3 rounded-xl border-2 border-[#01696f]/40 p-3">
@@ -220,7 +222,7 @@ export default function ClinicalAssessment({ sessionId }: { sessionId: string })
           </div>
           <div>
             <div className="mb-1 text-sm font-semibold">תוכנית טיפול מומלצת</div>
-            <div className="flex flex-wrap gap-2">{PLAN_OPTIONS.map(([k, he]) => <Chip disabled={ro} key={k} on={data.plan.includes(k)} onClick={() => toggle('plan', k)}>{he}</Chip>)}</div>
+            <div className="flex flex-wrap gap-2">{lists.plan.map(([k, he]) => <Chip disabled={ro} key={k} on={data.plan.includes(k)} onClick={() => toggle('plan', k)}>{he}</Chip>)}</div>
           </div>
           {data.plan.includes('medication') && <Area label="פירוט טיפול תרופתי" value={data.medicationPlan ?? ''} onChange={(v) => update({ medicationPlan: v })} readOnly={ro} rows={2} hint="תכשיר, מינון התחלתי, מעקב" />}
           <Area label="הערות לתוכנית ולדוח" value={data.planNotes ?? ''} onChange={(v) => update({ planNotes: v })} readOnly={ro} rows={3} hint="כל דגש שתרצו שייכלל בדוח" />

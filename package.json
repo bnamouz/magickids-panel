@@ -13,6 +13,7 @@
     "test:booking": "node --test scripts/test-booking.mjs",
     "test:intake": "node --test scripts/test-intake.mjs",
     "test:adult-intake": "node --test scripts/test-adult-intake.mjs",
+    "test:adult-report": "node --test scripts/test-adult-report.mjs",
     "test:appointment-confirmations": "node --test scripts/test-appointment-confirmations.mjs",
     "test:sarah-moxo": "node --test scripts/test-sarah-moxo.mjs",
     "test:institute-wa": "node --test scripts/test-institute-wa.mjs"
