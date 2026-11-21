@@ -22,6 +22,6 @@ export async function GET(req:NextRequest){
    id=sessions.data[0].id;
   }
   const {progress,patient}=await voiceCase(id!,phone);
-  return NextResponse.json({found:true,case_id:id,child_name:`${patient?.first_name??''} ${patient?.last_name??''}`.trim(),parent_questionnaire_status:progress.parentComplete?'completed':'incomplete',teacher_questionnaire_status:progress.teacherComplete?'completed':'incomplete',intake_completed:progress.bothComplete,ready_to_schedule:progress.readyToSchedule},{headers:{'Cache-Control':'no-store'}});
+  return NextResponse.json({found:true,case_id:id,child_name:`${patient?.first_name??''} ${patient?.last_name??''}`.trim(),...(progress.adult?{track:'adult',self_questionnaire_status:progress.parentComplete?'completed':'incomplete',parent_questionnaire_status:'not_required',teacher_questionnaire_status:'not_required'}:{parent_questionnaire_status:progress.parentComplete?'completed':'incomplete',teacher_questionnaire_status:progress.teacherComplete?'completed':'incomplete'}),intake_completed:progress.bothComplete,ready_to_schedule:progress.readyToSchedule},{headers:{'Cache-Control':'no-store'}});
  }catch(error){return NextResponse.json({found:false,intake_completed:false,error:error instanceof BookingError?error.code:'unavailable'},{status:error instanceof BookingError?error.status:503});}
 }

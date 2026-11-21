@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CLOSED_INTAKE_STATUSES } from '@/lib/intake/progress';
 import { asciiDigits } from '@/lib/phone-digits';
+import { sessionTracks, type IntakeTrack } from '@/lib/intake/adult';
 
 /**
  * Finds the file a child already has, so the public intake form continues it instead of opening a second one.
@@ -15,7 +16,16 @@ export type ExistingFile = {
   /** The phone typed in the form belongs to a parent on the file. Only then is the personal link handed back. */
   phoneMatch: boolean; birthMatch: boolean; via: 'national_id' | 'phone_birth_name';
 };
-export type ExistingFileInput = { nationalId: string; birthDate: string; firstName: string; parentPhone: string };
+/** `track` defaults to the child track. The two tracks never continue each other's files. */
+export type ExistingFileInput = { nationalId: string; birthDate: string; firstName: string; parentPhone: string; track?: IntakeTrack };
+
+/** The same outcomes, worded for an adult who registers for their own assessment. */
+export const ADULT_EXISTING_MESSAGES = {
+  existing_file: 'כבר קיים עבורך תיק אבחון במכון, ולכן לא נפתח תיק נוסף. מספר הטלפון שהוזן שונה מזה שרשום בתיק. פנו למכון ונעזור לכם להמשיך.',
+  existing_file_ended: 'כבר קיים עבורך תיק אבחון במכון, והתהליך בו הסתיים. לתיאום המשך או הערכה חוזרת פנו למכון.',
+  details_mismatch: 'לא ניתן לפתוח תיק עם הפרטים שהוזנו. בדקו את מספר תעודת הזהות ואת תאריך הלידה, או פנו למכון.',
+  link_unavailable: 'כבר קיים עבורך תיק אבחון במכון, אך לא ניתן לפתוח אותו כרגע. נסו שוב בעוד מספר דקות או פנו למכון.',
+} as const;
 
 /** What a parent is told (Hebrew; the public form translates by code) when no file is opened. */
 export const EXISTING_MESSAGES = {
@@ -43,7 +53,7 @@ type SessionRow = { id: string; patient_id: string; status: string; parent_token
 
 /** Returns the file to continue, `null` when the child is new, or throws when the lookup itself failed. */
 export async function findExistingFile(db: SupabaseClient, input: ExistingFileInput): Promise<ExistingFile | null> {
-  const phone = phoneKey(input.parentPhone);
+  const phone = phoneKey(input.parentPhone), track: IntakeTrack = input.track ?? 'child';
   const load = async (patients: PatientRow[]) => {
     const ids = patients.map(p => p.id);
     if (!ids.length) return { sessions: [] as SessionRow[], phones: new Map<string, Set<string>>() };
@@ -56,12 +66,15 @@ export async function findExistingFile(db: SupabaseClient, input: ExistingFileIn
     const archived = live.length ? await db.from('dashboard_case_archive').select('session_id').in('session_id', live.map(s => s.id)) : { data: [], error: null };
     if (archived.error) throw new Error('existing_file_lookup_failed');
     const hidden = new Set((archived.data ?? []).map((row: any) => row.session_id));
+    const tracks = await sessionTracks(db, live.map(s => s.id));
+    if (!tracks && track === 'adult') throw new Error('existing_file_lookup_failed');
+    const sameTrack = (s: SessionRow) => (tracks?.get(s.id) ?? 'child') === track;
     const phones = new Map<string, Set<string>>();
     for (const row of (parents.data ?? []) as { patient_id: string; phone: string | null }[]) {
       const key = phoneKey(row.phone);
       if (key) phones.set(row.patient_id, (phones.get(row.patient_id) ?? new Set()).add(key));
     }
-    return { sessions: live.filter(s => !hidden.has(s.id)), phones };
+    return { sessions: live.filter(s => !hidden.has(s.id) && sameTrack(s)), phones };
   };
   const pick = (patients: PatientRow[], sessions: SessionRow[], phones: Map<string, Set<string>>, via: ExistingFile['via']): ExistingFile | null => {
     const byId = new Map(patients.map(p => [p.id, p]));
@@ -86,9 +99,9 @@ export async function findExistingFile(db: SupabaseClient, input: ExistingFileIn
     if (file) return file;
   }
 
-  // Older files carry no national ID.
+  // Older files carry no national ID. Adult files always have one.
   const first = nameKey(input.firstName);
-  if (!phone || !first) return null;
+  if (track === 'adult' || !phone || !first) return null;
   const undated = await db.from('patients').select('id,first_name,birth_date').eq('birth_date', input.birthDate).is('national_id', null).is('archived_at', null);
   if (undated.error) throw new Error('existing_file_lookup_failed');
   const sameName = ((undated.data ?? []) as PatientRow[]).filter(p => nameKey(p.first_name) === first);

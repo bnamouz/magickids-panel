@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { firstRelated, intakeProgress } from '@/lib/intake/progress';
 import { BookingError } from '@/lib/booking/server';
+import { sessionTrack } from '@/lib/intake/adult';
 import { normalisePhone } from '@/lib/voice-auth';
 export async function voiceCase(id: string, phone: string, retryId?: string) {
  if (!z.string().uuid().safeParse(id).success || !normalisePhone(phone)) throw new BookingError('invalid_case',400);
@@ -12,7 +13,7 @@ export async function voiceCase(id: string, phone: string, retryId?: string) {
  if(!session || normalisePhone(parent?.phone)!==normalisePhone(phone)) throw new BookingError('case_not_found',404);
  const [forms,appointments]=await Promise.all([db.from('questionnaires').select('type,is_complete,submitted_at,responses').eq('session_id',id),db.from('appointments').select('id,status,appointment_type,scheduled_at').eq('session_id',id)]);
  if(forms.error||appointments.error) throw new BookingError('unavailable');
- const progress=intakeProgress(forms.data??[],(appointments.data??[]).filter(row=>row.id!==retryId),session.status);
+ const progress=intakeProgress(forms.data??[],(appointments.data??[]).filter(row=>row.id!==retryId),session.status,await sessionTrack(db,id));
  return {session,parent,patient,progress};
 }
 export function requireReady(progress: ReturnType<typeof intakeProgress>) {

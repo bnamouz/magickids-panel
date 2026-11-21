@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 type LinkState = { token: string | null; expiresAt: string | null };
 type Kind = 'parent' | 'teacher';
 type Reminder = { at: string; status: string } | null;
-export default function QuestionnaireLinks({ sessionId, parent, teacher, parentComplete, teacherComplete, closed, phones, lastReminders }: {
-  sessionId: string; parent: LinkState; teacher: LinkState; parentComplete: boolean; teacherComplete: boolean; closed: boolean;
+export default function QuestionnaireLinks({ sessionId, parent, teacher, parentComplete, teacherComplete, closed, phones, lastReminders, adult = false }: {
+  /** Adult track: one link, to the person assessed, for the self-report. */
+  adult?: boolean; sessionId: string; parent: LinkState; teacher: LinkState; parentComplete: boolean; teacherComplete: boolean; closed: boolean;
   phones?: { parent: string | null; teacher: string | null }; lastReminders?: { parent: Reminder; teacher: Reminder };
 }) {
   const [reminderLang, setReminderLang] = useState<'he' | 'ar'>('he');
@@ -13,13 +14,14 @@ export default function QuestionnaireLinks({ sessionId, parent, teacher, parentC
   const [confirmKind, setConfirmKind] = useState<Kind | null>(null);
   const [reminders, setReminders] = useState(lastReminders ?? { parent: null, teacher: null });
   const [reminderNote, setReminderNote] = useState<Record<Kind, { ok: boolean; text: string; retry?: boolean } | null>>({ parent: null, teacher: null });
+  const whom = (kind: Kind) => adult ? 'לנבדק/ת' : kind === 'parent' ? 'להורה' : 'למורה';
   const fmt = (iso: string) => new Date(iso).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' });
   async function remind(kind: Kind, force = false) {
     setReminding(kind); setConfirmKind(null); setReminderNote(n => ({ ...n, [kind]: null }));
     try {
       const res = await fetch('/api/admin/sessions/reminder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, kind, language: reminderLang, force }) });
       const d = await res.json().catch(() => ({}));
-      const who = kind === 'parent' ? 'להורה' : 'למורה';
+      const who = whom(kind);
       if (d.status === 'sent') { setReminders(r => ({ ...r, [kind]: { at: new Date().toISOString(), status: 'sent' } })); setReminderNote(n => ({ ...n, [kind]: { ok: true, text: `התזכורת נשלחה ${who} מהוואטסאפ של המכון (054-402-0043) עם קישור להמשך אותו שאלון.` } })); }
       else if (d.status === 'recent') setReminderNote(n => ({ ...n, [kind]: { ok: false, text: `כבר נשלחה תזכורת ${who} ב־${fmt(d.sentAt)}. לשלוח שוב בכל זאת?`, retry: true } }));
       else if (d.status === 'complete') setReminderNote(n => ({ ...n, [kind]: { ok: false, text: 'השאלון כבר הושלם; אין צורך בתזכורת. רעננו את הדף.' } }));
@@ -51,18 +53,18 @@ export default function QuestionnaireLinks({ sessionId, parent, teacher, parentC
     catch { setMessage('לא ניתן להעתיק אוטומטית. סמנו את הקישור בשדה והעתיקו אותו.'); }
   }
   return <section className="card mb-6" aria-labelledby="questionnaire-links">
-    <h2 id="questionnaire-links" className="font-bold text-[#01696f]">קישורים להורה ולמורה</h2>
+    <h2 id="questionnaire-links" className="font-bold text-[#01696f]">{adult ? 'קישור לשאלון ההערכה העצמית' : 'קישורים להורה ולמורה'}</h2>
     <p className="text-sm text-slate-500 mt-2">אפשר להעתיק שוב בכל עת. הקישור מחזיר לאותו תיק ולתשובות שכבר נשמרו, ללא רישום מחדש.</p>
     {closed && <p className="text-sm mt-2">גם בתיק סגור אפשר לחדש קישור ולהשלים שאלון שטרם נשלח.</p>}
-    <div className="grid md:grid-cols-2 gap-4 mt-4">{(['parent', 'teacher'] as const).map(kind => {
+    <div className={adult ? 'mt-4' : 'grid md:grid-cols-2 gap-4 mt-4'}>{(adult ? ['parent'] as const : ['parent', 'teacher'] as const).map(kind => {
       const link = links[kind];
       const expired = !!link.expiresAt && (!Number.isFinite(Date.parse(link.expiresAt)) || Date.parse(link.expiresAt) <= Date.now());
-      const url = origin && link.token ? `${origin}/${kind === 'parent' ? 'questionnaire/parent' : 'teacher'}/${encodeURIComponent(link.token)}` : '';
+      const url = origin && link.token ? `${origin}/${adult ? 'questionnaire/adult' : kind === 'parent' ? 'questionnaire/parent' : 'teacher'}/${encodeURIComponent(link.token)}` : '';
       const complete = kind === 'parent' ? parentComplete : teacherComplete;
       return <div key={kind} className="rounded-lg border border-slate-200 p-4">
-        <h3 className="font-semibold">{kind === 'parent' ? 'קישור להורה' : 'קישור למורה'}</h3>
+        <h3 className="font-semibold">קישור {whom(kind)}</h3>
         <p className="text-sm text-slate-500 my-2">{complete ? 'השאלון הושלם ונשלח' : 'ממתין להשלמה'}{expired ? ' · הקישור פג תוקף' : ''}</p>
-        {url && !expired && <><input aria-label={kind === 'parent' ? 'כתובת קישור ההורה' : 'כתובת קישור המורה'} className="w-full rounded border p-2 text-sm" dir="ltr" readOnly value={url} onFocus={event => event.currentTarget.select()} /><button type="button" className="btn-primary mt-3" onClick={() => copy(url)}>העתקת קישור {kind === 'parent' ? 'להורה' : 'למורה'}</button><a className="btn-ghost mt-3" href={`https://wa.me/?text=${encodeURIComponent('שלום, זה הקישור האישי למילוי השאלון: ' + url)}`} target="_blank" rel="noopener noreferrer">הכנת הודעת WhatsApp</a><a className="btn-ghost mt-3" href={url} target="_blank" rel="noopener noreferrer">פתיחת הקישור</a></>}
+        {url && !expired && <><input aria-label={`כתובת הקישור ${whom(kind)}`} className="w-full rounded border p-2 text-sm" dir="ltr" readOnly value={url} onFocus={event => event.currentTarget.select()} /><button type="button" className="btn-primary mt-3" onClick={() => copy(url)}>העתקת קישור {whom(kind)}</button><a className="btn-ghost mt-3" href={`https://wa.me/?text=${encodeURIComponent('שלום, זה הקישור האישי למילוי השאלון: ' + url)}`} target="_blank" rel="noopener noreferrer">הכנת הודעת WhatsApp</a><a className="btn-ghost mt-3" href={url} target="_blank" rel="noopener noreferrer">פתיחת הקישור</a></>}
         {(!link.token || expired) && <button type="button" className="btn-primary mt-3" disabled={busy !== null} onClick={() => restore(kind)}>{busy === kind ? 'מכין קישור…' : expired ? 'חידוש הקישור' : 'יצירת קישור'}</button>}
         {!complete && !closed && <div className="mt-4 border-t pt-3 space-y-2">
           <p className="text-sm font-semibold">תזכורת בוואטסאפ מהמערכת {phones?.[kind] ? <span dir="ltr" className="font-normal text-slate-500">{phones[kind]}</span> : <span className="font-normal text-amber-700">אין מספר נייד בתיק</span>}</p>
@@ -70,8 +72,8 @@ export default function QuestionnaireLinks({ sessionId, parent, teacher, parentC
           <div className="flex flex-wrap items-center gap-2">
             {(['he', 'ar'] as const).map(l => <button key={l} type="button" onClick={() => setReminderLang(l)} className={`rounded-full border px-3 py-0.5 text-sm ${reminderLang === l ? 'bg-[#01696f] text-white border-[#01696f]' : 'bg-white'}`}>{l === 'he' ? 'עברית' : 'ערבית'}</button>)}
             {confirmKind === kind
-              ? <span className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-[#01696f] bg-teal-50 px-3 py-1.5 text-sm"><span>לשלוח תזכורת {kind === 'parent' ? 'להורה' : 'למורה'} אל <b dir="ltr">{phones?.[kind]}</b>?</span><button type="button" className="rounded bg-[#01696f] px-3 py-1 font-semibold text-white" onClick={() => remind(kind)}>כן, לשלוח</button><button type="button" className="underline" onClick={() => setConfirmKind(null)}>ביטול</button></span>
-              : <button type="button" className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50" disabled={reminding !== null || !phones?.[kind]} onClick={() => setConfirmKind(kind)}>{reminding === kind ? 'שולח…' : `שליחת תזכורת ${kind === 'parent' ? 'להורה' : 'למורה'}`}</button>}
+              ? <span className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-[#01696f] bg-teal-50 px-3 py-1.5 text-sm"><span>לשלוח תזכורת {whom(kind)} אל <b dir="ltr">{phones?.[kind]}</b>?</span><button type="button" className="rounded bg-[#01696f] px-3 py-1 font-semibold text-white" onClick={() => remind(kind)}>כן, לשלוח</button><button type="button" className="underline" onClick={() => setConfirmKind(null)}>ביטול</button></span>
+              : <button type="button" className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50" disabled={reminding !== null || !phones?.[kind]} onClick={() => setConfirmKind(kind)}>{reminding === kind ? 'שולח…' : `שליחת תזכורת ${whom(kind)}`}</button>}
           </div>
           {reminderNote[kind] && <p role="status" className={`rounded p-2 text-sm ${reminderNote[kind]!.ok ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-900'}`}>{reminderNote[kind]!.text}{reminderNote[kind]!.retry && <button type="button" className="mr-2 underline font-semibold" disabled={reminding !== null} onClick={() => remind(kind, true)}>כן, לשלוח שוב</button>}</p>}
         </div>}

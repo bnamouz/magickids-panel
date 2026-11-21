@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { adultSessionIds } from './adult';
 import { firstRelated, intakeProgress, type QuestionnaireProgress, type IntakeAppointment } from './progress';
 type Person = { full_name?: string; phone?: string; email?: string };
 type Patient = { first_name?: string; last_name?: string };
@@ -15,11 +16,13 @@ export async function loadIntakeQueue({ includeArchived = false }: { includeArch
     sessions.push(...data as unknown as Session[]);
     if (data.length < 200) break;
   }
+  // Adult-track files are told apart before their self-report exists, so they never wait for a parent questionnaire.
+  const adults = await adultSessionIds(db);
   return sessions.map(session => {
     const patient = firstRelated(session.patients), parent = firstRelated(session.parents);
     return { id: session.id, status: session.status, createdAt: session.created_at,
       childName: [patient?.first_name, patient?.last_name].filter(Boolean).join(' ') || '—',
       parentName: parent?.full_name ?? '—', parentPhone: parent?.phone ?? '', parentEmail: parent?.email ?? '',
-      ...intakeProgress(session.questionnaires ?? [], session.appointments ?? [], session.status) };
+      ...intakeProgress(session.questionnaires ?? [], session.appointments ?? [], session.status, adults.has(session.id) ? 'adult' : 'child') };
   }).sort((a, b) => (a.readyAt ?? a.createdAt).localeCompare(b.readyAt ?? b.createdAt));
 }

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { requireStaff } from '@/lib/admin/auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import SessionFilters from './SessionFilters';
+import { adultSessionIds } from '@/lib/intake/adult';
 import CaseWhatsAppButton from '@/components/admin/CaseWhatsAppButton';
 import { ArrowLeft, Search, Plus } from 'lucide-react';
 
@@ -59,7 +60,7 @@ export default async function SessionsPage({
     query = query.lt('updated_at', threeDaysAgo).not('status', 'in', '(closed,cancelled,reported)');
   }
 
-  const { data: sessions, error } = await query;
+  const [{ data: sessions, error }, adults] = await Promise.all([query, adultSessionIds(supabase)]);
 
   // Client-side name filter (small dataset)
   const q = searchParams.q?.trim().toLowerCase();
@@ -81,13 +82,16 @@ export default async function SessionsPage({
             {filtered.length} תיקים {searchParams.status && `· סטטוס: ${STATUS_LABELS[searchParams.status]}`}
           </p>
         </div>
-        <Link
-          href="/admin/sessions/new"
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus size={18} />
-          תיק חדש
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <a href="/adults" target="_blank" rel="noopener noreferrer" className="btn-ghost">תיק מבוגר/ת ↗</a>
+          <Link
+            href="/admin/sessions/new"
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus size={18} />
+            תיק חדש
+          </Link>
+        </div>
       </div>
 
       <SessionFilters current={{ q: searchParams.q, status: searchParams.status, filter: searchParams.filter }} />
@@ -115,7 +119,7 @@ export default async function SessionsPage({
               {filtered.map((s: any) => {
                 const child = firstRelated<any>(s.patients);
                 const parent = firstRelated<any>(s.parents);
-                const progress = intakeProgress(s.questionnaires ?? [], s.appointments ?? [], s.status);
+                const progress = intakeProgress(s.questionnaires ?? [], s.appointments ?? [], s.status, adults.has(s.id) ? 'adult' : 'child');
                 const childName = `${child?.first_name ?? ''} ${child?.last_name ?? ''}`.trim() || '—';
                 return (
                   <tr key={s.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
@@ -123,6 +127,7 @@ export default async function SessionsPage({
                       <Link href={`/admin/sessions/${s.id}`} className="hover:text-[#01696f]">
                         {childName}
                       </Link>
+                      {progress.adult && <span className="mr-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-800 whitespace-nowrap">מבוגר/ת</span>}
                       <span className="mr-2 align-middle"><CaseWhatsAppButton sessionId={s.id} parentName={parent?.full_name} childName={childName} phone={parent?.phone} /></span>
                       {child?.birth_date && (
                         <div className="text-xs text-slate-500 font-normal">
@@ -130,7 +135,7 @@ export default async function SessionsPage({
                         </div>
                       )}
                     </td>
-                    <td className="p-3 text-slate-700">{parent?.full_name ?? '—'}</td>
+                    <td className="p-3 text-slate-700">{progress.adult ? <span className="text-slate-400">הנבדק/ת</span> : parent?.full_name ?? '—'}</td>
                     <td className="p-3 text-slate-600 font-mono text-xs" dir="ltr">
                       {parent?.phone ?? '—'}
                     </td>

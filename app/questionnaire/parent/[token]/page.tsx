@@ -3,6 +3,7 @@ export const metadata = { robots: { index: false, follow: false }, referrer: 'no
 import { notFound, redirect } from 'next/navigation';
 import QuestionnaireForm from '@/components/forms/QuestionnaireForm';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { sessionTrack } from '@/lib/intake/adult';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,8 @@ export default async function ParentQuestionnairePage({ params }: PageProps) {
     .maybeSingle();
 
   if (!session) notFound();
+  // An adult file has its own self-report; the parent questionnaire does not apply to it.
+  if (await sessionTrack(supabase, session.id) === 'adult') redirect('/questionnaire/adult/' + encodeURIComponent(token));
   if (session.parent_token_expires_at && (!Number.isFinite(Date.parse(session.parent_token_expires_at)) || Date.parse(session.parent_token_expires_at) <= Date.now())) {
     return (
       <div className="max-w-xl mx-auto px-4 py-16">
