@@ -44,15 +44,18 @@ const sessions = Array.from({ length: 205 }, (_, i) => ({
 function db({ fail = false } = {}) {
   return { from(table) {
     assert.equal(table, 'intake_sessions');
-    let exclude = false;
+    let exclude = false, adultOnly = false;
     const q = {
       select() { return q; }, order() { return q; },
+      // The adult-track lookup; none of these files is an adult file.
+      eq(column, value) { assert.deepEqual([column, value], ['track', 'adult']); adultOnly = true; return q; }, limit() { return q; },
       not(column, op, value) {
         assert.deepEqual([column, op, value], ['status', 'in', '(closed,cancelled,reported)']);
         exclude = true; return q;
       },
       range(start, end) { q.bounds = [start, end]; return q; },
       then(resolve, reject) {
+        if (adultOnly) return Promise.resolve({ data: [], error: null }).then(resolve, reject);
         const rows = exclude ? sessions.filter(s => !['closed', 'cancelled', 'reported'].includes(s.status)) : sessions;
         return Promise.resolve(fail ? { data: null, error: new Error('unavailable') } :
           { data: rows.slice(q.bounds[0], q.bounds[1] + 1), error: null }).then(resolve, reject);

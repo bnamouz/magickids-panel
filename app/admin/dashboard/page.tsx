@@ -45,7 +45,7 @@ export default async function DashboardPage({searchParams={}}:{searchParams?:{q?
  const items:WorkItem[]=[
   ...(callFollowUps??[]).slice(0,CALL_LIMIT).map((c):WorkItem=>({key:'call-'+c.id,kind:'call',kindLabel:'שיחה',title:c.child_name||c.caller_name||'מתקשר לא מזוהה',badge:c.reason,tone:'warn',meta:[when(c.call_started_at||c.created_at),c.next_action||c.purpose].filter(Boolean).join(' · '),href:`/admin/calls/${c.id}`,action:'פתיחת השיחה',callId:c.id,linkedCaseId:c.linked_case_id})),
   ...requestRows.map((row):WorkItem=>({key:'request-'+row.id,kind:'request',kindLabel:'פנייה לטיפול',title:row.patient_name,badge:row.status==='pending'?'פנייה חדשה':'נוצר קשר',tone:row.status==='pending'?'warn':'info',meta:[`איש קשר: ${row.contact_name}`,row.created_at?`התקבלה ${when(row.created_at)}`:''].filter(Boolean).join(' · '),href:'/admin/treatments',action:'לתיאום'})),
-  ...ready.slice(0,READY_LIMIT).map((row):WorkItem=>({key:'ready-'+row.id,kind:'case',kindLabel:'תיק קשב',title:row.childName,titleHref:'/admin/sessions/'+row.id,badge:'מוכן לזימון',tone:'ok',meta:'שאלון הורים ומורה הושלמו',href:'/admin/sessions/'+row.id+'#appointments',action:'תיק וזימון',caseId:row.id})),
+  ...ready.slice(0,READY_LIMIT).map((row):WorkItem=>({key:'ready-'+row.id,kind:'case',kindLabel:'תיק קשב',title:row.childName,titleHref:'/admin/sessions/'+row.id,badge:'מוכן לזימון',tone:'ok',meta:row.adult?'מסלול מבוגרים · שאלון ההערכה העצמית הושלם':'שאלון הורים ומורה הושלמו',href:'/admin/sessions/'+row.id+'#appointments',action:'תיק וזימון',caseId:row.id})),
   ...stuckRows.map((row):WorkItem=>({key:'stuck-'+row.id,kind:'case',kindLabel:'תיק קשב',title:row.child_name,badge:`ללא התקדמות ${row.days_stuck} ימים`,tone:'warn',meta:statusLabel(row.status),href:`/admin/sessions/${row.id}`,action:'פתיחת התיק',caseId:row.id})),
  ];
  const errors=[
@@ -68,12 +68,14 @@ export default async function DashboardPage({searchParams={}}:{searchParams?:{q?
   {label:'תורים שנותרו היום',value:agenda?`${todayRows.length}${agenda.truncated?'+':''}`:undefined,href:'/admin/appointments',note:!agenda?'היומן המאוחד לא נטען':todayRows.length?`הקרוב ב־${clock(todayRows[0].start)} · ${todayRows[0].service}`:'אין תורים נוספים היום',warn:!agenda},
   {label:'פניות לטיפול ממתינות',value:treatmentRequests.error?undefined:requestCount,href:'/admin/treatments',note:treatmentRequests.error?'הפניות לא נטענו':'ממתינות לתיאום מול ההורים',warn:!!treatmentRequests.error},
   {label:'שיחות לטיפול',value:callFollowUps?.length,href:'/admin/calls',note:callFollowUps?'מ־14 הימים האחרונים':'השיחות לא נטענו',warn:!callFollowUps},
-  {label:'מוכנים לזימון',value:queue?ready.length:undefined,href:'/admin/intake?stage=ready',note:queue?'שני השאלונים הושלמו':'נתוני הקליטה לא נטענו',warn:!queue},
+  {label:'מוכנים לזימון',value:queue?ready.length:undefined,href:'/admin/intake?stage=ready',note:queue?'השאלונים הושלמו':'נתוני הקליטה לא נטענו',warn:!queue},
  ];
  const intake=[
   {label:'תיקי קשב פעילים',value:queue?.length,href:'/admin/intake?stage=all'},
   {label:'ממתינים לשאלון הורה',value:queue?.filter(row=>row.stage==='parent').length,href:'/admin/intake?stage=parent'},
   {label:'ממתינים לשאלון מורה',value:queue?.filter(row=>row.stage==='teacher').length,href:'/admin/intake?stage=teacher'},
+  // Shown once the adult track has an open file.
+  ...(queue?.some(row=>row.adult)?[{label:'מבוגרים: ממתינים לשאלון עצמי',value:queue.filter(row=>row.stage==='self').length,href:'/admin/intake?stage=self'}]:[]),
  ];
  return <div className="mk-dash">
   {searchParams.deleted==='1'&&<p role="status" className="mk-flash">התיק הוסר לצמיתות מהרשימה.</p>}

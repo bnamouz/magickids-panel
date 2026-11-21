@@ -103,3 +103,49 @@
 - Not verifiable without an authorised staff session: the production UI
   with real data. Some admin pages cannot render against the local mock
   for reasons unrelated to this change (missing synthetic fields).
+
+# Adult ADHD assessment track (2026-11-21)
+
+## Existing flows that must keep working
+- /onboarding/public (child intake), /questionnaire/parent/<token>,
+  /questionnaire/teacher/<token> and /onboarding/status/<token> behave as
+  before for every child file, including before the migration is applied:
+  the child track reads intake_sessions.track on a separate, tolerant query
+  and treats an unreadable column as "child".
+- A child file is ready to schedule only after both the parent and the
+  teacher questionnaire were submitted in full.
+- Booking, the voice agent and staff appointment creation keep their gates.
+- /admin/intake, /admin/sessions, the dashboard counters and the case
+  directory list child files exactly as before.
+
+## Requested change
+- /adults (he / ar / en): a person aged 18–80 opens a file for their own
+  assessment (name, national ID, birth date, phone, e-mail, consent) and is
+  taken to /questionnaire/adult/<token>, the adult self-report.
+- Self-report: background, Part A = the WHO ASRS-v1.1 six-question screener
+  (official wording, unaltered, with citation and copyright notice), Part B =
+  twelve institute-written items for the remaining DSM-5 symptoms, four
+  childhood items, six impairment items, free text. Drafts save automatically.
+- The person assessed is never shown a score. Staff see the screener result
+  (original rule and the 2024 0–24 score), DSM-5 symptom counts with the adult
+  threshold of five, childhood and impairment summaries, and every answer.
+- An adult file needs no teacher questionnaire: it is ready to schedule once
+  the self-report is submitted. The same booking and reminder paths are used.
+- A returning adult continues the existing adult file (same link) and never
+  receives a second one; another phone never receives the link.
+- A person with an earlier child file under the same ID gets a separate adult
+  file; the audit trail records the earlier patient record.
+- Migration 20261121120000_adult_adhd_track.sql (additive: two enum values,
+  intake_sessions.track default 'child', scores scope 'self') must be applied
+  with owner approval BEFORE this code is deployed.
+- Not in this change: automatic report generation and the Maccabi e-mail for
+  adult files (hidden on the adult file page), and any change to the public
+  marketing site.
+
+## Checked 2026-11-21 (local, synthetic data only)
+- scripts/test-adult-intake.mjs: question set integrity, published screener
+  rules, DSM-5 counts, completeness, progress for both tracks, the real
+  migration on PGlite (repeatable, existing rows stay 'child'), both public
+  APIs end to end including refusal of child links, late drafts and a
+  failing track column.
+- Existing intake, booking, dashboard, voice and report checks still pass.

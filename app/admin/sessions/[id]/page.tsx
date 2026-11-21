@@ -18,6 +18,8 @@ import SendToMaccabi from './SendToMaccabi';
 import QuestionnaireLinks from '@/components/admin/QuestionnaireLinks';
 import CaseActions from '@/components/admin/CaseActions';
 import CaseCalls from '@/components/admin/CaseCalls';
+import AdultSelfReport from '@/components/admin/AdultSelfReport';
+import { sessionTrack } from '@/lib/intake/adult';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,7 +61,10 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
     staff_users: noteAuthors.data?.find(author => author.id === n.staff_id) ?? null,
   }));
 
-  const progress = intakeProgress(questionnaires ?? [], appointments ?? [], session.status);
+  // Adult track: the person assessed fills in one self-report and is the contact person on the file.
+  const progress = intakeProgress(questionnaires ?? [], appointments ?? [], session.status, await sessionTrack(supabase, session.id));
+  const isAdult = progress.adult;
+  const selfQ = questionnaires?.find((q: any) => q.type === 'asrs_adult');
   const reminderHistory = await lastReminders(session.id);
   const localPhone = (v: string | null | undefined) => { const d = String(v ?? '').replace(/\D/g, ''); if (!d) return null; const n = d.startsWith('972') ? '0' + d.slice(3) : d; return /^05\d{8}$/.test(n) ? n.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3') : null; };
   const reminderPhones = { parent: localPhone(parent?.phone), teacher: localPhone(session.teacher_phone ?? patient?.teacher_phone) };
@@ -78,12 +83,12 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
         </Link>
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800">{childName} <span className="align-middle text-base"><CaseWhatsAppButton sessionId={session.id} parentName={parent?.full_name} childName={childName} phone={parent?.phone} /></span></h1>
+            <h1 className="text-3xl font-bold text-slate-800">{childName} {isAdult && <span className="align-middle rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-800">מסלול מבוגרים</span>} <span className="align-middle text-base"><CaseWhatsAppButton sessionId={session.id} parentName={parent?.full_name} childName={childName} phone={parent?.phone} /></span></h1>
             <p className="text-slate-500 mt-1">
               {patient?.national_id ? <>ת.ז. <span dir="ltr">{patient.national_id}</span> · </> : <span className="text-amber-700">ת.ז. חסרה · </span>}
               {patient?.birth_date && `${calcAge(patient.birth_date)} · נולד/ה ${new Date(patient.birth_date).toLocaleDateString('he-IL')}`}
-              {patient?.school && ` · ${patient.school}`}
-              {patient?.grade && ` · כיתה ${patient.grade}`}
+              {!isAdult && patient?.school && ` · ${patient.school}`}
+              {!isAdult && patient?.grade && ` · כיתה ${patient.grade}`}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -98,16 +103,20 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           : <CaseActions id={session.id} name={childName} archived={!!archive.data} canDelete={staff.role === 'admin'} />}
         <div className="flex flex-wrap gap-4 text-sm text-teal-800">
           <a className="underline" href="#clinical-notes">ממצאים והערות קליניות</a>
-          <a className="underline" href="#appointments">תורים והודעות להורה</a>
+          <a className="underline" href="#appointments">{isAdult ? 'תורים והודעות לנבדק/ת' : 'תורים והודעות להורה'}</a>
           <a className="underline" href="#calls">שיחות טלפון</a>
         </div>
         <p className="text-xs text-slate-500">עריכת פרטים אינה משנה תשובות שאלונים או דוחות קיימים. מחיקה לצמיתות מתייחסת לתיק כולו, לא לממצא בודד.</p>
       </div>
 
-      <div className="card mb-6"><div className="flex flex-wrap justify-between gap-3"><h2 className="font-bold text-[#01696f]">מצב הקליטה</h2><Link className="text-sm underline" href="/admin/intake">לרשימת הקליטה והזימון</Link></div><div className="grid sm:grid-cols-3 gap-3 mt-4"><div className="rounded-lg bg-slate-50 p-3">שאלון הורים: <strong>{progress.parentComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-slate-50 p-3">שאלון מורה: <strong>{progress.teacherComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-teal-50 text-[#01696f] p-3 font-bold">{INTAKE_STAGES[progress.stage]}</div></div>{!progress.bothComplete && <p className="text-sm text-slate-500 mt-3">ניתן לזמן לפגישת אבחון לאחר השלמת שני השאלונים.</p>}</div>
-      <QuestionnaireLinks sessionId={session.id} parent={{ token: session.parent_token, expiresAt: session.parent_token_expires_at }} teacher={{ token: session.teacher_token, expiresAt: session.teacher_token_expires_at }} parentComplete={progress.parentComplete} teacherComplete={progress.teacherComplete} closed={progress.stage === 'closed'} phones={reminderPhones} lastReminders={reminderHistory} />
+      <div className="card mb-6"><div className="flex flex-wrap justify-between gap-3"><h2 className="font-bold text-[#01696f]">מצב הקליטה</h2><Link className="text-sm underline" href="/admin/intake">לרשימת הקליטה והזימון</Link></div>{isAdult
+        ? <><div className="grid sm:grid-cols-3 gap-3 mt-4"><div className="rounded-lg bg-slate-50 p-3">שאלון הערכה עצמית: <strong>{progress.parentComplete ? '✓ הושלם ונשלח' : selfQ ? 'בתהליך מילוי' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-slate-50 p-3 text-slate-500">שאלון מורה: לא נדרש במסלול מבוגרים</div><div className="rounded-lg bg-teal-50 text-[#01696f] p-3 font-bold">{INTAKE_STAGES[progress.stage]}</div></div>{!progress.bothComplete && <p className="text-sm text-slate-500 mt-3">ניתן לזמן לפגישת אבחון לאחר השלמת שאלון ההערכה העצמית.</p>}</>
+        : <><div className="grid sm:grid-cols-3 gap-3 mt-4"><div className="rounded-lg bg-slate-50 p-3">שאלון הורים: <strong>{progress.parentComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-slate-50 p-3">שאלון מורה: <strong>{progress.teacherComplete ? '✓ הושלם ונשלח' : 'ממתין להשלמה'}</strong></div><div className="rounded-lg bg-teal-50 text-[#01696f] p-3 font-bold">{INTAKE_STAGES[progress.stage]}</div></div>{!progress.bothComplete && <p className="text-sm text-slate-500 mt-3">ניתן לזמן לפגישת אבחון לאחר השלמת שני השאלונים.</p>}</>}</div>
+      <QuestionnaireLinks adult={isAdult} sessionId={session.id} parent={{ token: session.parent_token, expiresAt: session.parent_token_expires_at }} teacher={{ token: session.teacher_token, expiresAt: session.teacher_token_expires_at }} parentComplete={progress.parentComplete} teacherComplete={progress.teacherComplete} closed={progress.stage === 'closed'} phones={reminderPhones} lastReminders={reminderHistory} />
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {isAdult && (selfQ ? <AdultSelfReport questionnaire={selfQ} /> : <div className="card text-sm text-slate-600">שאלון ההערכה העצמית טרם התחיל. אפשר לשלוח לנבדק/ת את הקישור האישי או תזכורת מהחלונית שלמעלה.</div>)}
+
           {/* Combined profile - top priority */}
           {combinedScore && <ScoreCard score={combinedScore} title="פרופיל קליני משולב" primary />}
 
@@ -130,15 +139,19 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           {/* Reports — always visible section */}
           <ClinicalAssessment sessionId={session.id} />
 
+          {isAdult
+            ? <div className="card text-sm text-slate-600"><h2 className="mb-1 font-bold text-slate-800">דוח אבחון</h2>הפקת דוח אוטומטי ושליחה לקופה עדיין אינן זמינות במסלול המבוגרים. ההערכה הקלינית, הממצאים וההערות נשמרים בתיק כרגיל.</div>
+            : <>
           <ReportsList
             sessionId={session.id}
             childName={childName}
             hasParentForm={progress.parentComplete}
           />
           <SendToMaccabi sessionId={session.id} childName={childName} nationalId={patient?.national_id ?? null} canSend={canEditReports(staff)} />
+            </>}
 
           {/* Responses tabs */}
-          {(parentQ || teacherQ) && (
+          {!isAdult && (parentQ || teacherQ) && (
             <div id="questionnaires" className="card scroll-mt-6">
               <h2 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                 <Brain size={18} className="text-[#01696f]" /> תשובות שאלונים
@@ -160,8 +173,8 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               <User size={18} className="text-[#01696f]" /> אנשי קשר
             </h2>
             <div className="space-y-3 text-sm">
-              <ContactBlock title={`הורה (${parent?.relation ?? 'הורה'})`} name={parent?.full_name} phone={parent?.phone} email={parent?.email} />
-              <div className="border-t border-slate-100 pt-3">
+              <ContactBlock title={isAdult ? 'הנבדק/ת' : `הורה (${parent?.relation ?? 'הורה'})`} name={parent?.full_name} phone={parent?.phone} email={parent?.email} />
+              <div className={isAdult ? 'hidden' : 'border-t border-slate-100 pt-3'}>
                 <ContactBlock
                   title="מורה"
                   name={session.teacher_name || patient?.teacher_name}
@@ -227,7 +240,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               <ul className="space-y-2 text-xs">
                 {audit.slice(0, 8).map((a: any) => (
                   <li key={a.id} className="border-r-2 border-r-slate-200 pr-2">
-                    <div className="text-slate-700">{a.action === 'intake_repeat_attempt' ? `ניסיון לפתוח תיק נוסף מהטופס הציבורי · ${a.metadata?.outcome === 'continued' ? 'הופנה לתיק הזה' : 'לא נפתח תיק, הופנה למכון'}${a.metadata?.parent_name ? ` · ${a.metadata.parent_name}` : ''}${a.metadata?.parent_phone ? ` ${a.metadata.parent_phone}` : ''}` : a.action}</div>
+                    <div className="text-slate-700">{a.action === 'intake_repeat_attempt' ? `ניסיון לפתוח תיק נוסף מהטופס הציבורי · ${a.metadata?.outcome === 'continued' ? 'הופנה לתיק הזה' : 'לא נפתח תיק, הופנה למכון'}${a.metadata?.parent_name ? ` · ${a.metadata.parent_name}` : ''}${a.metadata?.parent_phone ? ` ${a.metadata.parent_phone}` : ''}${a.metadata?.name ? ` · ${a.metadata.name}` : ''}${a.metadata?.phone ? ` ${a.metadata.phone}` : ''}` : a.action === 'adult_intake_opened' ? `תיק מבוגרים נפתח מהטופס הציבורי${a.metadata?.earlier_patient_ids?.length ? ' · קיים במכון רישום קודם עם אותה תעודת זהות' : ''}` : a.action}</div>
                     <div className="text-slate-400">
                       {new Date(a.created_at).toLocaleString('he-IL')} · {a.actor_type==='staff'||a.actor_type==='user'?'צוות המכון':a.actor_type}
                     </div>

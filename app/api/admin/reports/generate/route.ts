@@ -1,3 +1,4 @@
+import { sessionTrack } from '@/lib/intake/adult';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { scoreVanderbilt } from '@/lib/vanderbilt-scoring';
@@ -82,6 +83,10 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (!parentQ) {
+      // Adult files carry a self-report; the automatic report is built from the parent questionnaire only.
+      if (await sessionTrack(supabase, session_id) === 'adult') {
+        return NextResponse.json({ error: 'הפקת דוח אוטומטי עדיין אינה זמינה במסלול המבוגרים.' }, { status: 400 });
+      }
       return NextResponse.json(
         { error: 'לא נמצא שאלון הורה מלא לתיק זה' },
         { status: 400 }

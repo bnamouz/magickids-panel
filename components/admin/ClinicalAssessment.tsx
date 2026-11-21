@@ -7,7 +7,7 @@ import {
 } from '@/lib/adhd/dsm5';
 
 type Evidence = Record<string, { parent: number | null; teacher: number | null; parentPositive: boolean; teacherPositive: boolean }>;
-type Loaded = { assessment: Data; updatedAt: string | null; evidence: Evidence; hasParent: boolean; hasTeacher: boolean; birthDate: string | null; canEdit: boolean };
+type Loaded = { assessment: Data; updatedAt: string | null; evidence: Evidence; selfReport?: boolean; hasParent: boolean; hasTeacher: boolean; birthDate: string | null; canEdit: boolean };
 
 const SCORE_HE = ['אף פעם', 'לעיתים', 'לעיתים קרובות', 'לעיתים קרובות מאוד'];
 const fmt = (iso: string) => new Date(iso).toLocaleString('he-IL-u-nu-latn', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' });
@@ -77,7 +77,7 @@ export default function ClinicalAssessment({ sessionId }: { sessionId: string })
   if (error && !loaded) return <section className="card" dir="rtl"><p className="text-sm text-red-700">{error}</p></section>;
   if (!loaded) return <section className="card" dir="rtl"><p className="text-sm text-slate-500">טוען הערכה קלינית…</p></section>;
 
-  const ev = loaded.evidence, age = ageYears(loaded.birthDate), ro = !loaded.canEdit;
+  const ev = loaded.evidence, age = ageYears(loaded.birthDate), ro = !loaded.canEdit, self = !!loaded.selfReport;
   const result = evaluateDsm5(data, ev, age);
   const filled = Object.keys(data.symptoms).length;
 
@@ -89,8 +89,8 @@ export default function ClinicalAssessment({ sessionId }: { sessionId: string })
       <tr key={s.code} className={val === 'present' ? 'bg-teal-50/60' : ''}>
         <td className="py-1.5 pl-2 text-xs text-slate-500">{s.code}</td>
         <td className="py-1.5 pl-2 text-sm">{s.he}</td>
-        <td className="py-1.5 text-center">{cell(e?.parent ?? null, 'הורה')}</td>
-        <td className="py-1.5 text-center">{cell(e?.teacher ?? null, 'מורה')}</td>
+        <td className="py-1.5 text-center">{cell(e?.parent ?? null, self ? 'דיווח עצמי' : 'הורה')}</td>
+        {!self && <td className="py-1.5 text-center">{cell(e?.teacher ?? null, 'מורה')}</td>}
         <td className="py-1.5">
           <div className="flex justify-end gap-1">
             {(['present', 'absent', 'unclear'] as Presence[]).map((p) => (
@@ -111,7 +111,7 @@ export default function ClinicalAssessment({ sessionId }: { sessionId: string })
         <span className={`rounded-full px-3 py-0.5 text-xs font-bold ${met ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-600'}`}>{n}/9 תסמינים · סף {result.threshold}{met ? ' · עומד בסף' : ''}</span>
       </div>
       <table className="w-full text-right">
-        <thead><tr className="text-xs text-slate-500"><th className="pl-2 font-normal">קוד</th><th className="pl-2 font-normal">תסמין DSM-5</th><th className="font-normal">הורה</th><th className="font-normal">מורה</th><th className="text-left font-normal">שיקול דעת קליני</th></tr></thead>
+        <thead><tr className="text-xs text-slate-500"><th className="pl-2 font-normal">קוד</th><th className="pl-2 font-normal">תסמין DSM-5</th><th className="font-normal">{self ? 'עצמי' : 'הורה'}</th>{!self && <th className="font-normal">מורה</th>}<th className="text-left font-normal">שיקול דעת קליני</th></tr></thead>
         <tbody className="divide-y divide-slate-100">{list.map(symptomRow)}</tbody>
       </table>
     </div>
@@ -122,7 +122,7 @@ export default function ClinicalAssessment({ sessionId }: { sessionId: string })
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-800">הערכה קלינית – קריטריוני DSM-5 להפרעת קשב</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">ממולא על ידי הרופא/ה המאבחן/ת במהלך האבחון. עמודות הורה/מורה מציגות את ציוני Vanderbilt (0–3; ציון 2–3 נחשב תסמין). ההחלטה הסופית לכל תסמין היא שלכם. הנתונים נשמרים אוטומטית ומשולבים בדוח בלחיצה על "הפקת דוח".</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">ממולא על ידי הרופא/ה המאבחן/ת במהלך האבחון. {self ? 'העמודה „עצמי” מציגה את שאלון ההערכה העצמית למבוגרים בסולם 0–3 (2–3: לעיתים תכופות ומעלה, נחשב תסמין). ההחלטה הסופית לכל תסמין היא שלכם. הנתונים נשמרים אוטומטית.' : 'עמודות הורה/מורה מציגות את ציוני Vanderbilt (0–3; ציון 2–3 נחשב תסמין). ההחלטה הסופית לכל תסמין היא שלכם. הנתונים נשמרים אוטומטית ומשולבים בדוח בלחיצה על "הפקת דוח".'}</p>
         </div>
         <div className="text-left text-xs text-slate-500">
           {saving ? 'שומר…' : dirty ? 'שינויים לא נשמרו' : savedAt ? `נשמר ${fmt(savedAt)}` : 'טרם נשמר'}
@@ -154,7 +154,7 @@ export default function ClinicalAssessment({ sessionId }: { sessionId: string })
 
       {open && <fieldset className="space-y-6">
         <div className="space-y-3">
-          <h3 className="font-bold text-slate-800">קריטריון A – תסמינים {!loaded.hasParent && <span className="text-xs font-normal text-amber-700">(אין שאלון הורה מלא)</span>}{!loaded.hasTeacher && <span className="mr-1 text-xs font-normal text-amber-700">(אין שאלון מורה)</span>}</h3>
+          <h3 className="font-bold text-slate-800">קריטריון A – תסמינים {self ? <span className="text-xs font-normal text-slate-500">(לפי דיווח עצמי)</span> : <>{!loaded.hasParent && <span className="text-xs font-normal text-amber-700">(אין שאלון הורה מלא)</span>}{!loaded.hasTeacher && <span className="mr-1 text-xs font-normal text-amber-700">(אין שאלון מורה)</span>}</>}</h3>
           {table('A1 – חוסר קשב', DSM5_INATTENTION, result.inattention, result.inattentionMet)}
           {table('A2 – היפראקטיביות / אימפולסיביות', DSM5_HYPERACTIVITY, result.hyperactivity, result.hyperactivityMet)}
         </div>

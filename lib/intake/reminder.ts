@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { sendInstituteWhatsAppText } from '@/lib/whatsapp-ultramsg';
-import { firstRelated } from '@/lib/intake/progress';
+import { firstRelated, ADULT_QUESTIONNAIRE } from '@/lib/intake/progress';
+import { sessionTrack } from '@/lib/intake/adult';
 import { asciiDigits } from '@/lib/phone-digits';
 
 export type ReminderKind = 'parent' | 'teacher';
@@ -10,8 +11,16 @@ export const REMINDER_TEMPLATE = 'questionnaire_reminder';
 export const REMINDER_COOLDOWN_MS = 12 * 3600_000;
 const BASE = 'https://app.magickidsinstitute.com';
 
-export function questionnaireLink(kind: ReminderKind, token: string) {
-  return `${BASE}/${kind === 'parent' ? 'questionnaire/parent' : 'teacher'}/${encodeURIComponent(token)}`;
+export function questionnaireLink(kind: ReminderKind, token: string, adult = false) {
+  return `${BASE}/${adult ? 'questionnaire/adult' : kind === 'parent' ? 'questionnaire/parent' : 'teacher'}/${encodeURIComponent(token)}`;
+}
+
+/** Adult track: the reminder goes to the person assessed, about their own self-report. */
+export function adultReminderMessage(o: { lang: ReminderLang; name: string; link: string; started: boolean }) {
+  const first = o.name.trim().split(/\s+/)[0] || '';
+  return o.lang === 'ar'
+    ? `مرحبًا${first ? ` ${first}` : ''}، معك سكرتارية معهد Magic Kids.\nتذكير: استبيان التقييم الذاتي لتشخيص الانتباه والتركيز لسّا ما اكتمل.${o.started ? ' الإجابات اللي عبّيتها محفوظة، وبتقدر تكمل من نفس النقطة:' : ' بتقدر تعبّيه من هون:'}\n${o.link}\nبدون الاستبيان ما منقدر نحدّد موعد التشخيص.\nشكرًا، طاقم Magic Kids.`
+    : `שלום${first ? ` ${first}` : ''}, זו המזכירות של מכון Magic Kids.\nתזכורת: שאלון ההערכה העצמית לאבחון קשב וריכוז עדיין לא הושלם.${o.started ? ' התשובות שכבר מילאת נשמרו, ואפשר להמשיך מאותה נקודה:' : ' אפשר למלא אותו כאן:'}\n${o.link}\nללא השאלון לא ניתן לקבוע את מועד האבחון.\nתודה, צוות Magic Kids.`;
 }
 
 /** Reminder text. The link returns to the same questionnaire with the answers that were already saved. */
@@ -64,7 +73,9 @@ export async function sendQuestionnaireReminder(o: { sessionId: string; kind: Re
   if (!s.data) return { status: 'not_found' };
   const session = s.data as any;
   if (session.closed_at) return { status: 'closed' };
-  const type = o.kind === 'parent' ? 'vanderbilt_parent' : 'vanderbilt_teacher';
+  const adult = await sessionTrack(db, o.sessionId) === 'adult';
+  if (adult && o.kind === 'teacher') return { status: 'complete' }; // no teacher questionnaire on an adult file
+  const type = adult ? ADULT_QUESTIONNAIRE : o.kind === 'parent' ? 'vanderbilt_parent' : 'vanderbilt_teacher';
   const q = await db.from('questionnaires').select('is_complete,submitted_at,started_at,responses').eq('session_id', o.sessionId).eq('type', type).maybeSingle();
   if (q.error) return { status: 'unavailable' };
   if (q.data?.is_complete || q.data?.submitted_at) return { status: 'complete' };
@@ -94,8 +105,8 @@ export async function sendQuestionnaireReminder(o: { sessionId: string; kind: Re
     if (r.error || !r.data) return { status: 'unavailable' };
     token = nextToken;
   }
-  const link = questionnaireLink(o.kind, token!);
-  const message = reminderMessage({ kind: o.kind, lang: o.lang, name, child, link, started });
+  const link = questionnaireLink(o.kind, token!, adult);
+  const message = adult ? adultReminderMessage({ lang: o.lang, name, link, started }) : reminderMessage({ kind: o.kind, lang: o.lang, name, child, link, started });
   const wa = await sendInstituteWhatsAppText({ toPhone: phone, body: message });
   const now = new Date().toISOString();
   await db.from('notifications').insert({

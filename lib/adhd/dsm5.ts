@@ -97,6 +97,18 @@ export function symptomEvidence(src: QuestionnaireSources) {
   return out;
 }
 
+/**
+ * Adult self-report → the same per-symptom evidence, in the informant column the form already shows.
+ * `answers` maps a DSM-5 code to the adult frequency answer (0 never … 4 very often); it is brought to the
+ * 0–3 scale of the form so that "often" and "very often" count as a symptom, exactly as in the adult scoring.
+ */
+export function selfReportEvidence(answers: Record<string, number | null | undefined>) {
+  const scale = [0, 1, 1, 2, 3];
+  const self: Record<string, number> = {};
+  for (const s of [...DSM5_INATTENTION, ...DSM5_HYPERACTIVITY]) { const v = answers[s.code]; if (typeof v === 'number' && v >= 0 && v <= 4) self[String(s.vanderbilt)] = scale[v]; }
+  return symptomEvidence({ parent: self, teacher: null });
+}
+
 /** Effective presence: clinician's judgement wins; otherwise a symptom counts if either informant rates it often/very often. */
 export function effectivePresence(code: string, a: ClinicalAssessment, ev: ReturnType<typeof symptomEvidence>): Presence {
   const j = a.symptoms[code]; if (j) return j;

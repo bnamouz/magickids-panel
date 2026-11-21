@@ -26,12 +26,12 @@ export default function CaseDirectory({ result,archived=false,canDelete=false }:
         <ul className="divide-y divide-slate-100">{result.rows.map(row => <li key={row.id} className="py-4 flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 break-words">
             <Link href={`/admin/sessions/${row.id}`} className="font-bold text-[#01696f] underline">{row.childName}</Link>
-            <p className="text-sm text-slate-600">הורה: {row.parentName}</p>
+            {row.adult ? <p><span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-800 whitespace-nowrap">מבוגר/ת</span></p> : <p className="text-sm text-slate-600">הורה: {row.parentName}</p>}
             <p className="text-xs text-slate-500 mt-1">
               {row.status === 'reported' ? 'הופק דוח' : row.status === 'cancelled' ? 'בוטל' : INTAKE_STAGES[row.stage]}
             </p>
-            <p className="text-sm mt-2">שאלון הורים: {row.parentComplete ? 'הושלם ונשלח' : 'טרם הושלם ונשלח'}{row.parentSubmittedAt && <> · <time dateTime={row.parentSubmittedAt}>{dateLabel(row.parentSubmittedAt)}</time></>}</p>
-            <p className="text-sm text-slate-600">שאלון מורה: {row.teacherComplete ? 'הושלם ונשלח' : 'טרם הושלם ונשלח'}{row.teacherSubmittedAt && <> · <time dateTime={row.teacherSubmittedAt}>{dateLabel(row.teacherSubmittedAt)}</time></>}</p>
+            <p className="text-sm mt-2">{row.adult ? 'שאלון הערכה עצמית' : 'שאלון הורים'}: {row.parentComplete ? 'הושלם ונשלח' : 'טרם הושלם ונשלח'}{row.parentSubmittedAt && <> · <time dateTime={row.parentSubmittedAt}>{dateLabel(row.parentSubmittedAt)}</time></>}</p>
+            {!row.adult && <p className="text-sm text-slate-600">שאלון מורה: {row.teacherComplete ? 'הושלם ונשלח' : 'טרם הושלם ונשלח'}{row.teacherSubmittedAt && <> · <time dateTime={row.teacherSubmittedAt}>{dateLabel(row.teacherSubmittedAt)}</time></>}</p>}
           </div>
           <div className="flex flex-wrap items-center gap-2"><CaseActions id={row.id} name={row.childName} archived={archived} canDelete={canDelete}/><Link href={`/admin/sessions/${row.id}#questionnaires`} className="btn-ghost text-sm min-h-11">צפייה בתשובות השאלונים</Link></div>
         </li>)}</ul>}

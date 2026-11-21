@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { scoreParent, scoreTeacher, combineProfile } from '@/lib/scoring';
 import { completeResponses, intakeProgress } from '@/lib/intake/progress';
 import { intakeLinkTokenSchema } from '@/lib/intake/tokens';
+import { sessionTrack } from '@/lib/intake/adult';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' };
 const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers });
@@ -28,6 +29,8 @@ async function save(req: NextRequest, final: boolean) {
       .select('id,status,parent_token_expires_at,teacher_token_expires_at').eq(respondent === 'parent' ? 'parent_token' : 'teacher_token', token).maybeSingle();
     if (sessionError) return reply({ error: 'save_failed' }, 503);
     if (!session) return reply({ error: 'invalid_token' }, 403);
+    // Adult files are answered through /api/questionnaire/adult only.
+    if (await sessionTrack(db, session.id) === 'adult') return reply({ error: 'invalid_token' }, 403);
     const expires = session[respondent === 'parent' ? 'parent_token_expires_at' : 'teacher_token_expires_at'];
     if (expires && (!Number.isFinite(Date.parse(expires)) || Date.parse(expires) <= Date.now())) return reply({ error: 'expired_token' }, 403);
     const fields = { responses, free_text: free_text ?? null, intro_data: intro_data ?? null };
