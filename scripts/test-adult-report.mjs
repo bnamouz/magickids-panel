@@ -93,7 +93,7 @@ const pdfInput = (kind) => {
   const a = kind === 'full' ? assessment : null, { evaluation } = adult.evaluateAdult(responses, a, '1992-05-10');
   return { patient: { ...input.patient, grade: null, school: null, teacherName: null }, parent: null, reasonForReferral: input.reasonForReferral, parentScore: null, teacherScore: null, clinicalNotes: input.clinicalNotes,
     adult: adult.adultPdfData(input), report: mock(kind), dsm5Items: { ...adult.adultSymptomRows(responses, a), threshold: evaluation.threshold, inattentionCount: evaluation.inattention, hyperactivityCount: evaluation.hyperactivity },
-    clinicianName: 'ד"ר בסים נמוז', clinicianTitle: 'מומחה ברפואת ילדים, הפרעות קשב וריכוז', reportDate: '21.11.2026' };
+    clinicianName: 'ד"ר בסים נמוז', clinicianTitle: 'מומחה בהפרעות קשב וריכוז', reportDate: '21.11.2026' };
 };
 
 test('the adult PDF renders, full and preliminary, and with an Arabic name', async () => {
@@ -107,6 +107,11 @@ test('the adult PDF renders, full and preliminary, and with an Arabic name', asy
   // The Arabic fallback font is embedded only when Arabic text is present.
   assert.ok(buffer.length > 20000); assert.match(buffer.toString('latin1'), /Tajawal/); assert.doesNotMatch((await generatePdfReport(pdfInput('preliminary'))).toString('latin1'), /Tajawal/);
   fs.writeFileSync('/tmp/adult-report-test-arabic.pdf', buffer);
+});
+
+test('adult reports are signed without the paediatric title', () => {
+  const route = fs.readFileSync(path.join(root, 'app/api/admin/reports/generate/route.ts'), 'utf8'), adultBranch = route.slice(route.indexOf('async function generateAdult'), route.indexOf('export async function POST'));
+  assert.match(route, /const ADULT_CLINICIAN_TITLE = 'מומחה בהפרעות קשב וריכוז';/); assert.match(adultBranch, /clinicianTitle: ADULT_CLINICIAN_TITLE/); assert.doesNotMatch(adultBranch, /clinicianTitle: CLINICIAN_TITLE/);
 });
 
 test('live generation', { skip: !process.env.ADULT_REPORT_LIVE }, async () => {

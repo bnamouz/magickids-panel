@@ -16,6 +16,8 @@ export const maxDuration = 60;
 
 const CLINICIAN_NAME = 'ד"ר בסים נמוז';
 const CLINICIAN_TITLE = 'מומחה ברפואת ילדים, הפרעות קשב וריכוז';
+// Adult reports are signed without the paediatric title.
+const ADULT_CLINICIAN_TITLE = 'מומחה בהפרעות קשב וריכוז';
 
 type Db = ReturnType<typeof getSupabaseAdmin>;
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status });
@@ -99,7 +101,7 @@ async function generateAdult(supabase: Db, session: any, patient: any, contact: 
     report,
     dsm5Items: { ...adultSymptomRows(responses, assessment), threshold: evaluation.threshold, inattentionCount: evaluation.inattention, hyperactivityCount: evaluation.hyperactivity },
     clinicianName: CLINICIAN_NAME,
-    clinicianTitle: CLINICIAN_TITLE,
+    clinicianTitle: ADULT_CLINICIAN_TITLE,
     reportDate: formatHebrewDate(new Date().toISOString()),
   });
 
