@@ -19,7 +19,7 @@ const CALL_LIMIT=8,READY_LIMIT=8;
 export default async function DashboardPage({searchParams={}}:{searchParams?:{q?:string;page?:string;archive?:string;deleted?:string}}){
  const staff=await requireStaff();
  const supabase=getSupabaseAdmin();
- const [allCases,stuck,todayAppointments,treatmentRequests,hidden,callFollowUps,agenda]=await Promise.all([
+ const [allCases,stuck,todayAppointments,treatmentRequests,hidden,callFollowUps,agenda,renewals]=await Promise.all([
   loadIntakeQueue({includeArchived:true}).catch(()=>null),
   supabase.from('v_stuck_sessions').select('*').limit(5),
   supabase.from('v_today_appointments').select('*').order('scheduled_at',{ascending:true}).limit(10),
@@ -27,6 +27,7 @@ export default async function DashboardPage({searchParams={}}:{searchParams?:{q?
   loadDashboardArchive().catch(()=>null),
   loadCallFollowUps(supabase).catch(()=>null),
   loadCalendarAgenda().catch(()=>null),
+  staff.role==='admin'?pendingRenewals(supabase):null,
  ]);
  const today=dayKey(Date.now()),tomorrow=dayKey(Date.now()+86400000),yesterday=dayKey(Date.now()-86400000);
  const when=(value:string)=>{const key=dayKey(value);return `${key===today?'היום':key===yesterday?'אתמול':new Date(value).toLocaleDateString('he-IL',{timeZone:TZ,day:'numeric',month:'numeric'})} ב־${clock(value)}`;};
@@ -106,6 +107,7 @@ export default async function DashboardPage({searchParams={}}:{searchParams?:{q?
     <section className="mk-panel mk-quiet" aria-labelledby="quick-actions">
      <div className="mk-panel-head"><h2 id="quick-actions">פעולות נפוצות</h2></div>
      <ul className="mk-shortcuts">
+      {!!renewals&&<QuickLink href="/admin/prescriptions" title="חידוש מרשמים" detail={renewals===1?'בקשה אחת ממתינה להחלטת הרופא':`${renewals} בקשות ממתינות להחלטת הרופא`} icon={<FilePlus2 size={18}/>}/>}
       <QuickLink href="/admin/pediatrics-calendar" title="יומן מרפאת הילדים" detail="צפייה בתורים וקביעת תור חדש" icon={<CalendarDays size={18}/>}/>
       <QuickLink href="/admin/clinic-hours" title="סגירת יומן ושינוי שעות" detail="סגירה או שעות אחרות ליום בודד" icon={<CalendarDays size={18}/>}/>
       <QuickLink href="/admin/pediatrics-calendar#doctor-requests" title="בקשות לרופא ללא תור" detail="בקשות היום ביומן המרפאה" icon={<MessageSquare size={18}/>}/>
@@ -132,6 +134,10 @@ export default async function DashboardPage({searchParams={}}:{searchParams?:{q?
   <details open={!!searchParams.q||!!searchParams.page||archived} className="mk-directory" data-region="case-directory"><summary className="mk-directory-summary">כל התיקים ותשובות השאלונים <span>· פתיחת המאגר והחיפוש המלא</span></summary><div className="px-3 pb-1"><CaseDirectory result={directory} archived={archived} canDelete={canDelete}/></div></details>
   <p className="mk-footnote">הנתונים נטענים בפתיחת הדף. לעדכון לאחר פעולה אפשר ללחוץ על ״רענון נתונים״.</p>
  </div>;
+}
+/** Prescription-renewal requests awaiting the doctor. `null` when they cannot be counted; the link is then left out. */
+async function pendingRenewals(db:ReturnType<typeof getSupabaseAdmin>):Promise<number|null>{
+ try{const r=await db.from('prescription_renewal_requests').select('id',{count:'exact',head:true}).eq('status','pending');return r.error?null:r.count??0;}catch{return null;}
 }
 function QuickLink({href,title,detail,icon}:{href:string;title:string;detail:string;icon:React.ReactNode}){return <li><Link href={href} className="mk-shortcut"><span aria-hidden="true">{icon}</span><span><b>{title}</b><span>{detail}</span></span></Link></li>;}
 function appointmentLabel(value:string){return {assessment:'אבחון קשב',followup:'מעקב',treatment:'טיפול',moxo:'מבדק MOXO'}[value]??value;}

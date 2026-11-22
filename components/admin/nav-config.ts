@@ -15,6 +15,7 @@ export const NAV_FOLDERS: NavFolder[] = [
     ['/admin/intake', 'קליטה וזימון לקשב'],
     ['/admin/sessions', 'תיקי מטופלים'],
     ['/admin/adhd-payments', 'אימות תשלומים לקשב'],
+    ['/admin/prescriptions', 'חידוש מרשמים'],
   ] },
   { id: 'communication', title: 'תקשורת', items: [
     ['/admin/whatsapp-inbox', 'וואטסאפ המכון — פניות'],

@@ -17,7 +17,8 @@
     "test:appointment-confirmations": "node --test scripts/test-appointment-confirmations.mjs",
     "test:sarah-moxo": "node --test scripts/test-sarah-moxo.mjs",
     "test:institute-wa": "node --test scripts/test-institute-wa.mjs",
-    "test:clinic-templates": "node --test scripts/test-clinic-templates.mjs"
+    "test:clinic-templates": "node --test scripts/test-clinic-templates.mjs",
+    "test:prescriptions": "node --test scripts/test-prescriptions.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.6.1",
