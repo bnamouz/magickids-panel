@@ -27,7 +27,7 @@ export default async function Page() {
   const day = (d: string) => d.split('-').reverse().join('.');
   return <div className="space-y-5">
     <h1 className="text-3xl font-bold text-teal-800">חידוש מרשמים</h1>
-    <p className="text-slate-700">משפחות של מטופלים שכבר אובחנו מגישות בקשה לחידוש מרשם בטופס <a className="underline" href="/prescription?lang=he" target="_blank" rel="noopener noreferrer">app.magickidsinstitute.com/prescription</a>, משלמות 300 ₪ לחודש או 500 ₪ לשלושה חודשים ומצרפות אסמכתה. מטופל שאין לו אבחון מתועד במערכת חייב לצרף סיכום אבחון קודם. אחרי שבדקתם שהתשלום התקבל והפקתם את המרשם, לחצו &quot;המרשם הופק&quot;. המשפחה תקבל הודעת וואטסאפ ממספר המכון.</p>
+    <p className="text-slate-700">משפחות של מטופלים שכבר אובחנו מגישות בקשה לחידוש מרשם בטופס <a className="underline" href="/prescription?lang=he" target="_blank" rel="noopener noreferrer">app.magickidsinstitute.com/prescription</a>, משלמות 354 ₪ לחודש או 590 ₪ לשלושה חודשים (300 ₪ ו־500 ₪ בתוספת מע״מ) ומצרפות אסמכתה. מטופל שאין לו אבחון מתועד במערכת חייב לצרף סיכום אבחון קודם. אחרי שבדקתם שהתשלום התקבל והפקתם את המרשם, לחצו &quot;המרשם הופק&quot;. המשפחה תקבל הודעת וואטסאפ ממספר המכון.</p>
     {r.error && <p role="alert" className="card text-red-700">לא ניתן לטעון את הבקשות כרגע.</p>}
     {!r.error && <p className="font-semibold">{waiting ? `${waiting} בקשות ממתינות להחלטה` : 'אין בקשות ממתינות.'}</p>}
     <div className="space-y-3">{rows.map(x => { const known = RECOGNITION[x.recognition]; return <article key={x.id} className={`card space-y-2 ${x.status === 'pending' ? 'border-amber-400' : ''}`}>
@@ -40,7 +40,7 @@ export default async function Page() {
       {x.note && <p className="whitespace-pre-wrap text-sm">הערת המשפחה: {x.note}</p>}
       <p className="text-sm">ת״ז: <span dir="ltr">{x.patient_id}</span> · תאריך לידה: <span dir="ltr">{day(x.birth_date)}</span> · קופה: <b>{FUND_HE[x.fund as keyof typeof FUND_HE] ?? x.fund}</b></p>
       <p className="text-sm">איש קשר: {x.contact_name} · טלפון: <span dir="ltr">{x.phone}</span> · שפת ההודעה: {LANG[x.language] ?? x.language}</p>
-      <p className="text-sm">סכום: <b>{x.amount_ils} ₪</b> · אמצעי: <b>{x.payment_method === 'bit' ? 'ביט' : 'העברה בנקאית'}</b> · התקבל: {fmt(x.created_at)}{x.reviewed_at ? ` · הוחלט: ${fmt(x.reviewed_at)}` : ''}</p>
+      <p className="text-sm">סכום כולל מע״מ: <b>{x.amount_ils} ₪</b> · אמצעי: <b>{x.payment_method === 'bit' ? 'ביט' : 'העברה בנקאית'}</b> · התקבל: {fmt(x.created_at)}{x.reviewed_at ? ` · הוחלט: ${fmt(x.reviewed_at)}` : ''}</p>
       {x.review_note && <p className="text-sm text-slate-600">הערה שנשלחה למשפחה: {x.review_note}</p>}
       <PrescriptionReview id={x.id} status={x.status} summaries={(x.summary_paths ?? []).length} />
     </article>; })}</div>

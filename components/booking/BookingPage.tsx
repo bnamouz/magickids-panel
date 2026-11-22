@@ -168,6 +168,7 @@ export default function BookingPage({ clinic, initialLanguage }: { clinic: Clini
         {!confirmation && clinic === 'adhd' && <div className={styles.times} role="group" aria-label={t.visitType}>
           {(['assessment', 'followup'] as const).map(kind => <button key={kind} type="button" disabled={sending || uncertain || payReady} aria-pressed={visitType === kind} onClick={() => { if (kind === visitType) return; setVisitType(kind); setIntakeReady(false); setCheckedToken(''); setSlots([]); setStart(''); setError(''); setLoading(true); }}>{t[kind]}</button>)}
         </div>}
+        {!confirmation && clinic === 'adhd' && !payReady && <p className={styles.renewLink}>{t.renewAsk} <a href={`/prescription?lang=${language}`}>{t.renewLink}</a></p>}
         {!confirmation && clinic === 'adhd' && <div className={styles.fundBox}>
           {payError && <p role="alert" className={styles.error}>{p.errors[payError] ?? p.errors.invalid_payment}</p>}
           {payReady ? <p className={styles.paidBanner} role="status">✓ {p.paidReady} · {p.funds[fund as Fund]}</p> : <>

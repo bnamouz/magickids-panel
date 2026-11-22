@@ -81,8 +81,9 @@ const { recognisePatient } = compile('lib/prescriptions/match.ts');
 const messages = compile('lib/prescriptions/messages.ts');
 const { renewalCopy, FUND_LABELS } = compile('lib/prescriptions/copy.ts');
 
-test('one month costs 300 and three months cost 500', () => {
-  assert.deepEqual(pricing.RENEWAL_PRICE, { 1: 300, 3: 500 });
+test('one month costs 300 and three months cost 500 before VAT; families pay 354 and 590', () => {
+  assert.deepEqual(pricing.RENEWAL_BASE, { 1: 300, 3: 500 });
+  assert.deepEqual(pricing.RENEWAL_PRICE, { 1: 354, 3: 590 });
   assert.ok(pricing.isRenewalMonths(1) && pricing.isRenewalMonths(3) && !pricing.isRenewalMonths(2));
   assert.ok(pricing.MAX_TOTAL_BYTES < 4.5 * 1024 * 1024, 'one request stays under the platform body limit');
 });
@@ -192,7 +193,7 @@ test('public request: a known patient needs no summary, anyone else must attach 
     assert.deepEqual(await ok.json(), { received: true, reference: id });
     const row = db.tables.prescription_renewal_requests[0];
     assert.deepEqual({ status: row.status, months: row.months, amount: row.amount_ils, method: row.payment_method, recognition: row.recognition, patient: row.matched_patient_id, session: row.matched_session_id, phone: row.phone, proof: row.proof_path, summaries: row.summary_paths, note: row.note },
-      { status: 'pending', months: 3, amount: 500, method: 'bit', recognition: 'diagnosed', patient: PATIENT, session: SESSION, phone: '+972501112233', proof: `rx/${id}/proof.jpg`, summaries: [], note: null });
+      { status: 'pending', months: 3, amount: 590, method: 'bit', recognition: 'diagnosed', patient: PATIENT, session: SESSION, phone: '+972501112233', proof: `rx/${id}/proof.jpg`, summaries: [], note: null });
     assert.deepEqual([...db.stored.keys()], [`adhd-payments/rx/${id}/proof.jpg`]);
     assert.ok(row.ip_hash.length === 64 && !JSON.stringify(row).includes('unknown'));
     // The same request sent again is acknowledged, not stored twice; another patient cannot reuse the id.
@@ -208,7 +209,7 @@ test('public request: a known patient needs no summary, anyone else must attach 
     const id2 = randomUUID();
     assert.equal((await submit(route, { fields: { ...stranger, id: id2 }, summaries: [pdf(), jpeg()] })).status, 200);
     const second = db.tables.prescription_renewal_requests[1];
-    assert.deepEqual({ recognition: second.recognition, patient: second.matched_patient_id, summaries: second.summary_paths, amount: second.amount_ils }, { recognition: 'unknown', patient: null, summaries: [`rx/${id2}/summary-1.pdf`, `rx/${id2}/summary-2.jpg`], amount: 300 });
+    assert.deepEqual({ recognition: second.recognition, patient: second.matched_patient_id, summaries: second.summary_paths, amount: second.amount_ils }, { recognition: 'unknown', patient: null, summaries: [`rx/${id2}/summary-1.pdf`, `rx/${id2}/summary-2.jpg`], amount: 354 });
     assert.equal(db.stored.get(`adhd-payments/rx/${id2}/summary-1.pdf`).type, 'application/pdf');
     // The right ID with a wrong birth date and a phone that is not on the file is treated as unknown.
     assert.equal((await submit(route, { fields: { birthDate: '2015-03-05', phone: '0527777777' } })).status, 409);

@@ -3,7 +3,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { nationalIdSchema } from '@/lib/shared/national-id';
 import { FUNDS, PAYMENT } from '@/lib/booking/payments';
 import { FUND_LABELS, renewalCopy, type RenewalLanguage } from '@/lib/prescriptions/copy';
-import { MAX_SUMMARY_FILES, MAX_TOTAL_BYTES, RENEWAL_MONTHS, RENEWAL_PRICE, type RenewalMonths } from '@/lib/prescriptions/pricing';
+import { MAX_SUMMARY_FILES, MAX_TOTAL_BYTES, RENEWAL_BASE, RENEWAL_MONTHS, RENEWAL_PRICE, type RenewalMonths } from '@/lib/prescriptions/pricing';
 
 const WHATSAPP = 'https://wa.me/972544020043';
 const field = 'mt-1 block w-full rounded-lg border border-slate-300 bg-white p-3 text-base focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/30';
@@ -77,9 +77,10 @@ export default function RenewalForm({ language, enabled }: { language: RenewalLa
         <fieldset disabled={busy} className="space-y-8">
           <section className="space-y-3">{heading(1, t.stepPeriod)}
             <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label={t.stepPeriod}>{RENEWAL_MONTHS.map(m => <label key={m} className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border-2 p-4 ${months === m ? 'border-teal-700 bg-teal-50' : 'border-slate-200 bg-white'}`}>
-              <span className="flex items-center gap-3"><input type="radio" name="months" value={m} checked={months === m} onChange={() => setMonths(m)} className="h-5 w-5 accent-teal-700" /><span className="font-semibold">{m === 1 ? t.oneMonth : t.threeMonths}</span></span>
+              <span className="flex items-center gap-3"><input type="radio" name="months" value={m} checked={months === m} onChange={() => setMonths(m)} className="h-5 w-5 accent-teal-700" /><span className="font-semibold">{m === 1 ? t.oneMonth : t.threeMonths}<small className="block font-normal text-slate-600"><span dir="ltr">{RENEWAL_BASE[m]}</span> {t.plusVat}</small></span></span>
               <b className="whitespace-nowrap text-xl text-teal-900" dir="ltr">{RENEWAL_PRICE[m]} {t.currency}</b>
             </label>)}</div>
+            <p className="text-sm text-slate-600">{t.vatNote}</p>
           </section>
 
           <section className="space-y-4">{heading(2, t.stepPatient)}
