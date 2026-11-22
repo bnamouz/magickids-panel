@@ -16,7 +16,8 @@
     "test:adult-report": "node --test scripts/test-adult-report.mjs",
     "test:appointment-confirmations": "node --test scripts/test-appointment-confirmations.mjs",
     "test:sarah-moxo": "node --test scripts/test-sarah-moxo.mjs",
-    "test:institute-wa": "node --test scripts/test-institute-wa.mjs"
+    "test:institute-wa": "node --test scripts/test-institute-wa.mjs",
+    "test:clinic-templates": "node --test scripts/test-clinic-templates.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.6.1",
