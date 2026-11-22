@@ -14,7 +14,7 @@ export const bookingCopy = {
     patientId: 'תעודת זהות המטופל/ת — 9 ספרות כולל אפסים בתחילת המספר', child: 'שם מלא של הילד/ה', parent: 'שם ההורה', phone: 'טלפון לחזרה', submit: 'אישור וקביעת התור', submitting: 'מאשרים את התור…',
     consent: 'אני ההורה או האפוטרופוס, ומאשר/ת שמירת פרטי ההזמנה לצורך תיאום התור.', noMedical: 'אין צורך להזין מידע רפואי. תעודת הזהות נדרשת לזיהוי המטופל/ת בתור.',
     intake: 'קישור השאלון האישי שקיבלתם מהמכון', intakeHint: 'הדביקו את הקישור לשאלון ההורה. נדרשת השלמת שאלון ההורה ושאלון המורה לפני קביעת האבחון.',
-    openNewFile: 'פתיחת תיק חדש',
+    openNewFile: 'פתיחת תיק חדש', renewAsk: 'כבר אובחנתם ונדרש רק מרשם?', renewLink: 'חידוש מרשם להמשך טיפול',
     newFamily: 'עדיין אין תיק אבחון?', register: 'פתיחת תיק ושאלונים', confirmed: 'התור נקבע בהצלחה', saved: 'התור נשמר ביומן המרפאה שבחרתם.', reference: 'מספר הזמנה',
     address: 'דאהר עומר אלזידאני 9, שפרעם', addressPediatrics: 'תופיק זיאד 21, שפרעם', mapLink: 'ניווט במפה', change: 'לשינוי או ביטול התור, פנו למזכירות וציינו את מספר ההזמנה.', contact: 'עזרה מהמזכירות', another: 'לאתר המכון',
     errors: {
@@ -41,7 +41,7 @@ export const bookingCopy = {
     patientId: 'رقم هوية المريض/ة — 9 أرقام بما فيها الأصفار في البداية', child: 'الاسم الكامل للطفل/ة', parent: 'اسم ولي الأمر', phone: 'رقم الهاتف للتواصل', submit: 'تأكيد وحجز الموعد', submitting: 'جارٍ تأكيد الموعد…',
     consent: 'أنا ولي الأمر أو الوصي، وأوافق على حفظ تفاصيل الحجز لتنسيق الموعد.', noMedical: 'لا حاجة لإدخال معلومات طبية. رقم الهوية مطلوب لتعريف المريض/ة في الموعد.',
     intake: 'رابط استبيان الأهل الشخصي الذي وصلكم من المعهد', intakeHint: 'الصقوا رابط استبيان الأهل. يجب استكمال استبيان الأهل واستبيان المعلم قبل حجز موعد التشخيص.',
-    openNewFile: 'فتح ملف جديد',
+    openNewFile: 'فتح ملف جديد', renewAsk: 'أجريتم التشخيص وتحتاجون إلى وصفة فقط؟', renewLink: 'تجديد وصفة طبية لمتابعة العلاج',
     newFamily: 'لم تفتحوا ملف تشخيص بعد؟', register: 'فتح ملف واستبيانات', confirmed: 'تم حجز الموعد بنجاح', saved: 'تم تسجيل الموعد في تقويم العيادة التي اخترتموها.', reference: 'رقم الحجز',
     address: 'ظاهر عمر الزيداني 9، شفاعمرو', addressPediatrics: 'توفيق زياد 21، شفاعمرو', mapLink: 'الموقع على الخريطة', change: 'لتغيير الموعد أو إلغائه، تواصلوا مع السكرتارية واذكروا رقم الحجز.', contact: 'مساعدة من السكرتارية', another: 'موقع المعهد',
     errors: {
@@ -68,7 +68,7 @@ export const bookingCopy = {
     patientId: 'Patient ID number — 9 digits including leading zeros', child: 'Child’s full name', parent: 'Parent’s name', phone: 'Callback phone number', submit: 'Confirm and book', submitting: 'Confirming your appointment…',
     consent: 'I am the parent or guardian and agree to the booking details being stored to arrange this appointment.', noMedical: 'No medical information is needed. The ID number identifies the patient for this appointment.',
     intake: 'Your personal parent questionnaire link', intakeHint: 'Paste your parent questionnaire link. Both parent and teacher questionnaires must be complete before booking an assessment.',
-    openNewFile: 'Open a new file',
+    openNewFile: 'Open a new file', renewAsk: 'Already assessed and only need a prescription?', renewLink: 'Prescription renewal',
     newFamily: 'New to the assessment service?', register: 'Start intake and questionnaires', confirmed: 'Your appointment is confirmed', saved: 'Your appointment has been saved in your selected clinic’s calendar.', reference: 'Booking reference',
     address: '9 Daher Omar Al-Zaydani St., Shefa-Amr', addressPediatrics: '21 Tawfiq Ziad St., Shefa-Amr', mapLink: 'Open in Maps', change: 'To change or cancel, contact the clinic and quote your booking reference.', contact: 'Contact the clinic', another: 'Institute website',
     errors: {

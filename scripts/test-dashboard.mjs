@@ -227,7 +227,7 @@ test('staff navigation keeps every destination available with current-page seman
   assert.match(html, /aria-expanded="true" aria-controls="staff-folder-patients"/);
   assert.equal(html.split('aria-current="page"').length - 1, 1);
   assert.ok(html.includes('href="/admin/dashboard"'));
-  for (const route of ['pediatrics-calendar','clinic-patients','clinic-hours','intake','sessions','appointments','moxo','adhd-payments','adhd-requests','treatments','therapists','therapy','recruitment','development','classes','abroad','reviews','leads','secretaries','calls','personal/calls','google-calendars','system-health']) {
+  for (const route of ['pediatrics-calendar','clinic-patients','clinic-hours','intake','sessions','appointments','moxo','adhd-payments','prescriptions','adhd-requests','treatments','therapists','therapy','recruitment','development','classes','abroad','reviews','leads','secretaries','calls','personal/calls','google-calendars','system-health']) {
     assert.equal(html.split(`href="/admin/${route}"`).length - 1, 1, route);
     assert.ok(html.includes(`href="/admin/${route}"`), route);
     assert.ok(fs.existsSync(path.join(root, 'app/admin', route, 'page.tsx')), route);
