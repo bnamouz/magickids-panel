@@ -37,8 +37,8 @@
   the existing private adhd-payments bucket under moxo/<request id>/. The
   request row records referral_path, referral_type and referral_uploaded_at
   (migration 20261124120000_moxo_referral_upload.sql, additive).
-  - The referral stays optional: a family that cannot attach a file sends it
-    on WhatsApp as before.
+  - The referral stays optional for a request that is not through Maccabi: a
+    family that cannot attach a file sends it on WhatsApp as before.
   - A wrong file type or an oversized file is refused before anything is
     saved. If the file cannot be stored, or more than 40 referrals arrived in
     24 hours, the request is still saved and the family is asked to send the
@@ -48,6 +48,19 @@
     moxo_referral_viewed.
   - Nothing is sent to the family automatically. Checked by
     scripts/test-moxo-referral-upload.mjs.
+- Referral mandatory through Maccabi (2026-11-24, owner request): /moxo has no
+  health-fund field, so the form asks "requesting the test through Maccabi".
+  When it is ticked the referral file is required: the browser does not send
+  the form without it and /api/moxo/requests answers 400 referral_required
+  before anything is saved. The row is marked via_maccabi (migration
+  20261124140000_moxo_via_maccabi.sql, one additive boolean column, default
+  false) and /admin/moxo reminds staff to verify that the referral is valid
+  and to check eligibility in Maccabi Sheli.
+  - If the file of a Maccabi request cannot be stored (storage failure or the
+    daily cap), the request is still saved and marked; staff see that the
+    file is missing and ask the family for it on WhatsApp.
+  - The ADHD booking page (/book/adhd) still asks for the referral on WhatsApp
+    only; it has no upload field.
 
 ## General treatment requests
 - /treatments remains a request-only form with contact and treatment selection.

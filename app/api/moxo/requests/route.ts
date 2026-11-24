@@ -21,7 +21,7 @@ async function read(req: NextRequest): Promise<Incoming> {
   const text = (key: string) => { const v = form.get(key); return typeof v === 'string' && v !== '' ? v : undefined; };
   const input = {
     id: text('id'), patient_name: text('patient_name'), contact_name: text('contact_name'), phone: text('phone'), national_id: text('national_id'), language: text('language'),
-    preferred_date: text('preferred_date'), preferred_start: text('preferred_start'), consent: form.get('consent') === 'true', website: text('website') ?? '',
+    preferred_date: text('preferred_date'), preferred_start: text('preferred_start'), consent: form.get('consent') === 'true', website: text('website') ?? '', via_maccabi: form.get('via_maccabi') === 'true',
   };
   const file = form.get('referral');
   if (!(file instanceof File) || file.size === 0) return { input, referral: null };
@@ -54,12 +54,18 @@ export async function POST(req: NextRequest) {
   try {
     const incoming = await read(req);
     if ('error' in incoming) return reply({ error: incoming.error }, incoming.status);
-    const { consent, website, ...body } = moxoSchema.parse(incoming.input);
+    const { consent, website, via_maccabi, ...body } = moxoSchema.parse(incoming.input);
+    // Through Maccabi the referral is what eligibility is checked against, so the request is not taken without it.
+    if (via_maccabi && !incoming.referral) return reply({ error: 'referral_required' }, 400);
     const db = getSupabaseAdmin();
     // No messages or appointments are created by this public endpoint.
     const result = await db.rpc('submit_identified_moxo', { p_id: body.id, p_patient: body.patient_name, p_contact: body.contact_name, p_phone: body.phone, p_language: body.language, p_date: body.preferred_date ?? null, p_start: body.preferred_start ?? null, p_national_id: body.national_id });
     if (result.error) return reply({ error: 'unavailable' }, 503);
     if (result.data !== 'pending') return reply({ error: result.data }, result.data === 'rate_limited' ? 429 : 400);
+    if (via_maccabi) {
+      const marked = await db.from('moxo_requests').update({ via_maccabi: true }).eq('id', body.id);
+      if (marked.error) return reply({ error: 'unavailable' }, 503);
+    }
     const referral = incoming.referral ? { referral: await storeReferral(db, body.id, incoming.referral) } : {};
     return reply({ received: true, status: 'pending', reference: body.id, ...referral });
   } catch { return reply({ error: 'invalid_request' }, 400); }
