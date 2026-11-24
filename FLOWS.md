@@ -149,3 +149,75 @@
   APIs end to end including refusal of child links, late drafts and a
   failing track column.
 - Existing intake, booking, dashboard, voice and report checks still pass.
+
+# Prescription renewals (2026-11-23)
+
+## What it is
+- /prescription (he / ar / en, not indexed): a family of a patient who was
+  already assessed asks for a prescription to continue treatment. They fill in
+  the details, pay (bank transfer or Bit) and attach the payment proof.
+- One month: 300 ILS + 18% VAT = 354 ILS. Three months: 500 ILS + VAT =
+  590 ILS. The form shows the base price and the amount to pay.
+- /admin/prescriptions (manager only): the manager sees the request, the proof
+  and any summary, and issues or rejects. Each decision sends one WhatsApp
+  from the institute number and is written to the audit log.
+- Paying and submitting never issues a prescription; the doctor decides.
+
+## Rule: "known to the system" (מטופל מוכר למערכת)
+Source of truth: lib/prescriptions/match.ts (recognisePatient). Every request
+is classified once, on submission, as diagnosed, file_only or unknown.
+
+Step 1 — is there a file for this person? A file counts only if one of these
+holds; archived files never count:
+- the national ID on the request equals the ID on the file AND a second detail
+  also fits: the birth date on the file, or the phone on the request is one of
+  the parents' phones on the file; or
+- for older files that have no national ID: the birth date fits AND the first
+  name on the file opens the name typed in the request AND the phone on the
+  request is one of the parents' phones on the file.
+Typing an ID alone never confirms that somebody is a patient. Phones are
+compared by their last nine digits; names ignore vowel marks, punctuation,
+spacing and interchangeable Arabic letter forms.
+
+Step 2 — is an assessment at the institute documented in that file? Any one of
+these is enough:
+- a file (intake session) whose status is attended, moxo_pending or reported;
+- a report or a doctor's clinical assessment saved on a file that was not
+  cancelled;
+- an appointment in the past that is not a MOXO test and was not cancelled,
+  missed (no_show) or rescheduled.
+
+Result:
+- diagnosed ("known to the system"): Step 1 and Step 2 both hold. No summary
+  is required.
+- file_only: a file was found but no assessment is documented in it.
+- unknown: no file fits the details.
+- file_only and unknown are treated the same way: the request is refused
+  until at least one summary of the earlier assessment is attached (image or
+  PDF, up to three files). The public form shows one identical message in both
+  cases and never says whether a file exists.
+
+Enforced in two places: app/api/prescriptions/route.ts answers 409
+summary_required, and the table constraint prescription_summary_required
+refuses a row that is not diagnosed and has no summary.
+
+The classification is saved on the request and shown to the manager with a
+link to the matched file. It only decides whether a summary is mandatory; it
+does not approve anything. Most long-standing patients have no national ID or
+documented assessment in the system yet, so they will be asked for a summary.
+
+בעברית, בקצרה: מטופל מוכר למערכת רק אם (1) תעודת הזהות שהוזנה תואמת תיק
+לא מאורכב, יחד עם תאריך לידה או טלפון תואמים — ובתיקים ישנים בלי תעודת זהות:
+תאריך לידה, שם פרטי וטלפון יחד; וגם (2) מתועד בתיק אבחון במכון: סטטוס תיק
+attended, moxo_pending או reported, דוח או הערכת רופא שמורים, או תור עבר
+שאינו MOXO ולא בוטל, לא הוחמץ ולא נדחה. כל מי שאינו מוכר חייב לצרף סיכום
+אבחון קודם.
+
+## Changing the rule
+- Change lib/prescriptions/match.ts and this section together.
+- scripts/test-prescriptions.mjs must keep passing, in particular "known to
+  the system only with a documented assessment and a second matching detail"
+  and "public request: a known patient needs no summary, anyone else must
+  attach one".
+- Migration 20261123120000_prescription_renewals.sql (two private tables,
+  service role only) is applied in production.
