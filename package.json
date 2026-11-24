@@ -19,7 +19,8 @@
     "test:institute-wa": "node --test scripts/test-institute-wa.mjs",
     "test:clinic-templates": "node --test scripts/test-clinic-templates.mjs",
     "test:prescriptions": "node --test scripts/test-prescriptions.mjs",
-    "test:moxo-referral": "node --test scripts/test-moxo-referral.mjs"
+    "test:moxo-referral": "node --test scripts/test-moxo-referral.mjs",
+    "test:moxo-referral-upload": "node --test scripts/test-moxo-referral-upload.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.6.1",

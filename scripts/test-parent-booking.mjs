@@ -140,7 +140,7 @@ try{
  for(const v of ['', '000000000','123456789','abcdefgh1'])assert.equal(national.nationalIdSchema.safeParse(v).success,false);
  for(const v of ['123456782','١٢٣٤٥٦٧٨٢','۱۲۳۴۵۶۷۸۲'])assert.equal(national.nationalIdSchema.parse(v),'123456782');
  pass('ID checksum, leading zeroes and Arabic/Persian numerals validated');
- const moxoRoute=compile('app/api/moxo/requests/route.ts',{'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/moxo/schema':compile('lib/moxo/schema.ts')});
+ const moxoRoute=compile('app/api/moxo/requests/route.ts',{'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/moxo/schema':compile('lib/moxo/schema.ts'),'@/lib/shared/file-kind':compile('lib/shared/file-kind.ts'),'@/lib/moxo/referral':compile('lib/moxo/referral.ts')});
  const mx={id:randomUUID(),patient_name:'Synthetic child',contact_name:'Synthetic parent',national_id:'123456782',phone:'+972500000022',language:'he',consent:true,website:''};
  assert.equal((await moxoRoute.POST(req({...mx,national_id:undefined}))).status,400);
  assert.equal((await moxoRoute.POST(req({...mx,national_id:'123456789'}))).status,400);

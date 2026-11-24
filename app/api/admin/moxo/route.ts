@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { notifyOnce } from '@/lib/moxo/notification';
 import {getCalendarId} from '@/lib/google-calendar';
 import { syncMoxoCalendar } from '@/lib/moxo/calendar';
+import { REFERRAL_BUCKET } from '@/lib/moxo/referral';
 export const maxDuration=60;
 const schema=z.object({id:z.string().uuid(),start:z.string().datetime(),duration:z.number().int().min(15).max(120),phone_verified:z.literal(true)}).strict();
 export async function POST(req:NextRequest){
@@ -12,6 +13,17 @@ export async function POST(req:NextRequest){
  const staff=await getCurrentStaff();if(!staff)return NextResponse.json({error:'forbidden'},{status:403});
  try{
   const input=await req.json();
+  if(input.action==='referral'){
+   // The physician's referral the family attached: a short-lived link, and a record of who opened it.
+   const {id}=z.object({id:z.string().uuid(),action:z.literal('referral')}).strict().parse(input),db=getSupabaseAdmin();
+   const row=await db.from('moxo_requests').select('referral_path').eq('id',id).maybeSingle();
+   if(row.error)return NextResponse.json({error:'unavailable'},{status:503});
+   if(!row.data?.referral_path)return NextResponse.json({error:'not_found'},{status:404});
+   const url=await db.storage.from(REFERRAL_BUCKET).createSignedUrl(row.data.referral_path,300);
+   if(url.error)return NextResponse.json({error:'unavailable'},{status:503});
+   await db.from('audit_log').insert({actor_id:staff.id,actor_type:'user',action:'moxo_referral_viewed',entity_type:'moxo_request',entity_id:id,metadata:{}});
+   return NextResponse.json({url:url.data.signedUrl},{headers:{'Cache-Control':'private, no-store'}});
+  }
   if(input.action==='sync_calendar'){const {id}=z.object({id:z.string().uuid(),action:z.literal('sync_calendar')}).strict().parse(input);return NextResponse.json({calendar:await syncMoxoCalendar(id)},{headers:{'Cache-Control':'no-store'}});}
   const body=schema.parse(input),db=getSupabaseAdmin();
   const bound=await db.from('moxo_requests').update({google_calendar_id:getCalendarId(),google_event_id:'test'+body.id.replaceAll('-','')}).eq('id',body.id).eq('status','pending').is('google_calendar_id',null);

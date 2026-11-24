@@ -30,6 +30,24 @@
   such a booking carries a staff reminder (lib/booking/fund-lines.ts). Text
   only: no upload, no schema change, no message is sent automatically.
   Checked by scripts/test-moxo-referral.mjs.
+- Referral upload on /moxo (2026-11-24, owner request): the form has an
+  optional file field for the physician's referral (photo or PDF, up to 4 MB;
+  photos are reduced in the browser). The file travels with the request to
+  /api/moxo/requests, its type is read from the file itself, and it is kept in
+  the existing private adhd-payments bucket under moxo/<request id>/. The
+  request row records referral_path, referral_type and referral_uploaded_at
+  (migration 20261124120000_moxo_referral_upload.sql, additive).
+  - The referral stays optional: a family that cannot attach a file sends it
+    on WhatsApp as before.
+  - A wrong file type or an oversized file is refused before anything is
+    saved. If the file cannot be stored, or more than 40 referrals arrived in
+    24 hours, the request is still saved and the family is asked to send the
+    referral on WhatsApp.
+  - Staff see on /admin/moxo whether a referral was attached and open it
+    through a five-minute link; each opening is written to audit_log as
+    moxo_referral_viewed.
+  - Nothing is sent to the family automatically. Checked by
+    scripts/test-moxo-referral-upload.mjs.
 
 ## General treatment requests
 - /treatments remains a request-only form with contact and treatment selection.

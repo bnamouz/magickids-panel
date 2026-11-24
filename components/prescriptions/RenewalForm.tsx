@@ -3,27 +3,12 @@ import { useRef, useState, type FormEvent } from 'react';
 import { nationalIdSchema } from '@/lib/shared/national-id';
 import { FUNDS, PAYMENT } from '@/lib/booking/payments';
 import { FUND_LABELS, renewalCopy, type RenewalLanguage } from '@/lib/prescriptions/copy';
+import { isStorableFile, shrinkImage } from '@/lib/shared/shrink-image';
 import { MAX_SUMMARY_FILES, MAX_TOTAL_BYTES, RENEWAL_BASE, RENEWAL_MONTHS, RENEWAL_PRICE, type RenewalMonths } from '@/lib/prescriptions/pricing';
 
 const WHATSAPP = 'https://wa.me/972544020043';
 const field = 'mt-1 block w-full rounded-lg border border-slate-300 bg-white p-3 text-base focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/30';
 const fileField = `${field} file:me-3 file:rounded-md file:border-0 file:bg-teal-50 file:px-3 file:py-2 file:font-semibold file:text-teal-900`;
-
-/** Phone photos are several megabytes; one request must stay under the platform's body limit. PDFs pass as they are. */
-async function shrink(file: File): Promise<File> {
-  if (!file.type.startsWith('image/')) return file;
-  if ((file.type === 'image/jpeg' || file.type === 'image/png') && file.size <= 600_000) return file;
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
-    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>(done => canvas.toBlob(done, 'image/jpeg', 0.82));
-    return blob ? new File([blob], file.name.replace(/\.[^.]*$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
-  } catch { return file; }
-}
-const acceptable = (f: File) => ['image/jpeg', 'image/png', 'application/pdf'].includes(f.type);
 
 export default function RenewalForm({ language, enabled }: { language: RenewalLanguage; enabled: boolean }) {
   const t = renewalCopy[language], funds = FUND_LABELS[language];
@@ -45,8 +30,8 @@ export default function RenewalForm({ language, enabled }: { language: RenewalLa
     if (summaries.length > MAX_SUMMARY_FILES) { setError('too_many'); return; }
     setError(''); setStage('preparing');
     try {
-      const files = await Promise.all([proof, ...summaries].map(shrink));
-      if (!files.every(acceptable)) { setError('invalid_file'); return; }
+      const files = await Promise.all([proof, ...summaries].map(shrinkImage));
+      if (!files.every(isStorableFile)) { setError('invalid_file'); return; }
       if (files.reduce((n, f) => n + f.size, 0) > MAX_TOTAL_BYTES) { setError('too_large'); return; }
       requestId.current ||= crypto.randomUUID();
       const data = new FormData();
