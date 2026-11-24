@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { getCalendarClient, getCalendarId } from '@/lib/google-calendar';
 import { getPediatricsCalendarId } from '@/lib/pediatrics-calendar';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { FUND_HE, type Fund } from './payments';
+import { fundLines } from './fund-lines';
 import { eventTitle } from '@/lib/calendar-title';
 import { isBookingToken, tokenHash } from './payment-tokens';
 import { candidateSlots, leadMinutesFor, durationFor, freeSlots, overlaps, parseFreeBusy, TIME_ZONE, type Clinic, type VisitType } from './schedule';
@@ -221,14 +221,6 @@ export async function book(clinic: Clinic, body: BookingBody, clientIp: string, 
     await db.from('adhd_payment_requests').update({ status: 'booked', booking_id: body.requestId, booked_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', payment.id).eq('status', 'approved');
   }
   return confirmed(clinic, start, body.requestId, visitType);
-}
-function fundLines(clinic: Clinic, body: BookingBody, visitType: VisitType) {
-  if (clinic !== 'adhd' || !body.fund) return '';
-  const f = body.fund as Fund;
-  const lines = [`קופה: ${FUND_HE[f]}${f === 'maccabi' ? (body.maccabiSheli ? ' (מכבי שלי)' : ' (ללא מכבי שלי)') : ''}`];
-  if (visitType === 'assessment') lines.push(`מבדק MOXO: ${body.moxo ? 'מבוקש' : 'לא מבוקש'}${f === 'maccabi' && body.moxo && !body.maccabiSheli ? ' — ללא מכבי שלי: בתשלום 944 ₪' : ''}`);
-  lines.push(f === 'maccabi' ? 'תשלום: העברת כרטיס מכבי בביקור' : 'תשלום: שולם מראש — אסמכתה אושרה בפאנל');
-  return lines.join('\n') + '\n';
 }
 
 // The booking UUID is a reference, never authorization to cancel a patient's visit.

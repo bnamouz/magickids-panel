@@ -2,7 +2,7 @@ import type { BookingLanguage } from './copy';
 
 export const paymentCopy: Record<BookingLanguage, {
   fundTitle: string; fundHint: string; funds: Record<'maccabi' | 'clalit' | 'meuhedet' | 'leumit' | 'private', string>;
-  maccabiNote: string; sheli: string; moxoAsk: string; moxoMaccabiNote: string; changeFund: string;
+  maccabiNote: string; sheli: string; moxoAsk: string; moxoMaccabiNote: string; moxoReferral: string; moxoReferralAction: string; moxoReferralMessage: string; changeFund: string;
   paidTitle: string; paidIntro: string; priceAssessment: string; priceMoxo: string; vatNote: string; total: string; followupPrice: string; priceFollowup: string; moxoOptional: string;
   methods: string; bank: string; bankAccount: string; beneficiary: string; bit: string; bitTo: string; cardSoon: string; transferNote: string;
   method: string; proof: string; submit: string; sending: string; received: string; receivedText: string; paidReady: string; intakeNeeded: string; openFile: string; consent: string; currency: string;
@@ -14,6 +14,9 @@ export const paymentCopy: Record<BookingLanguage, {
     maccabiNote: 'מטופלי מכבי: אין תשלום מראש. התשלום מתבצע בהעברת כרטיס מכבי של הילד/ה בעת הביקור במרפאה.',
     sheli: 'יש לילד/ה ביטוח מכבי שלי', moxoAsk: 'מבקשים גם מבדק MOXO (מבדק ממוחשב לקשב)',
     moxoMaccabiNote: 'מבדק MOXO ללא תשלום רק לחברי מכבי שלי. בלי מכבי שלי עלות המבדק 944 ₪ (800 ₪ + מע״מ), והמזכירות תתאם איתכם את התשלום לפני הביקור.',
+    moxoReferral: 'מבדק MOXO דרך מכבי: יש לשלוח למכון את ההפניה מהרופא המפנה. לפי ההפניה נבדוק אם קיימת זכאות לביצוע המבדק דרך מכבי שלי. ההפניה צריכה להיות בתוקף.',
+    moxoReferralAction: 'שליחת ההפניה ב־WhatsApp',
+    moxoReferralMessage: 'שלום, אנחנו מבקשים מבדק MOXO דרך מכבי. מצרפים כאן את ההפניה מהרופא המפנה לבדיקת הזכאות במכבי שלי. שם הילד/ה: ',
     changeFund: 'שינוי קופה',
     paidTitle: 'תשלום מראש לפני קביעת התור',
     paidIntro: 'מטופלי כללית, מאוחדת, לאומית ופרטי משלמים לפני הביקור. אחרי התשלום מעלים כאן את האסמכתה. לאחר אימות התשלום נשלח לכם בוואטסאפ קישור אישי לבחירת מועד.',
@@ -40,6 +43,9 @@ export const paymentCopy: Record<BookingLanguage, {
     maccabiNote: 'لمؤمَّني مكابي: لا يوجد دفع مسبق. يتم الدفع بتمرير بطاقة مكابي الخاصة بالطفل/ة عند الزيارة في العيادة.',
     sheli: 'لدى الطفل/ة تأمين مكابي شيلي', moxoAsk: 'نطلب أيضًا فحص MOXO (فحص محوسب للانتباه)',
     moxoMaccabiNote: 'فحص MOXO مجاني فقط لأعضاء مكابي شيلي. بدون مكابي شيلي تكلفة الفحص 944 ₪ (800 ₪ + ضريبة القيمة المضافة)، وستنسّق معكم السكرتارية الدفع قبل الزيارة.',
+    moxoReferral: 'فحص MOXO عن طريق مكابي: يجب إرسال الإحالة من الطبيب المُحيل إلى المعهد. بحسب الإحالة نفحص إن كان هناك استحقاق لإجراء الفحص عن طريق مكابي شيلي. يجب أن تكون الإحالة سارية المفعول.',
+    moxoReferralAction: 'إرسال الإحالة عبر واتساب',
+    moxoReferralMessage: 'مرحبًا، نطلب فحص MOXO عن طريق مكابي. نرفق هنا الإحالة من الطبيب المُحيل لفحص الاستحقاق في مكابي شيلي. اسم الطفل/ة: ',
     changeFund: 'تغيير الصندوق',
     paidTitle: 'الدفع المسبق قبل تحديد الموعد',
     paidIntro: 'مؤمَّنو كلاليت ومئوحيدت ولئوميت والخاص يدفعون قبل الزيارة. بعد الدفع ارفعوا هنا إثبات الدفع. بعد التحقق من الدفع نرسل لكم عبر واتساب رابطًا شخصيًا لاختيار الموعد.',
@@ -66,6 +72,9 @@ export const paymentCopy: Record<BookingLanguage, {
     maccabiNote: "Maccabi patients: no advance payment. Payment is made by swiping the child's Maccabi card at the clinic visit.",
     sheli: 'The child has Maccabi Sheli', moxoAsk: 'We also want a MOXO test (computerized attention test)',
     moxoMaccabiNote: 'The MOXO test is free only for Maccabi Sheli members. Without Maccabi Sheli the test costs ₪944 (₪800 + VAT), and the secretary will arrange payment with you before the visit.',
+    moxoReferral: 'MOXO test through Maccabi: please send the institute the referral from the referring physician. We use it to check whether the test can be done through Maccabi Sheli. The referral must still be valid.',
+    moxoReferralAction: 'Send the referral on WhatsApp',
+    moxoReferralMessage: "Hello, we are requesting a MOXO test through Maccabi. Attached is the referral from the referring physician, for the Maccabi Sheli eligibility check. Child's name: ",
     changeFund: 'Change fund',
     paidTitle: 'Advance payment before booking',
     paidIntro: 'Clalit, Meuhedet, Leumit and private patients pay before the visit. After paying, upload the payment confirmation here. Once the payment is verified we will send you a personal WhatsApp link to choose a time.',
