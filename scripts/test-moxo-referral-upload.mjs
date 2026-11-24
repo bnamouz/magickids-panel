@@ -79,11 +79,12 @@ before(async () => {
   // A request saved before this change must survive the migration untouched.
   await pg.query("select submit_identified_moxo($1,'Earlier child','Earlier parent','+972500000001','he',null,null,'123456782')", ['00000000-0000-4000-8000-000000000001']);
   await pg.exec(fs.readFileSync(path.join(root, 'supabase/migrations/20261124120000_moxo_referral_upload.sql'), 'utf8'));
+  await pg.exec(fs.readFileSync(path.join(root, 'supabase/migrations/20261124140000_moxo_via_maccabi.sql'), 'utf8'));
 });
 
 test('the migration is additive and keeps the referral columns consistent', async () => {
   const earlier = await row('00000000-0000-4000-8000-000000000001');
-  assert.equal(earlier.status, 'pending'); assert.equal(earlier.referral_path, null); assert.equal(earlier.referral_type, null); assert.equal(earlier.referral_uploaded_at, null);
+  assert.equal(earlier.status, 'pending'); assert.equal(earlier.via_maccabi, false); assert.equal(earlier.referral_path, null); assert.equal(earlier.referral_type, null); assert.equal(earlier.referral_uploaded_at, null);
   await assert.rejects(pg.query("update moxo_requests set referral_path='moxo/x/referral.pdf' where id=$1", [earlier.id]), /moxo_requests_referral_complete/);
   await assert.rejects(pg.query("update moxo_requests set referral_path='moxo/x/referral.gif',referral_type='image/gif',referral_uploaded_at=now() where id=$1", [earlier.id]), /referral_type/);
 });
@@ -98,6 +99,21 @@ test('a request with an attached referral stores the file beside the request', a
   // The same request sent again (lost reply, double tap) neither fails nor stores the file twice.
   const again = await route.POST(multipart(d, { bytes: PDF }));
   assert.equal(again.status, 200); assert.equal((await again.json()).referral, 'stored'); assert.equal(db.uploads.length, 1);
+});
+
+test('through Maccabi the referral is mandatory: without it nothing is saved', async () => {
+  const db = makeDb(), route = publicRoute(db), d = details({ via_maccabi: 'true' });
+  const res = await route.POST(multipart(d));
+  assert.equal(res.status, 400); assert.equal((await res.json()).error, 'referral_required'); assert.equal(await row(d.id), undefined);
+  // The JSON form of the request cannot carry a file, so it cannot ask through Maccabi either.
+  const j = details(), json = await route.POST(new NextRequest(`${origin}/api/moxo/requests`, { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify({ ...j, consent: true, via_maccabi: true }) }));
+  assert.equal(json.status, 400); assert.equal((await json.json()).error, 'referral_required'); assert.equal(await row(j.id), undefined);
+  // With the referral the request is saved and marked for the eligibility check.
+  const ok = await route.POST(multipart(d, { bytes: PDF }));
+  assert.equal(ok.status, 200); assert.equal((await ok.json()).referral, 'stored');
+  const saved = await row(d.id); assert.equal(saved.via_maccabi, true); assert.equal(saved.referral_path, `moxo/${d.id}/referral.pdf`);
+  // A request that does not ask through Maccabi stays unmarked, with or without a file.
+  const plain = details({ via_maccabi: 'false' }); assert.equal((await route.POST(multipart(plain, { bytes: PDF }))).status, 200); assert.equal((await row(plain.id)).via_maccabi, false);
 });
 
 test('the type is read from the file itself, not from its name', async () => {
@@ -169,8 +185,12 @@ test('staff open the referral through a short-lived link, and each opening is re
 
 test('the form offers the file in three languages and sends it with the request', () => {
   const form = fs.readFileSync(path.join(root, 'components/moxo/RequestForm.tsx'), 'utf8');
-  assert.match(form, /name="referral" type="file" accept="image\/\*,application\/pdf"/);
+  assert.match(form, /name="referral" type="file" required=\{maccabi\} accept="image\/\*,application\/pdf"/);
   assert.match(form, /data\.set\('referral',file\)/);
   for (const key of [",file:'", ",fileHint:'", ",successFile:'", ",successNoFile:'", ",badFile:'", ",bigFile:'"]) assert.equal(form.split(key).length - 1, 3, key);
-  assert.doesNotMatch(form, /name="referral"[^>]*required/); // the referral may still be sent on WhatsApp
+  // Mandatory only when the family asks through Maccabi; otherwise the referral may still be sent on WhatsApp.
+  assert.match(form, /name="via_maccabi" type="checkbox" checked=\{maccabi\}/);
+  assert.match(form, /name="referral" type="file" required=\{maccabi\}/);
+  assert.match(form, /if\(maccabi&&!file\)\{setError\('needFile'\);return;\}/);
+  for (const key of [",viaMaccabi:'", ",fileRequired:'", ",needFile:'"]) assert.equal(form.split(key).length - 1, 3, key);
 });

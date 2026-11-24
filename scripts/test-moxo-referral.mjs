@@ -52,6 +52,6 @@ test('booking page: the request names the referring physician, Maccabi Sheli and
 
 test('MOXO request form: the referral box explains the Maccabi requirement in three languages', () => {
   const form = read('components/moxo/RequestForm.tsx');
-  for (const text of ['ההפניה מהרופא המפנה נדרשת כדי לבדוק אם קיימת זכאות לביצוע המבדק דרך מכבי שלי. ההפניה צריכה להיות בתוקף.', 'مكابي شيلي. يجب أن تكون الإحالة سارية المفعول.', 'through Maccabi Sheli. The referral must still be valid.']) assert.ok(form.includes(text), text);
+  for (const text of ['חובה לצרף בטופס את ההפניה מהרופא המפנה. לפי ההפניה נבדוק אם קיימת זכאות לביצוע המבדק דרך מכבי שלי. ההפניה צריכה להיות בתוקף.', 'مكابي شيلي. يجب أن تكون الإحالة سارية المفعول.', 'through Maccabi Sheli. The referral must still be valid.']) assert.ok(form.includes(text), text);
   assert.ok(form.includes('{referral.maccabi}'));
 });

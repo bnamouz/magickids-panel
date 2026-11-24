@@ -19,7 +19,6 @@ export default function ReferralFile({ id, uploadedAt }: { id: string; uploadedA
   return (
     <div className="rounded-lg border border-teal-200 bg-teal-50 p-3">
       <p className="font-semibold">הפניה מהרופא: צורפה בטופס{when && <> · <bdi>{when}</bdi></>}</p>
-      <p className="text-sm">לבקשה דרך מכבי: לוודא שההפניה בתוקף ולבדוק זכאות במכבי שלי.</p>
       <button type="button" disabled={busy} onClick={open} className="mt-2 underline font-semibold text-teal-900">{busy ? 'פותח…' : 'צפייה בהפניה'}</button>
       {failed && <p role="alert" className="text-red-700">לא ניתן לפתוח את הקובץ כרגע.</p>}
     </div>
