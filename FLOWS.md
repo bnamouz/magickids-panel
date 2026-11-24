@@ -21,6 +21,15 @@
   to send the MOXO referral recommended by the diagnosing physician.
 - Owner approved the additive identity migration on 2026-11-11; no upload
   endpoint or storage bucket is part of this change.
+- MOXO through Maccabi (2026-11-24): a family that books an ADHD assessment
+  with Maccabi and asks for a MOXO test is told, beside the MOXO choice and
+  again on the confirmation screen, to send the referral from the referring
+  physician on WhatsApp. The institute uses it to check eligibility for the
+  test through Maccabi Sheli, and the referral must still be valid. The same
+  requirement is stated in the referral box of /moxo. The calendar event of
+  such a booking carries a staff reminder (lib/booking/fund-lines.ts). Text
+  only: no upload, no schema change, no message is sent automatically.
+  Checked by scripts/test-moxo-referral.mjs.
 
 ## General treatment requests
 - /treatments remains a request-only form with contact and treatment selection.

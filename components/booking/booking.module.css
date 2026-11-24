@@ -23,3 +23,4 @@
 .intake .newFileAction a{color:#fff;text-decoration:none}
 .intake .newFileAction a:hover,.intake .newFileAction a:focus-visible{text-decoration:underline}
 .renewLink{margin:14px 0 0;padding:12px 16px;border:1px solid #b8d0c5;border-radius:14px;background:#fff;font-size:16px;line-height:1.5}.renewLink a{color:var(--teal);font-weight:800;text-decoration:underline;text-underline-offset:3px}
+.referralNote{margin:12px 0;padding:12px 14px;border:1px solid #d9a521;border-radius:12px;background:#fff8e1;color:#4a3500;font-size:15px;font-weight:600;line-height:1.6;text-align:start}.referralNote a{display:block;margin-top:8px;color:var(--teal);font-weight:800;text-decoration:underline;text-underline-offset:3px}
