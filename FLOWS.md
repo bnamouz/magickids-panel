@@ -332,3 +332,105 @@ imaging approval centre.
 - Keep "imaging replies are manual" unless the owner asks otherwise; the test
   "service: a Maccabi answer on an imaging request never notifies the family by
   itself; the desk confirms it" guards it.
+
+# Child development follow-up (2026-11-25)
+
+## Existing flows that must keep working
+Measured on main before the change (local, synthetic data):
+- /development: the parent registers (child, birth date, parent, mobile,
+  setting, consent) and lands on the original Maccabi pages for the age;
+  answers can be saved and are there again after a reload.
+- Submitting the parent questionnaire opens a separate educator link (or goes
+  straight to the doctor when the child is in no setting). The educator fills
+  her pages; the case moves to "review" with a generated summary.
+- /admin/development: list, case page, new links, document upload (referral,
+  signed consent), physician approval, choice of recipient, one e-mail with
+  the four files (summary, both questionnaires, referral), status "accepted",
+  audit development_packet_emailed, re-open after a send to the institute
+  inbox. No horizontal overflow at 375 on the registration form and the
+  manager page.
+- Cases from the earlier pilot (no form_version) stay readable.
+- scripts/test-development.mjs, test-development-mail.mjs and
+  test-development-original.mjs keep passing untouched.
+
+## Requested change (owner, 2026-11-25)
+Make the track work like the ADHD assessments: a family that registered and did
+not finish can come back to the same link; the manager can send the parent a
+reminder; the parent passes a link to the educator; the manager can remind the
+educator; when both questionnaires are in, the referral is attached and the
+packet goes to Maccabi so that the child is invited to a developmental
+evaluation; the manager can edit the case page.
+
+## What changed
+- Same link, always: the personal link is kept next to its hash
+  (parent_token, education_token; service role only), so the staff can show
+  and resend the link a family already has. Links issued before the change
+  keep working; "show link" on such a case adds a second working link and
+  does not cancel the first.
+- Coming back: answers are saved by themselves a moment after typing and when
+  the page is hidden or closed. The device remembers the parent link
+  ("המשך מילוי השאלון"). Registering again with the same mobile, birth date
+  and first name continues the open case (and renews an expired link) instead
+  of opening a second one. The rate limits are checked before that lookup, so
+  the form cannot be used to probe for cases.
+- After the parent submits: the educator link stays visible whenever the
+  parent returns, with a WhatsApp share button and optional name and mobile
+  of the educator (used for the staff reminder).
+- Manager page: filters with counts and search; a six-step bar (registration,
+  parent, educator, referral, approval, sent) with the next action in words;
+  "קישורים ותזכורות" (show, copy, open, replace with confirmation; WhatsApp
+  reminder in Hebrew or Arabic to the parent or the educator, sent from the
+  institute number after the staff confirm the number, held for 12 hours
+  after the previous one unless the staff insist); "עריכת פרטי התיק" (child,
+  birth date, parent, mobile, setting, educator contact); the staff can fill
+  or correct a questionnaire on the original pages and mark it completed.
+  A correction never overwrites a summary the doctor edited by hand; it can
+  be rebuilt on request.
+- Consent wording at registration now says the questionnaires and the
+  referral are passed to Maccabi after the doctor's review
+  (lib/development/consent.ts, version development-consent-20261125-v2).
+  Cases that agreed to the earlier wording, or were opened by the staff, show
+  a notice to verify consent before sending.
+- The e-mail to Maccabi (not the one to the institute inbox) adds "נבקש לזמן
+  את הילד/ה להערכה התפתחותית." and the parent's name and phone for scheduling.
+- Nothing is sent automatically: reminders go out only when the staff press
+  and confirm, one message at a time.
+- Audit: development_reminder_sent (role, language, ok; no link),
+  development_case_updated, development_answers_edited,
+  development_link_replaced.
+- Migration 20261125150000_development_followup.sql is additive (four nullable
+  columns, one check, two partial unique indexes). The code also runs without
+  it: registration, questionnaires and sending work as before; the manager
+  sees a note that showing the same link and reminders start after the
+  database update.
+
+## Checked 2026-11-25 (local, synthetic data only, no real e-mail or WhatsApp)
+- npm run test:development: 20 of 20 plus the original-pages check, including
+  15 new checks in scripts/test-development-followup.mjs.
+- Browser run against a local stand-in for Supabase, Gmail and UltraMsg:
+  public side 27 checks (autosave, restore, repeated registration, sibling
+  with the same phone, expired link, older link, educator link and contact,
+  educator flow, locked after completion, limits before lookup, foreign
+  origin, phone 375); manager side 41 checks (filters, search, stage bar,
+  show link, reminders he/ar with confirmation, 12-hour hold, provider down,
+  missing educator mobile, replace link, editing, staff fill and completion,
+  hand-edited summary kept, referral, approval, e-mail to Maccabi with the
+  two new lines and four files, audit without link codes, phone 375).
+- Old schema run, 15 checks: the whole existing flow to the e-mail works and
+  the manager page degrades as described.
+- The CI test list, npx tsc --noEmit and next build pass.
+- Found and fixed on the way: the original pages pushed the questionnaire
+  page 565px wider than a 375 phone screen (fieldset min-width). The markup
+  on main is the same, so main most likely has it too; the baseline run only
+  measured the registration form at 375, not the questionnaire.
+- Not checked: a real WhatsApp reminder, a real e-mail to Maccabi, and the
+  migration on the production database.
+
+## Changing it
+- Reminder wording: reminderMessage in lib/development/followup.ts (pure,
+  covered by tests). Hold time: REMINDER_COOLDOWN_MS in the same file.
+- Stage bar and next-action wording: caseSteps in lib/development/followup.ts.
+- Consent wording: lib/development/consent.ts; bump the version with the text.
+- What may be edited and when: editPlan in lib/development/followup.ts.
+- Keep "no automatic messages" and "show link never cancels a link" unless
+  the owner asks otherwise.

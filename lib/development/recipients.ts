@@ -1,5 +1,6 @@
 import { DESTINATION } from './schema';
 import { MACCABI_CHILDREN_CENTER_EMAIL } from '@/lib/maccabi/send-files';
+import { localPhone } from './followup';
 
 /** Where a reviewed child-development packet may be emailed. */
 /** Maccabi Shfaram child-development institute (Kamal Jumblatt) – address printed on the clinic referral form (1.11.2026). */
@@ -15,6 +16,9 @@ export type Recipient = keyof typeof RECIPIENTS;
 export const isRecipient = (v: unknown): v is Recipient => typeof v === 'string' && v in RECIPIENTS;
 /** Anything that leaves the institute requires an explicit confirmation flag from the UI. */
 export const isExternal = (r: Recipient) => r !== 'institute';
+
+/** What Maccabi is asked to do with the packet. */
+export const REQUEST_LINE = 'נבקש לזמן את הילד/ה להערכה התפתחותית.';
 
 const FILE_LABELS: Record<string, string> = {
  'reviewed-summary.pdf': 'ריכוז הדיווחים שנבדק במכון',
@@ -46,6 +50,8 @@ export function packetBody(recipient: Recipient, row: any, files: string[]) {
   '',
   `מצורפים מסמכי התפתחות הילד עבור ${row.child_name}${id ? `, ת.ז. ${id}` : ''}${row.birth_date ? `, תאריך לידה ${row.birth_date}` : ''}, בהמשך להפניית הרופא/ה המטפל/ת.`,
   'השאלונים מולאו על גבי ערכת מכבי המקורית על ידי ההורים והמסגרת החינוכית, ונבדקו במכון ילדי הקסם.',
+  REQUEST_LINE,
+  ...(row.parent_name && row.phone ? [`לתיאום מועד ניתן לפנות להורה: ${row.parent_name}, טלפון ${localPhone(row.phone)}.`] : []),
   '',
   'קבצים מצורפים:',
   ...files.map((f, i) => `${i + 1}. ${FILE_LABELS[f] ?? f} (${f})`),
