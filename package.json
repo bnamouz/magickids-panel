@@ -20,7 +20,8 @@
     "test:clinic-templates": "node --test scripts/test-clinic-templates.mjs",
     "test:prescriptions": "node --test scripts/test-prescriptions.mjs",
     "test:moxo-referral": "node --test scripts/test-moxo-referral.mjs",
-    "test:moxo-referral-upload": "node --test scripts/test-moxo-referral-upload.mjs"
+    "test:moxo-referral-upload": "node --test scripts/test-moxo-referral-upload.mjs",
+    "test:maccabi": "node --test scripts/test-maccabi-commitments.mjs scripts/test-maccabi-mail.mjs scripts/test-maccabi-imaging.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.6.1",

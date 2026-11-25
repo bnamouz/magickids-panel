@@ -4,7 +4,7 @@ import { runDailyCheck } from '@/lib/maccabi/commitment-service';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
-/** Daily (Sun–Thu morning, Israel): read Maccabi replies, notify families when a commitment is ready, remind the branch after 3 business days. */
+/** Daily (Sun–Thu morning, Israel): read Maccabi replies, notify families when a commitment is ready, remind the branch after 3 business days (imaging center after 6; imaging answers always wait for a person). */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const actual = Buffer.from(req.headers.get('authorization') ?? '');

@@ -2,8 +2,8 @@ import { randomUUID } from 'crypto';
 import { sender } from '@/lib/therapists/mail';
 import { buildRawMessage, type MailAttachment } from '@/lib/maccabi/send-files';
 
-export { MACCABI_BRANCH_EMAIL, REMINDER_AFTER_BUSINESS_DAYS, SERVICES, STATUS_LABEL, OPEN_STATUSES, type CommitmentStatus } from '@/lib/maccabi/commitment-shared';
-import { MACCABI_BRANCH_EMAIL } from '@/lib/maccabi/commitment-shared';
+export { MACCABI_BRANCH_EMAIL, MACCABI_IMAGING_EMAILS, IMAGING_TYPES, IMAGING_REMINDER_AFTER_BUSINESS_DAYS, REMINDER_AFTER_BUSINESS_DAYS, reminderAfter, SERVICES, STATUS_LABEL, OPEN_STATUSES, recipientFor, statusLabel, type CommitmentStatus, type RequestKind } from '@/lib/maccabi/commitment-shared';
+import { recipientFor, type RequestKind } from '@/lib/maccabi/commitment-shared';
 export const CLINIC_PHONE = '054-349-6656';
 export const CLINIC_ADDRESS = 'תופיק זיאד 21, שפרעם';
 
@@ -14,13 +14,27 @@ export function newReference(now = new Date()) {
 
 export const fmtDate = (d: string | Date | null | undefined) => d ? new Date(d).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' }) : null;
 
-export type CommitmentInput = { reference: string; patientName: string; nationalId: string; birthDate?: string | null; phone: string; service: string; note?: string | null; staffName?: string | null; attachments?: string[] };
+export type CommitmentInput = { kind?: RequestKind; reference: string; patientName: string; nationalId: string; birthDate?: string | null; phone: string; service: string; note?: string | null; staffName?: string | null; attachments?: string[] };
 
-export function requestSubject(i: Pick<CommitmentInput, 'reference' | 'patientName' | 'nationalId' | 'service'>) {
+type SubjectInput = Pick<CommitmentInput, 'kind' | 'reference' | 'patientName' | 'nationalId' | 'service'>;
+const signature = (staffName?: string | null) => ['בברכה,', staffName ? `${staffName} · מזכירות מרפאת הילדים` : 'מזכירות מרפאת הילדים', `ד״ר בסים נמוז – רופא ילדים · ${CLINIC_ADDRESS}`, `טלפון ${CLINIC_PHONE} · ${sender}`];
+
+export function requestSubject(i: SubjectInput) {
+  if (i.kind === 'imaging') return `בקשה לאישור בדיקת דימות – ${i.patientName} ת.ז. ${i.nationalId} – ${i.service} [${i.reference}]`;
   return `בקשה להתחייבות – ${i.patientName} ת.ז. ${i.nationalId} – ${i.service} [${i.reference}]`;
 }
 
+/** Imaging approval request to the Maccabi imaging center; the recommendation document is always attached. */
+function imagingBody(i: CommitmentInput) {
+  return ['שלום רב,', '', 'נבקש את אישורכם לביצוע בדיקת דימות שהומלצה עבור המטופל/ת הבא/ה. מסמך ההמלצה מצורף.', '',
+    `שם: ${i.patientName}`, `ת.ז.: ${i.nationalId}`, ...(i.birthDate ? [`תאריך לידה: ${fmtDate(i.birthDate)}`] : []), `טלפון ליצירת קשר: ${i.phone}`, `הבדיקה המבוקשת: ${i.service}`,
+    ...(i.note?.trim() ? ['', 'פרטים נוספים:', i.note.trim()] : []),
+    ...(i.attachments?.length ? ['', 'מסמכים מצורפים:', ...i.attachments.map((f, k) => `${k + 1}. ${f}`)] : []),
+    '', 'נודה לתשובתכם במייל זה, ונעדכן את המשפחה.', `מספר אסמכתא לבקשה: ${i.reference}`, '', ...signature(i.staffName)].join('\n');
+}
+
 export function requestBody(i: CommitmentInput) {
+  if (i.kind === 'imaging') return imagingBody(i);
   const lines = ['שלום רב,', '', `נבקש להנפיק התחייבות (טופס 17) עבור המטופל/ת הבא/ה, בעקבות הפניית ד״ר בסים נמוז:`, '',
     `שם: ${i.patientName}`, `ת.ז.: ${i.nationalId}`, ...(i.birthDate ? [`תאריך לידה: ${fmtDate(i.birthDate)}`] : []), `טלפון ההורה: ${i.phone}`, `השירות המבוקש: ${i.service}`,
     ...(i.note?.trim() ? ['', 'פרטים נוספים:', i.note.trim()] : []),
@@ -30,12 +44,17 @@ export function requestBody(i: CommitmentInput) {
   return lines.join('\n');
 }
 
-export function reminderBody(i: Pick<CommitmentInput, 'reference' | 'patientName' | 'nationalId' | 'service'> & { sentAt: Date; nth: number }) {
+export function reminderBody(i: SubjectInput & { sentAt: Date; nth: number }) {
+  if (i.kind === 'imaging') return ['שלום רב,', '', `תזכורת${i.nth > 1 ? ` (${i.nth})` : ''} לבקשה לאישור בדיקת דימות שנשלחה ב־${fmtDate(i.sentAt)} עבור ${i.patientName}, ת.ז. ${i.nationalId}. הבדיקה המבוקשת: ${i.service}.`,
+    'נודה לעדכון על סטטוס הבקשה במייל זה.', `מספר אסמכתא: ${i.reference}`, '', 'בברכה,', 'מזכירות מרפאת הילדים – ד״ר בסים נמוז', `טלפון ${CLINIC_PHONE}`].join('\n');
   return ['שלום רב,', '', `תזכורת${i.nth > 1 ? ` (${i.nth})` : ''} לבקשת ההתחייבות שנשלחה ב־${fmtDate(i.sentAt)} עבור ${i.patientName}, ת.ז. ${i.nationalId}, לשירות: ${i.service}.`,
     'נודה לעדכון על סטטוס הבקשה במייל זה.', `מספר אסמכתא: ${i.reference}`, '', 'בברכה,', 'מזכירות מרפאת הילדים – ד״ר בסים נמוז', `טלפון ${CLINIC_PHONE}`].join('\n');
 }
 
-export function readyWhatsApp(i: { patientName: string; service: string; lang?: 'he' | 'ar' }) {
+export function readyWhatsApp(i: { kind?: RequestKind | null; patientName: string; service: string; lang?: 'he' | 'ar' }) {
+  if (i.kind === 'imaging') return i.lang === 'ar'
+    ? `مرحبًا، معكم عيادة الأطفال – د. بسيم نموز.\nوصلت موافقة مكابي على إجراء فحص التصوير لـ${i.patientName} (${i.service}).\nيمكنكم حجز موعد للفحص في أحد معاهد التصوير المتعاقدة مع مكابي.\nللاستفسار: ${CLINIC_PHONE}`
+    : `שלום, כאן מרפאת הילדים של ד״ר בסים נמוז.\nהתקבל ממכבי אישור לביצוע בדיקת הדימות עבור ${i.patientName} (${i.service}).\nאפשר לקבוע תור לבדיקה באחד ממכוני הדימות שבהסכם עם מכבי.\nלשאלות: ${CLINIC_PHONE}`;
   if (i.lang === 'ar') return `مرحبًا، معكم عيادة الأطفال – د. بسيم نموز.\nالتعهد المالي (טופס 17) من مكابي لـ${i.patientName} (${i.service}) أصبح جاهزًا في نظام مكابي.\nيمكنكم التوجه إلينا أو حجز موعد: ${CLINIC_PHONE}\n${CLINIC_ADDRESS}`;
   return `שלום, כאן מרפאת הילדים של ד״ר בסים נמוז.\nההתחייבות ממכבי (טופס 17) עבור ${i.patientName} (${i.service}) מוכנה במערכת של מכבי.\nאפשר להגיע אלינו או לקבוע תור: ${CLINIC_PHONE}\n${CLINIC_ADDRESS}`;
 }
@@ -43,12 +62,12 @@ export function readyWhatsApp(i: { patientName: string; service: string; lang?: 
 /** Message-ID header value for a request/reminder, keeps all mails in one Gmail thread. */
 export const rfcId = (messageId: string) => `${messageId.replace(/[^a-zA-Z0-9-]/g, '-')}@magickidsinstitute.com`;
 
-export function buildRequestRaw(i: CommitmentInput, attachments: MailAttachment[], to = MACCABI_BRANCH_EMAIL) {
+export function buildRequestRaw(i: CommitmentInput, attachments: MailAttachment[], to = recipientFor(i.kind)) {
   return buildRawMessage({ to, subject: requestSubject(i), text: requestBody({ ...i, attachments: attachments.map((a) => a.filename) }), attachments, messageId: i.reference });
 }
 
-export function buildReminderRaw(i: Pick<CommitmentInput, 'reference' | 'patientName' | 'nationalId' | 'service'> & { sentAt: Date; nth: number; to?: string }) {
-  const raw = buildRawMessage({ to: i.to ?? MACCABI_BRANCH_EMAIL, subject: `Re: ${requestSubject(i)}`, text: reminderBody(i), attachments: [], messageId: `${i.reference}-r${i.nth}` });
+export function buildReminderRaw(i: SubjectInput & { sentAt: Date; nth: number; to?: string | null }) {
+  const raw = buildRawMessage({ to: i.to || recipientFor(i.kind), subject: `Re: ${requestSubject(i)}`, text: reminderBody(i), attachments: [], messageId: `${i.reference}-r${i.nth}` });
   const orig = rfcId(i.reference);
   return raw.replace('MIME-Version: 1.0', `In-Reply-To: <${orig}>\r\nReferences: <${orig}>\r\nMIME-Version: 1.0`);
 }
