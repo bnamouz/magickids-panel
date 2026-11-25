@@ -1,5 +1,15 @@
 # Child development referrals — implementation and release gates
 
+## Follow-up, reminders and case editing (2026-11-25)
+
+Owner request: the track should work like the ADHD assessments. Families return to the same link, the manager can remind the parent and the educator by WhatsApp, edit the case, fill a questionnaire for a respondent, and send the completed packet to Maccabi with a request to invite the child to a developmental evaluation. Full description, checks and change points: `FLOWS.md`, section "Child development follow-up (2026-11-25)".
+
+- Migration `supabase/migrations/20261125150000_development_followup.sql` (additive): `parent_token`, `education_token`, `education_contact_name`, `education_phone`. Apply it before the release; the code tolerates its absence.
+- The personal links are stored readable next to their hashes, as in the ADHD track, so the same link can be shown and resent. The table stays service-role only; link codes are never written to the audit log.
+- Registration consent text and version live in `lib/development/consent.ts`. The earlier owner instruction "never to Maccabi" (below) was already superseded by the recipient choice; the consent wording now matches it.
+- Reminders are manual, one at a time, from the institute WhatsApp number, with a 12-hour hold between reminders to the same person.
+- Verification: `npm run test:development`, `npx tsc --noEmit`, and the browser runs listed in `FLOWS.md`.
+
 ## Original questionnaire workflow (2026-10-03)
 
 Owner instruction: completed packets are emailed ONLY to `magickids@magickidsinstitute.com`, never to Maccabi. The destination is server-fixed; no CC or BCC is generated. This supersedes the historical destination below.
