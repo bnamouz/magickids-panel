@@ -261,3 +261,74 @@ attended, moxo_pending או reported, דוח או הערכת רופא שמורי
   attach one".
 - Migration 20261123120000_prescription_renewals.sql (two private tables,
   service role only) is applied in production.
+
+# Maccabi imaging approval desk (2026-11-25)
+
+## Existing flows that must keep working
+- /admin/secretaries (admin and secretary roles): the commitment desk (Form 17)
+  sends one e-mail with the attached documents to the Maccabi branch
+  (shfaram@mac.org.il), reminds after 3 business days (up to 3 reminders),
+  reads the replies of its own thread only, and tells the family by WhatsApp
+  only when staff press the button or the reply clearly says "ready".
+- The subject, body, reminder and WhatsApp text of a commitment request are
+  unchanged. scripts/test-maccabi-commitments.mjs and
+  scripts/test-maccabi-mail.mjs must keep passing untouched.
+- The daily cron (app/api/cron/maccabi-commitments) keeps one entry point for
+  both kinds of request.
+
+## Requested change (owner, 2026-11-25)
+A second desk on the same page: ask Maccabi to approve an imaging test that was
+recommended for a patient, attach the recommendation, and send it to the
+imaging approval centre.
+
+- One e-mail to both addresses: DimutRequest@mac.org.il and
+  ImageConsult@mac.org.il (MACCABI_IMAGING_EMAILS in
+  lib/maccabi/commitment-shared.ts). The first is the address Maccabi
+  publishes for CT, MRI and nuclear-scan approvals. The second was added on
+  the owner's instruction and has no public source.
+- The recommendation document is mandatory, in the browser and on the server
+  (400 recommendation_required). Nothing is sent without it.
+- Fields: imaging type (IMAGING_TYPES) and the examined area or detail.
+- Maccabi states up to 5 business days for handling, so the automatic reminder
+  goes out on the 6th business day (IMAGING_REMINDER_AFTER_BUSINESS_DAYS), up
+  to 3 reminders. Commitment requests stay at 3 days.
+- A reply on an imaging thread is never classified by the model and never
+  messages the family by itself: the request moves to "reply received, to
+  check" and a staff member presses "the test was approved, update the
+  family". Maccabi often answers through the doctor or Maccabi Online and not
+  by e-mail, so the button also works with no reply.
+- Storage: two additive columns on maccabi_commitments, kind ('commitment' by
+  default, or 'imaging') and recipient_email (migration
+  20261125120000_maccabi_imaging_requests.sql). Without the migration the
+  commitment desk works exactly as before and an imaging request is refused
+  before any e-mail is sent (503 imaging_not_ready).
+- Audit: maccabi_imaging_requested, plus the existing reminder, reply and
+  ready actions with the kind in the metadata.
+- Small related fix: the long scope address in the amber setup banner wraps
+  instead of pushing the page 52px wide on a phone (it did so on main).
+
+## Checked 2026-11-25 (local, synthetic data only, no real e-mail or WhatsApp)
+- npm run test:maccabi: 23 of 23, including 12 new checks in
+  scripts/test-maccabi-imaging.mjs (recipients, subject, body, reminder day,
+  manual-only replies, WhatsApp text in Hebrew and Arabic, refusal on the old
+  schema).
+- Browser run against a local stand-in for Supabase, Gmail and UltraMsg, 29
+  checks: commitment request still goes to the branch with the same subject;
+  imaging request without a file is refused; with a file one e-mail goes to
+  both addresses with the attachment; reminder goes to the same thread and
+  addresses; a reply moves the request to manual review and sends nothing to
+  the family; the staff button sends the imaging WhatsApp text; cancel; the
+  two lists stay separate; desktop 1280 and phone 375 with no horizontal
+  overflow and no console errors.
+- Old schema run: commitment request still sent, imaging request refused with
+  no e-mail.
+- npx tsc --noEmit and next build pass.
+- Not checked: a real e-mail to Maccabi and whether ImageConsult@mac.org.il
+  accepts mail.
+
+## Changing it
+- Addresses and reminder days: lib/maccabi/commitment-shared.ts.
+- E-mail and WhatsApp wording: lib/maccabi/commitments.ts (kind 'imaging').
+- Keep "imaging replies are manual" unless the owner asks otherwise; the test
+  "service: a Maccabi answer on an imaging request never notifies the family by
+  itself; the desk confirms it" guards it.

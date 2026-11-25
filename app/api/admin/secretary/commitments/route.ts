@@ -39,6 +39,7 @@ export async function PUT(req: NextRequest) {
 }
 
 const CreateSchema = z.object({
+  kind: z.enum(['commitment', 'imaging']).default('commitment'),
   clinic_patient_id: z.string().uuid().nullable().optional(),
   patient_name: z.string().trim().min(2).max(160),
   national_id: z.string().transform(asciiDigits).pipe(z.string().regex(/^[0-9]{5,9}$/)),
@@ -50,13 +51,15 @@ const CreateSchema = z.object({
   test_to_self: z.boolean().default(false),
 });
 
-/** POST – send the commitment request to the Maccabi branch and start tracking it. */
+/** POST – send the request (commitment → branch, imaging approval → imaging center) and start tracking it. */
 export async function POST(req: NextRequest) {
   const g = await guard(req, true); if ('error' in g) return g.error;
   const parsed = CreateSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return reply({ error: 'invalid_body', fields: parsed.error.issues.map((i) => String(i.path[0])) }, 400);
   if (!mailConfigured()) return reply({ error: 'mail_not_configured' }, 503);
   const d = parsed.data;
+  // An imaging approval request is meaningless without the recommendation document.
+  if (d.kind === 'imaging' && d.uploads.length === 0) return reply({ error: 'recommendation_required' }, 400);
   if (d.uploads.some((u) => !u.path.startsWith(`${PREFIX}${g.staff.id}/`) || u.path.includes('..'))) return reply({ error: 'invalid_body' }, 400);
   const db = getSupabaseAdmin();
   const attachments: MailAttachment[] = [];
@@ -75,13 +78,13 @@ export async function POST(req: NextRequest) {
   } catch (e) { return reply({ error: e instanceof Error && e.message === 'too_large' ? 'too_large' : 'file_missing' }, 400); }
   try {
     const row = await createCommitment({
-      clinicPatientId: d.clinic_patient_id ?? null, patientName: d.patient_name, nationalId: d.national_id, birthDate: d.birth_date || null, phone: d.phone,
+      kind: d.kind, clinicPatientId: d.clinic_patient_id ?? null, patientName: d.patient_name, nationalId: d.national_id, birthDate: d.birth_date || null, phone: d.phone,
       service: d.service, note: d.note, staffName: g.staff.full_name, createdBy: g.staff.id, files: attachments, testToSelf: d.test_to_self,
     });
     if (d.uploads.length) await db.storage.from(BUCKET).remove(d.uploads.map((u) => u.path));
     return reply({ ok: true, commitment: row });
   } catch (e) {
     const m = e instanceof Error ? e.message : '';
-    return reply({ error: m === 'db_insert_failed' ? 'db' : 'send_failed' }, 502);
+    return reply({ error: m === 'db_insert_failed' ? 'db' : m === 'imaging_not_ready' ? 'imaging_not_ready' : 'send_failed' }, m === 'imaging_not_ready' ? 503 : 502);
   }
 }
