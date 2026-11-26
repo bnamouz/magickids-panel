@@ -185,6 +185,6 @@ export function isOfficeHours(now: Date): boolean {
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
   const day = get('weekday'), minutes = Number(get('hour')) * 60 + Number(get('minute'));
   if (['Sun', 'Mon', 'Tue', 'Wed', 'Thu'].includes(day)) return minutes >= 9 * 60 && minutes < 19 * 60;
-  if (day === 'Fri') return minutes >= 9 * 60 && minutes < 13 * 60;
+  // The institute is closed on Fridays and Saturdays.
   return false;
 }
