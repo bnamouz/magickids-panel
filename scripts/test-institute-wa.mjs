@@ -204,6 +204,9 @@ test('human takeover: staff typing pauses the bot for 12h in that chat only', as
   assert.equal(take.reason, '2026-11-17T22:00:00.000Z');
   const later = await processEvent(ev({ body: 'תודה!' }), t.deps());
   assert.deepEqual(later, { action: 'skipped', reason: 'paused' });
+  const [flagged] = await t.q("select needs_staff, staff_reason from institute_wa_chats where chat_phone='972501234567'");
+  assert.deepEqual(flagged, { needs_staff: true, staff_reason: 'reply_while_paused' });
+  await t.q("update institute_wa_chats set needs_staff=false where chat_phone='972501234567'");
   assert.equal((await processEvent(ev({ from: '972507777777@c.us' }), t.deps())).action, 'sent');
   assert.equal(t.sent.length, 2);
   // After the pause expires, the bot answers again.
