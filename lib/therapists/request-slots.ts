@@ -61,3 +61,17 @@ export function requestSlots(
   }
   return result.sort((a, b) => a.start.localeCompare(b.start));
 }
+
+/** Remove one interval (the request's own appointment) from busy intervals,
+ *  so the appointment being moved does not block its own new time. */
+export function subtractBusy(busy: { start: string; end: string }[], own: { start: string; end: string } | null) {
+  if (!own) return busy;
+  const os = Date.parse(own.start), oe = Date.parse(own.end), out: { start: string; end: string }[] = [];
+  for (const b of busy) {
+    const s = Date.parse(b.start), e = Date.parse(b.end);
+    if (e <= os || s >= oe) { out.push(b); continue; }
+    if (s < os) out.push({ start: b.start, end: new Date(os).toISOString() });
+    if (e > oe) out.push({ start: new Date(oe).toISOString(), end: b.end });
+  }
+  return out;
+}

@@ -22,7 +22,7 @@ export async function reconcileCalendars(){
   if(queued.error)throw queued.error;
   const [a,t,m]=await Promise.all([
    db.from('appointments').select('id').in('status',['scheduled','confirmed']).in('calendar_sync',['pending','failed']).gt('scheduled_at',now).order('scheduled_at').limit(10),
-   db.from('treatment_requests').select('id').in('calendar_sync',['pending','failed']).in('status',['scheduled','closed']).order('updated_at').limit(10),
+   db.from('treatment_requests').select('id').in('calendar_sync',['pending','failed']).in('status',['scheduled','closed','contacted']).order('updated_at').limit(10),
    db.from('moxo_requests').select('id').eq('status','approved').neq('calendar_status','synced').gt('scheduled_at',now).order('scheduled_at').limit(10),
   ]);
   if(a.error||t.error||m.error)throw new Error('unavailable');

@@ -18,12 +18,19 @@ export async function syncTreatment(id:string){
   const bound=await db.from('treatment_requests').update({calendar_id:calendarId,calendar_event_id:eventId}).eq('id',id).eq('calendar_sync','syncing');
   if(bound.error)throw bound.error;
   const c=getCalendarClient();
+  let nextEventId=eventId;
   if(r.status==='closed'){
    try{await c.events.delete({calendarId,eventId,sendUpdates:'none'});}catch(e:any){if(![404,410].includes(e.code??e.response?.status))throw e;}
+  }else if(r.status!=='scheduled'&&r.calendar_event_id){
+   // Cancelled appointment (patient waits for a new time): remove the stored
+   // event. Google keeps a deleted ID as a 'cancelled' tombstone, so a later
+   // booking of this request gets a fresh deterministic ID (base32hex suffix).
+   try{await c.events.delete({calendarId,eventId,sendUpdates:'none'});}catch(e:any){if(![404,410].includes(e.code??e.response?.status))throw e;}
+   nextEventId='treatment'+r.id.replace(/-/g,'')+'v'+Date.now().toString(32);
   }else if(r.status==='scheduled'){
    const event={summary:`טיפול במכון · ${r.therapist}`,description:`פרטי הפנייה זמינים לצוות בלבד: https://app.magickidsinstitute.com/admin/treatments`,visibility:'private',start:{dateTime:r.scheduled_at,timeZone:'Asia/Jerusalem'},end:{dateTime:new Date(Date.parse(r.scheduled_at)+r.duration_minutes*60000).toISOString(),timeZone:'Asia/Jerusalem'},reminders:{useDefault:false,overrides:[{method:'popup',minutes:120},{method:'email',minutes:120}]},extendedProperties:{private:{treatmentRequest:r.id}}};
    await ensureCalendarEvent(c,calendarId,eventId,event,[calendarId],true);
   }
-  const saved=await db.from('treatment_requests').update({calendar_id:calendarId,calendar_event_id:eventId,calendar_sync:'synced',calendar_synced_at:new Date().toISOString()}).eq('id',id).eq('calendar_sync','syncing');return saved.error?'failed':'synced';
+  const saved=await db.from('treatment_requests').update({calendar_id:calendarId,calendar_event_id:nextEventId,calendar_sync:'synced',calendar_synced_at:new Date().toISOString()}).eq('id',id).eq('calendar_sync','syncing');return saved.error?'failed':'synced';
  }catch{await db.from('treatment_requests').update({calendar_sync:'failed'}).eq('id',id);return 'failed';}
 }

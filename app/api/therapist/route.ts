@@ -4,6 +4,7 @@ import { authenticateTherapist,availableSlots } from '@/lib/therapists/server';
 import { availabilitySchema } from '@/lib/therapists/schema';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { scheduleTreatment,closeTreatment } from '@/lib/therapists/workflow';
+import { ChangeError,previewChange,rescheduleTreatment,cancelAppointment,removePatient,listTreatmentChanges } from '@/lib/therapists/appointment-changes';
 export const dynamic='force-dynamic';
 const reply=(b:unknown,s=200)=>NextResponse.json(b,{status:s,headers:{'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'}});
 export async function POST(req:NextRequest){
@@ -14,12 +15,18 @@ export async function POST(req:NextRequest){
   const db=getSupabaseAdmin();
   if(b.action==='read'){
    const r=await db.from('treatment_requests').select('id,patient_name,national_id,contact_name,phone,treatment,availability,status,scheduled_at,duration_minutes,calendar_sync').eq('therapist_id',t.id).in('status',['pending','contacted','scheduled']).order('created_at').limit(100);if(r.error)throw new Error('unavailable');
-   return reply({profile:{id:t.id,name:t.name,hours:t.hours,leave_dates:t.leave_dates,duration:t.duration},requests:r.data,slots:await availableSlots(t)});
+   const changes=await listTreatmentChanges((r.data??[]).map(x=>x.id));
+   return reply({profile:{id:t.id,name:t.name,hours:t.hours,leave_dates:t.leave_dates,duration:t.duration},requests:(r.data??[]).map(x=>({...x,changes:changes[x.id]??[]})),slots:await availableSlots(t)});
   }
   if(b.action==='hours'){const v=availabilitySchema.parse(b.availability);const r=await db.from('therapists').update({...v,updated_at:new Date().toISOString()}).eq('id',t.id);if(r.error)throw new Error('unavailable');return reply({saved:true});}
   const id=z.string().uuid().parse(b.requestId);const r=await db.from('treatment_requests').select('id').eq('id',id).eq('therapist_id',t.id).maybeSingle();if(r.error||!r.data)return reply({error:'not_assigned'},403);
   if(b.action==='schedule'){if(b.confirmed!==true)return reply({error:'confirm_parent'},400);return reply(await scheduleTreatment(id,t.id,z.string().datetime().parse(b.start),null));}
   if(b.action==='close')return reply(await closeTreatment(id,t.id));
+  const actor={therapistId:t.id,staffId:null};
+  if(b.action==='change_preview')return reply(await previewChange(id,actor,b));
+  if(b.action==='reschedule')return reply(await rescheduleTreatment(id,actor,b));
+  if(b.action==='cancel_appointment')return reply(await cancelAppointment(id,actor,b));
+  if(b.action==='remove_patient')return reply(await removePatient(id,actor,b));
   return reply({error:'invalid_request'},400);
- }catch(e){return reply({error:e instanceof z.ZodError?'invalid_request':e instanceof Error?e.message:'unavailable'},400);}
+ }catch(e){if(e instanceof ChangeError)return reply({error:e.message},e.status);return reply({error:e instanceof z.ZodError?'invalid_request':e instanceof Error?e.message:'unavailable'},400);}
 }

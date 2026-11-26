@@ -14,10 +14,21 @@ Availability uses Israel time, weekly day/time windows, inclusive date exception
 
 No real invitations or appointment reminders were sent during development. Add actual therapist emails in the authenticated management page and verify one invitation and calendar sync before relying on automation.
 
+## Appointment edits (reschedule, cancel, remove)
+Both therapist surfaces (`POST /api/therapist` and `POST /api/therapist/[slug]`, same auth/ownership as before; staff on the diary are recorded as actor `staff`) accept:
+- `change_preview` `{requestId, kind:'reschedule'|'cancel', reason, start?, note?}` → `{text}` (exact parent WhatsApp, no side effects).
+- `reschedule` `{requestId, start, reason, note, notify}` → `{status:'rescheduled', calendar, whatsapp}`. Only `scheduled` rows; general portal validates `therapists.hours`/leave, diary validates the booking-profile slots (own current slot excluded). Duration is kept, the same calendar event moves. If the new slot fails nothing changes.
+- `cancel_appointment` `{requestId, reason, note, notify}` → `{status:'cancelled', calendar, whatsapp}`. Row back to `contacted`, `scheduled_at` cleared, event deleted (a fresh event id is stored for the next booking because Google keeps deleted ids as tombstones), no reminder.
+- `remove_patient` `{requestId, reason, note?}` → `{status:'removed', calendar}`. Row `closed`; never messages parents.
+Reasons come from `lib/therapists/change-reasons.ts`; `other` needs a note; notes ≤300 chars, no links/domains, no control/bidi/zero-width characters. Parent messages (he/ar/en) are sent with `notifyOnce('treatment-change:<change id>', phone, text, {sender:'institute'})` only after the database change succeeded and never when `notify` is false. `read` responses add `changes` (newest 5) per request. Old `close` / `close_referral` still work.
+
+Storage: `treatment_request_changes` (RLS, service role only) plus the SQL functions `reschedule_treatment_request`, `cancel_treatment_appointment`, `remove_treatment_patient` (same advisory lock as scheduling) in `supabase/migrations/20261127090000_treatment_request_changes.sql`. **Apply this migration before deploying the code**; until then the new actions fail with `unavailable` and history lists are empty.
+
 ## Validation
 `node scripts/test-therapists.mjs`
 `node scripts/test-treatment-validation.mjs`
 `node scripts/test-treatments.mjs`
+`node scripts/test-appointment-changes.mjs`
 `npx tsc --noEmit`
 
 ## Hosting limitation
