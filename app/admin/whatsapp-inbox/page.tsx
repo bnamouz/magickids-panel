@@ -11,7 +11,7 @@ export const metadata = { title: 'וואטסאפ המכון — תיבת פני�
 const MODE_LABEL = { off: 'כבוי — הודעות נרשמות בלבד', shadow: 'מצב צל — טיוטות נשמרות ואינן נשלחות', on: 'פעיל — תשובות נשלחות למשפחות' } as const;
 const REASON_LABEL: Record<string, string> = {
   auto_reply_cap: 'הגיע למכסת תשובות אוטומטיות בשיחה', global_cap: 'הגיע למכסת התשובות הכללית לשעה', ai_failed: 'הבוט לא הצליח לנסח תשובה',
-  urgent: 'פנייה דחופה', complaint: 'תלונה', document_request: 'בקשת מסמך', send_failed: 'שליחה נכשלה', send_uncertain: 'תוצאת שליחה לא ודאית',
+  urgent: 'פנייה דחופה', complaint: 'תלונה', document_request: 'בקשת מסמך', send_failed: 'שליחה נכשלה', send_uncertain: 'תוצאת שליחה לא ודאית', reply_while_paused: 'ההורה ענה אחרי הודעה ידנית מהצוות',
 };
 function reasonLabel(r: string | null) {
   if (!r) return '';

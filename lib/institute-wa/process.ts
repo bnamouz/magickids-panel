@@ -57,7 +57,12 @@ export async function processEvent(e: WaEvent, deps: { store: Store; send: Sende
   if (config.mode === 'off') return { action: 'logged', reason: 'mode_off' };
 
   const prev = claimed.previous;
-  if (prev?.paused_until && new Date(prev.paused_until) > now()) { await store.updateMessage(claimed.id, { status: 'skipped', meta: { skip: 'paused' } }); return { action: 'skipped', reason: 'paused' }; }
+  if (prev?.paused_until && new Date(prev.paused_until) > now()) {
+    // The bot stays silent, but a family reply during a staff pause must not be missed.
+    if (!prev.needs_staff) await store.flag(e.chatPhone, isTextMessage(e) ? 'reply_while_paused' : `reply_while_paused:${e.type}`);
+    await store.updateMessage(claimed.id, { status: 'skipped', meta: { skip: 'paused' } });
+    return { action: 'skipped', reason: 'paused' };
+  }
   if (prev?.needs_staff) { await store.updateMessage(claimed.id, { status: 'skipped', meta: { skip: 'needs_staff' } }); return { action: 'skipped', reason: 'needs_staff' }; }
 
   const firstMessage = !prev;
