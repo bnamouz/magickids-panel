@@ -3,7 +3,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarClient } from '@/lib/google-calendar';
 import { parseFreeBusy, type Busy } from '@/lib/booking/schedule';
-import { requestSlots, validateRequestAvailability, type RequestAvailability } from './request-slots';
+import { requestSlots, subtractBusy, validateRequestAvailability, type RequestAvailability } from './request-slots';
 import { labels, treatments } from '@/lib/treatments/schema';
 /** Labels of the therapist's main field per language, e.g. טיפול רגשי / ריפוי בעיסוק. */
 export function treatmentLabels(list?:string[]|null){const i=treatments.indexOf((list?.[0]??'') as typeof treatments[number]);return {he:i>=0?labels.he[i]:'טיפול',ar:i>=0?labels.ar[i]:'علاج',en:i>=0?labels.en[i]:'Therapy'};}
@@ -42,7 +42,9 @@ export async function googleBusy(calendarId:string,start:string,end:string):Prom
 }
 /** `duration` overrides the window duration (therapist-set requests carry the
  *  duration of the service the parent chose, e.g. 45 vs 60 minutes). */
-export async function publicBookingSlots(slug?:string,duration?:number|null) {
+/** `exclude`: id of a scheduled treatment request being moved; its own current
+ *  slot (DB row and its Google event time) does not block the new time. */
+export async function publicBookingSlots(slug?:string,duration?:number|null,exclude?:string|null) {
   const p=await bookingProfile(slug),now=new Date(),db=getSupabaseAdmin();
   if(duration&&[30,45,60,90].includes(duration))p.availability={...p.availability,windows:(p.availability.windows as RequestWindow[])
     .map(w=>({...w,duration,end:w.start+Math.floor((w.end-w.start)/duration)*duration})).filter((w:RequestWindow)=>w.end>w.start)};
@@ -50,15 +52,18 @@ export async function publicBookingSlots(slug?:string,duration?:number|null) {
   const [requests,legacy,external]=await Promise.all([
     db.from('therapist_booking_requests').select('starts_at,ends_at,status,expires_at').eq('therapist_id',p.therapist_id)
       .in('status',['pending','syncing','confirmed','cancelling']).gt('ends_at',now.toISOString()).lt('starts_at',end),
-    db.from('treatment_requests').select('therapist_id,therapist,scheduled_at,duration_minutes').eq('status','scheduled')
+    db.from('treatment_requests').select('id,therapist_id,therapist,scheduled_at,duration_minutes').eq('status','scheduled')
       .gte('scheduled_at',new Date(now.getTime()-86400000).toISOString()).lt('scheduled_at',end),
     googleBusy(p.calendar_id,now.toISOString(),end),
   ]);
   if(requests.error||legacy.error)throw new BookingError('unavailable',503);
   const held:Busy[]=(requests.data??[]).filter(r=>r.status!=='pending'||Date.parse(r.expires_at)>now.getTime()).map(r=>({start:r.starts_at,end:r.ends_at}));
-  const old:Busy[]=(legacy.data??[]).filter(r=>r.therapist_id===p.therapist_id||(!r.therapist_id&&r.therapist?.toLowerCase()===p.therapist.name.toLowerCase()))
+  const mine=(legacy.data??[]).filter(r=>r.therapist_id===p.therapist_id||(!r.therapist_id&&r.therapist?.toLowerCase()===p.therapist.name.toLowerCase()));
+  const self=exclude?mine.find(r=>r.id===exclude):undefined;
+  const own=self?{start:self.scheduled_at,end:new Date(Date.parse(self.scheduled_at)+self.duration_minutes*60000).toISOString()}:null;
+  const old:Busy[]=mine.filter(r=>r!==self)
     .map(r=>({start:r.scheduled_at,end:new Date(Date.parse(r.scheduled_at)+r.duration_minutes*60000).toISOString()}));
-  const slots=requestSlots(p.availability,[...held,...old,...external],now).filter(s=>
+  const slots=requestSlots(p.availability,[...held,...old,...subtractBusy(external,own)],now).filter(s=>
     !(p.therapist.leave_dates??[]).some((d:{start:string;end:string})=>s.day>=d.start&&s.day<=d.end));
   return {name:p.therapist.name,treatment:treatmentLabels(p.therapist.treatments),slug:p.slug,slots,timeZone:'Asia/Jerusalem'};
 }

@@ -5,6 +5,7 @@ import { authenticateTherapist } from '@/lib/therapists/server';
 import { BookingError,bookingProfile,therapistBookingData,decideBooking,saveBookingHours,publicBookingSlots } from '@/lib/therapists/parent-booking';
 import {scheduleReferral} from '@/lib/therapists/referral-booking';
 import {closeTreatment} from '@/lib/therapists/workflow';
+import {ChangeError,previewChange,rescheduleTreatment,cancelAppointment,removePatient,listTreatmentChanges} from '@/lib/therapists/appointment-changes';
 import {getSupabaseAdmin} from '@/lib/supabase';
 import {notifyTherapistTimeSet} from '@/lib/therapists/therapist-time';
 export const dynamic='force-dynamic';
@@ -22,12 +23,17 @@ export async function POST(req:NextRequest,{params}:{params:{slug:string}}){
   const profile=await bookingProfile(params.slug);
   if(t&&t.id!==profile.therapist_id)return reply({error:'forbidden'},403);
   const id=profile.therapist_id;
-  if(b.action==='read')return reply(await therapistBookingData(id,params.slug));
+  if(b.action==='read'){
+   const data=await therapistBookingData(id,params.slug),changes=await listTreatmentChanges(data.referrals.map(r=>r.id));
+   return reply({...data,referrals:data.referrals.map(r=>({...r,changes:changes[r.id]??[]}))});
+  }
   if(b.action==='referral_slots'){
    // Slots follow the duration of the service the parent chose (when known).
    let duration:number|null=null;
-   if(typeof b.requestId==='string'){const r=await getSupabaseAdmin().from('treatment_requests').select('duration_minutes').eq('id',z.string().uuid().parse(b.requestId)).eq('therapist_id',id).maybeSingle();duration=r.data?.duration_minutes??null;}
-   return reply(await publicBookingSlots(params.slug,duration));
+   // For a scheduled request being moved, its own current slot does not block itself.
+   let exclude:string|null=null;
+   if(typeof b.requestId==='string'){const r=await getSupabaseAdmin().from('treatment_requests').select('id,duration_minutes').eq('id',z.string().uuid().parse(b.requestId)).eq('therapist_id',id).maybeSingle();duration=r.data?.duration_minutes??null;exclude=r.data?.id??null;}
+   return reply(await publicBookingSlots(params.slug,duration,exclude));
   }
   if(b.action==='hours')return reply(await saveBookingHours(id,z.number().int().positive().parse(b.version),b.availability));
   const requestId=z.string().uuid().parse(b.requestId);
@@ -41,7 +47,13 @@ export async function POST(req:NextRequest,{params}:{params:{slug:string}}){
   if(b.action==='close_referral'){
    try{return reply(await closeTreatment(requestId,id));}catch(e){return reply({error:e instanceof Error&&e.message==='syncing'?'busy':'unavailable'},409);}
   }
+  // Staff using the diary are recorded as actor 'staff'.
+  const actor={therapistId:id,staffId:t?null:staff?.id??null,slug:params.slug};
+  if(b.action==='change_preview')return reply(await previewChange(requestId,actor,b));
+  if(b.action==='reschedule')return reply(await rescheduleTreatment(requestId,actor,b));
+  if(b.action==='cancel_appointment')return reply(await cancelAppointment(requestId,actor,b));
+  if(b.action==='remove_patient')return reply(await removePatient(requestId,actor,b));
   if(['approve','reject','cancel'].includes(b.action))return reply(await decideBooking(requestId,id,b.action));
   return reply({error:'invalid_request'},400);
- }catch(e){return reply({error:e instanceof BookingError?e.message:e instanceof z.ZodError?'invalid_request':['invalid_availability','overlapping_windows'].includes(e instanceof Error?e.message:'')?'invalid_availability':'unavailable'},e instanceof BookingError?e.status:400);}
+ }catch(e){if(e instanceof ChangeError)return reply({error:e.message},e.status);return reply({error:e instanceof BookingError?e.message:e instanceof z.ZodError?'invalid_request':['invalid_availability','overlapping_windows'].includes(e instanceof Error?e.message:'')?'invalid_availability':'unavailable'},e instanceof BookingError?e.status:400);}
 }

@@ -118,7 +118,7 @@ try{
  assert.equal((await publicRoute.POST(req({...make(),action:'request',consent:true,website:''}),ctx)).status,200);
  assert.equal((await publicRoute.POST(req({...make(),action:'request',consent:false,website:''}),ctx)).status,400);
  assert.equal((await publicRoute.POST(req({},'https://evil.example'),ctx)).status,403);pass('public endpoint validates fields, consent and same-origin');
- const staffRoute=compile('app/api/therapist/[slug]/route.ts',{'@/lib/admin/auth':{getCurrentStaff:async()=>null},'@/lib/therapists/server':{authenticateTherapist:async()=>null},'@/lib/therapists/parent-booking':service,'@/lib/therapists/referral-booking':referralService,'@/lib/therapists/workflow':{closeTreatment:async()=>null},'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/therapists/therapist-time':timeService});
+ const staffRoute=compile('app/api/therapist/[slug]/route.ts',{'@/lib/admin/auth':{getCurrentStaff:async()=>null},'@/lib/therapists/server':{authenticateTherapist:async()=>null},'@/lib/therapists/parent-booking':service,'@/lib/therapists/referral-booking':referralService,'@/lib/therapists/workflow':{closeTreatment:async()=>null},'@/lib/therapists/appointment-changes':{ChangeError:class extends Error{},listTreatmentChanges:async()=>({})},'@/lib/supabase':{getSupabaseAdmin:()=>db},'@/lib/therapists/therapist-time':timeService});
  assert.equal((await staffRoute.POST(req({action:'read'}),ctx)).status,403);pass('staff API rejects unauthenticated requests');
  assert.equal((await publicRoute.GET(req({}),{params:{slug:'nobody'}})).status,404);pass('unknown slug is not served');
  await pg.query("update therapist_booking_profiles set booking_mode='therapist_time' where therapist_id=$1",[tid]);
