@@ -100,6 +100,9 @@ test('model JSON validation: approved link keys only, URLs stripped', () => {
   assert.ok(v);
   assert.deepEqual(v.link_keys, ['adhd_registration', 'moxo', 'classes']);
   assert.doesNotMatch(v.reply, /http|www\./);
+  const keyLeak = r.validateModelReply({ reply: 'يمكنك الحجز عبر الرابط التالي: pediatrics_booking.', link_keys: ['pediatrics_booking'] });
+  assert.doesNotMatch(keyLeak.reply, /pediatrics_booking/);
+  assert.equal(r.validateModelReply({ reply: 'https://x.example moxo', link_keys: ['moxo'] }), null);
   const staff = r.validateModelReply({ reply: '', needs_staff: true, reason: 'בקשת מסמך' });
   assert.equal(staff.needs_staff, true);
 });
@@ -121,6 +124,7 @@ async function setup() {
   const pg = new PGlite();
   await pg.exec('create role anon; create role authenticated; create role service_role;');
   await pg.exec(fs.readFileSync(path.join(root, 'supabase/migrations/20261120120000_institute_whatsapp_bot.sql'), 'utf8'));
+  await pg.exec(fs.readFileSync(path.join(root, 'supabase/migrations/20261126090000_institute_wa_burst_guard.sql'), 'utf8'));
   const q = async (sql, params = []) => (await pg.query(sql, params)).rows;
   const store = {
     async claim(row) {
@@ -203,11 +207,14 @@ test('human takeover: staff typing pauses the bot for 12h in that chat only', as
   assert.equal((await processEvent(ev({ from: '972507777777@c.us' }), t.deps())).action, 'sent');
   assert.equal(t.sent.length, 2);
   // After the pause expires, the bot answers again.
+  t.setModel({ reply: 'תשובה חדשה לשאלה הנוספת.', link_keys: [], needs_staff: false, reason: '' });
   assert.equal((await processEvent(ev({ body: 'עוד שאלה' }), t.deps({ now: () => new Date('2026-11-18T10:00:00Z') }))).action, 'sent');
 });
 
 test('per-chat cap: 5 replies per window, then silent and flagged for staff', async () => {
   const t = await setup();
+  let n = 0;
+  t.setModel(() => ({ reply: `תשובה מספר ${++n}`, link_keys: [], needs_staff: false, reason: '' }));
   const outcomes = [];
   for (let i = 0; i < 8; i++) outcomes.push((await processEvent(ev({ body: `שאלה ${i}` }), t.deps())).action + ':' + ((await t.q('select needs_staff from institute_wa_chats'))[0].needs_staff));
   assert.deepEqual(outcomes.slice(0, 5), Array(5).fill('sent:false'));
@@ -253,6 +260,13 @@ test('non-text messages get a short text request and are flagged; no model call'
   assert.match(t.sent[0].body, /הודעות כתובות/);
   const [chat] = await t.q('select needs_staff, staff_reason from institute_wa_chats');
   assert.deepEqual(chat, { needs_staff: true, staff_reason: 'non_text:ptt' });
+});
+
+test('burst: five photos at once produce a single reply', async () => {
+  const t = await setup();
+  const outs = await Promise.all([1, 2, 3, 4, 5].map((i) => processEvent(ev({ type: 'image', body: '', id: `false_972501234567@c.us_IMG${i}`, from: '972501234567@c.us' }), t.deps())));
+  assert.equal(t.sent.length, 1);
+  assert.equal(outs.filter((o) => o.action === 'sent').length, 1);
 });
 
 test('first message out of office hours mentions staff follow-up; history is passed to the model', async () => {

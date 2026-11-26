@@ -27,7 +27,11 @@ export function validateModelReply(raw: unknown): ModelReply | null {
   if (!parsed.success) return null;
   const allowed = new Set<string>(VOICE_LINK_KEYS);
   const keys = Array.from(new Set(parsed.data.link_keys.filter((k) => allowed.has(k)))).slice(0, 3) as VoiceLinkKey[];
-  const reply = parsed.data.reply.replace(URL_RE, '').replace(/[\u200b\u2063]/g, '').replace(/[ \t]+\n/g, '\n').trim().slice(0, MAX_REPLY_CHARS);
+  const keyRe = new RegExp(`\\b(?:${VOICE_LINK_KEYS.join('|')})\\b`, 'g');
+  let reply = parsed.data.reply.replace(URL_RE, '').replace(keyRe, '').replace(/[\u200b\u2063]/g, '')
+    .replace(/[ \t]+([.,:!?،])/g, '$1').replace(/[:：]\s*([.!?])/g, '$1').replace(/[ \t]+\n/g, '\n').trim().slice(0, MAX_REPLY_CHARS);
+  // A reply with no real words (e.g. only a removed URL/key) is treated as empty.
+  if (!/[\p{L}]{2,}/u.test(reply)) reply = '';
   if (!reply && !parsed.data.needs_staff) return null;
   return { reply, link_keys: keys, needs_staff: parsed.data.needs_staff, reason: parsed.data.reason.trim().slice(0, 200) };
 }
