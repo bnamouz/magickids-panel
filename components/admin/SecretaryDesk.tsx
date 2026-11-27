@@ -1,8 +1,8 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import {
-  DRUG_REMINDER_AFTER_BUSINESS_DAYS, MACCABI_DRUG_APPEAL_EMAIL, MACCABI_DRUG_APPROVAL_EMAIL,
-  drugFamilyNotice, drugService, imagingService, isDrugKind, statusLabel, type CommitmentStatus, type RequestKind,
+  CLINIC_PHONE, DRUG_REMINDER_AFTER_BUSINESS_DAYS, MACCABI_DRUG_APPEAL_EMAIL, MACCABI_DRUG_APPROVAL_EMAIL,
+  drugFamilyNotice, drugReadyNotice, drugService, imagingService, isDrugKind, statusLabel, type CommitmentStatus, type RequestKind,
 } from '@/lib/maccabi/commitment-shared';
 
 type Row = { id: string; reference: string; clinic_patient_id?: string | null; birth_date?: string | null; patient_name: string; national_id: string; phone: string; service: string; status: CommitmentStatus; sent_at: string; last_reminder_at: string | null; reminders_count: number; last_checked_at: string | null; last_reply_at: string | null; last_reply_snippet: string | null; ready_at: string | null; ready_source: string | null; patient_notified_at: string | null; notify_error: string | null; attachments: { filename: string }[]; note: string | null; kind?: RequestKind | null; appeal_of?: string | null };
@@ -12,6 +12,7 @@ type Upload = { path: string; filename: string };
 type DrugKind = 'drug_approval' | 'drug_appeal';
 type Tab = 'commitment' | 'imaging' | 'drugs';
 type Lang = 'he' | 'ar';
+type Confirmation = { id: string; action: string; lang?: Lang };
 type Draft = {
   clinic_patient_id: string | null; patient_name: string; national_id: string; birth_date: string; phone: string;
   service: string; serviceOther: string; imagingType: string; imagingDetail: string;
@@ -27,6 +28,10 @@ const TABS: readonly Tab[] = ['commitment', 'imaging', 'drugs'];
 const DRUG_MODES: readonly DrugKind[] = ['drug_approval', 'drug_appeal'];
 const tabFor = (kind: RequestKind): Tab => isDrugKind(kind) ? 'drugs' : kind;
 const rowAnchor = (id: string) => `desk-request-${id}`;
+const isNotifyAction = (action: string) => action === 'ready' || action === 'notify_again';
+const renderNotice = (notice: string) => notice.endsWith(CLINIC_PHONE)
+  ? <>{notice.slice(0, -CLINIC_PHONE.length)}<bdi dir="ltr">{CLINIC_PHONE}</bdi></>
+  : notice;
 
 const CHIP: Record<CommitmentStatus, string> = { sent: 'bg-sky-100 text-sky-800', reminded: 'bg-amber-100 text-amber-800', reply_received: 'bg-violet-100 text-violet-800', ready: 'bg-emerald-100 text-emerald-800', rejected: 'bg-rose-100 text-rose-800', cancelled: 'bg-slate-200 text-slate-700' };
 const ERR: Record<string, string> = { invalid_body: 'בדקו את השדות (שם, ת.ז. 5–9 ספרות, טלפון 05X…)', mail_not_configured: 'שליחת מייל אינה מוגדרת במערכת', send_failed: 'שליחת המייל נכשלה – נסו שוב', file_missing: 'קובץ מצורף חסר – העלו שוב', too_large: 'הקבצים גדולים מדי (עד 15MB לקובץ, 20MB סה״כ)', file_too_large: 'אפשר לצרף קובץ בגודל של עד 15MB', unsupported_type: 'סוג קובץ לא נתמך (PDF/JPG/PNG בלבד)', recommendation_required: 'יש לצרף את מסמך ההמלצה לבדיקה', imaging_not_ready: 'עמדת הדימות עדיין לא הופעלה במערכת – הבקשה לא נשלחה', db: 'המייל נשלח אך הרישום במערכת נכשל – פנו למנהל', mail_read_unauthorized: 'אין הרשאת קריאת מייל – ראו ההנחיה למעלה', mail_read_not_configured: 'קריאת מייל אינה מוגדרת', not_open: 'הבקשה אינה פתוחה', action_failed: 'הפעולה נכשלה – נסו שוב', forbidden: 'אין הרשאה',
@@ -40,7 +45,7 @@ const TEXT: Record<RequestKind, { tab: string; title: string; note: string; file
   commitment: { tab: 'התחייבות (טופס\u00A017)', title: 'בקשת התחייבות חדשה ממכבי', note: 'הערה לסניף (לא חובה)', files: 'הפניה / מסמכים לצירוף (PDF, JPG, PNG)', submit: 'שליחת הבקשה למכבי', remind: 'תזכורת לסניף', remindConfirm: 'לשלוח תזכורת לסניף עכשיו?', readyBtn: 'ההתחייבות מוכנה – עדכון המשפחה', readyConfirm: 'לסמן כמוכן ולשלוח WhatsApp ל־', readyOk: 'ההתחייבות מוכנה – המשפחה עודכנה ב־WhatsApp', readyFail: 'ההתחייבות מוכנה אך שליחת ה־WhatsApp נכשלה – שלחו שוב', readySince: 'מוכן מאז', empty: 'אין בקשות פתוחות.' },
   imaging: { tab: 'אישור בדיקת\u00A0דימות', title: 'בקשה לאישור בדיקת דימות', note: 'הערה למרכז הדימות (לא חובה)', files: 'מסמך ההמלצה לבדיקה * (PDF, JPG, PNG)', submit: 'שליחת הבקשה למרכז הדימות', remind: 'תזכורת למרכז הדימות', remindConfirm: 'לשלוח תזכורת למרכז הדימות עכשיו?', readyBtn: 'הבדיקה אושרה – עדכון המשפחה', readyConfirm: 'לסמן שהבדיקה אושרה ולשלוח WhatsApp ל־', readyOk: 'הבדיקה אושרה – המשפחה עודכנה ב־WhatsApp', readyFail: 'הבדיקה סומנה כמאושרת אך שליחת ה־WhatsApp נכשלה – שלחו שוב', readySince: 'אושר מאז', empty: 'אין בקשות דימות פתוחות.' },
   drug_approval: { tab: 'בקשה לאישור תרופה', title: 'בקשה לאישור תרופה', note: 'אבחנה ונימוק רפואי *', files: 'מכתב רופא מומחה ומסמכים * (PDF, JPG, PNG)', submit: 'שליחת בקשה לאישור תרופה', remind: 'תזכורת למחלקת אישורי תרופות', remindConfirm: 'לשלוח כעת תזכורת למחלקת אישורי התרופות?', readyBtn: 'התרופה אושרה · עדכון המשפחה', readyConfirm: 'לסמן שהתרופה אושרה ולשלוח הודעת WhatsApp ל־', readyOk: 'התרופה אושרה והודעת WhatsApp נשלחה למשפחה.', readyFail: 'התרופה סומנה כמאושרת, אך הודעת WhatsApp לא נשלחה למשפחה.', readySince: 'התרופה אושרה בתאריך', empty: 'אין בקשות אישור תרופה או ערעורים פתוחים.' },
-  drug_appeal: { tab: 'ערעור על החלטה', title: 'ערעור רופא על החלטה', note: 'נימוקי הערעור *', files: 'מסמכים חדשים לצירוף (רשות, PDF, JPG, PNG)', submit: 'שליחת ערעור למכבי', remind: 'תזכורת על הערעור', remindConfirm: 'לשלוח כעת תזכורת על הערעור?', readyBtn: 'הערעור התקבל · עדכון המשפחה', readyConfirm: 'לסמן שהערעור התקבל ולשלוח הודעת WhatsApp ל־', readyOk: 'הערעור התקבל והודעת WhatsApp נשלחה למשפחה.', readyFail: 'הערעור סומן כמתקבל, אך הודעת WhatsApp לא נשלחה למשפחה.', readySince: 'הערעור התקבל בתאריך', empty: 'אין בקשות אישור תרופה או ערעורים פתוחים.' },
+  drug_appeal: { tab: 'ערעור על החלטה', title: 'ערעור רופא על החלטה', note: 'נימוקי הערעור *', files: 'מסמכים חדשים לצירוף (רשות, PDF, JPG, PNG)', submit: 'שליחת ערעור למכבי', remind: 'תזכורת על הערעור', remindConfirm: 'לשלוח כעת תזכורת על הערעור?', readyBtn: 'הערעור התקבל · עדכון המשפחה', readyConfirm: 'לסמן שהערעור התקבל ולשלוח הודעת WhatsApp ל־', readyOk: 'הערעור התקבל והודעת WhatsApp נשלחה למשפחה.', readyFail: 'סומן שהערעור התקבל, אך הודעת WhatsApp לא נשלחה למשפחה.', readySince: 'הערעור התקבל בתאריך', empty: 'אין בקשות אישור תרופה או ערעורים פתוחים.' },
 };
 const kindOf = (r: { kind?: RequestKind | null }): RequestKind => r.kind === 'imaging' || isDrugKind(r.kind) ? r.kind : 'commitment';
 const fmt = (d: string | null) => d ? new Date(d).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' }) : '—';
@@ -77,7 +82,8 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
   const form = drafts[kind];
   const { uploads } = form;
   const [q, setQ] = useState(''); const [hits, setHits] = useState<Patient[]>([]);
-  const [confirm, setConfirm] = useState<{ id: string; action: string } | null>(null);
+  const [confirm, setConfirm] = useState<Confirmation | null>(null);
+  const readyDialog = useRef<HTMLDialogElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const fileButton = useRef<HTMLButtonElement>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
@@ -90,6 +96,9 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
   const requireFile = kind === 'imaging' || kind === 'drug_approval';
   const appealBlocked = kind === 'drug_appeal' && !MACCABI_DRUG_APPEAL_EMAIL.trim() && !form.test_to_self;
   const linkedAppeal = kind === 'drug_appeal' && !!form.appeal_of;
+  const notifyRow = confirm && isNotifyAction(confirm.action) ? rows?.find((r) => r.id === confirm.id) : undefined;
+  const notifyKind = notifyRow ? kindOf(notifyRow) : null;
+  const showReadyDialog = !!notifyRow && isDrugKind(notifyKind);
   const patchDraft = (k: RequestKind, change: (current: Draft) => Draft) =>
     setDrafts((previous) => ({ ...previous, [k]: change(previous[k]) }));
   const setForm = (next: Draft | ((previous: Draft) => Draft)) =>
@@ -131,6 +140,11 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
       formHeading.current?.focus();
     }
   }, [kind, form.appeal_of]);
+  useEffect(() => {
+    const dialog = readyDialog.current;
+    if (showReadyDialog && !dialog?.open) dialog?.showModal();
+    else if (!showReadyDialog && dialog?.open) dialog.close();
+  }, [showReadyDialog]);
 
   const pick = (p: Patient) => {
     if (linkedAppeal || busyLock.current) return;
@@ -214,14 +228,15 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
     } finally { endBusy(); }
   };
 
-  const act = async (row: Row, action: string) => {
+  const act = async (row: Row, action: string, lang: Lang = 'he') => {
     if (!startBusy(row.id + action)) return;
     setConfirm(null); setMsg(null);
     const rowKind = kindOf(row);
     const t = TEXT[rowKind];
     try {
       const r = await fetch(`/api/admin/secretary/commitments/${row.id}`, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }),
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, ...(isDrugKind(rowKind) && isNotifyAction(action) ? { lang } : {}) }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg({ kind: 'err', text: ERR[d.error] ?? 'הפעולה נכשלה' }); return; }
@@ -232,7 +247,7 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
             : isDrugKind(rowKind) ? 'התקבלה תשובה ממכבי. קראו אותה בכרטיס ועדכנו את מצב הפנייה.'
               : rowKind === 'imaging' ? 'התקבלה תשובה ממכבי – קראו אותה בכרטיס וסמנו אם הבדיקה אושרה'
                 : `התקבלה תשובה (${d.result?.verdict}) – ראו בכרטיס` });
-      } else if (action === 'ready' || action === 'notify_again') {
+      } else if (isNotifyAction(action)) {
         setMsg(d.whatsapp?.ok ? { kind: 'ok', text: `ההודעה נשלחה למשפחה מ${d.whatsapp.sender === 'clinic' ? 'מספר המרפאה' : d.whatsapp.sender === 'doctor' ? 'מספר ד״ר נמוז' : 'מספר המכון'}` }
           : isDrugKind(rowKind) ? { kind: 'warn', text: t.readyFail }
             : { kind: 'err', text: `${rowKind === 'imaging' ? 'סומן כמאושר' : 'סומן כמוכן'}, אך ה־WhatsApp לא נשלח (${d.whatsapp?.error ?? 'שגיאה'}) – נסו "שליחה חוזרת"` });
@@ -284,7 +299,9 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
     patientName: form.patient_name.trim() || '[שם המטופל/ת]',
     drug: drugService(form.drugName.trim() || '[שם התרופה]', form.drugDosage.trim() || '[מינון וצורת מתן]'),
   }) : '';
-  const input = 'w-full min-w-0 border rounded-lg p-2 bg-white disabled:opacity-60';
+  const inputBase = 'w-full min-w-0 border rounded-lg p-2 disabled:opacity-60';
+  const input = `${inputBase} bg-white`;
+  const patientInput = linkedAppeal ? `${inputBase} cursor-default bg-slate-50` : input;
   const small = 'rounded-lg border px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50';
 
   return <div className="space-y-5">
@@ -303,7 +320,7 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
     <div id="desk-panel" role="tabpanel" aria-labelledby={`desk-tab-${activeTab}`} className="space-y-5">
     {msg && <div role={msg.kind === 'err' ? 'alert' : 'status'} className={`rounded-xl border p-3 text-sm ${msg.kind === 'ok' ? 'border-emerald-300 bg-emerald-50 text-emerald-900' : msg.kind === 'warn' ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-rose-300 bg-rose-50 text-rose-900'}`}>{msg.text}</div>}
 
-    {drug && <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950">
+    {kind === 'drug_approval' && <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950">
       <p>בקשות לאישור תרופה נשלחות למחלקת אישורי התרופות של מכבי: <bdi dir="ltr" className="font-semibold [overflow-wrap:anywhere]">{MACCABI_DRUG_APPROVAL_EMAIL}</bdi>.</p>
       <p className="mt-1">לפי מכבי, תשובה לבקשה ניתנת למטופל/ת בתוך 5 ימי עבודה במסרון לטלפון המעודכן במכבי. אם לא מתקבלת תשובה במייל, העמדה שולחת תזכורת ביום העסקים השישי.</p>
     </div>}
@@ -330,17 +347,17 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
           <ul className="flex flex-wrap gap-2">{imagingEmails.map((e) => <li key={e} dir="ltr" className="rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-800">{e}</li>)}</ul>
           <p>זמן הטיפול במכבי הוא עד 5 ימי עבודה. התשובה עשויה להגיע ישירות למשפחה או להופיע במכבי Online, ולכן אתם מסמנים כאן שהבדיקה אושרה, והמשפחה מקבלת עדכון ב־WhatsApp.</p>
         </div>
-        : <p className="text-sm text-slate-600">הבקשה נשלחת מהמייל של המכון אל {branchEmail} בשם {staffName}. חפשו מטופל/ת ממאגר מרפאת הילדים או מלאו ידנית.</p>)}
+        : <p className="text-sm text-slate-600">הבקשה נשלחת מהמייל של המכון אל <bdi dir="ltr" className="[overflow-wrap:anywhere]">{branchEmail}</bdi> בשם {staffName}. חפשו מטופל/ת ממאגר מרפאת הילדים או מלאו ידנית.</p>)}
       <fieldset disabled={!!busy} className="min-w-0 space-y-4">
       {!linkedAppeal && <div className="relative">
         <label className="block text-sm font-semibold">חיפוש במטופלי המרפאה (שם / ת.ז. / טלפון)<input className={input} value={q} onChange={(e) => { setQ(e.target.value); setHits([]); }} placeholder="לדוגמה: אחמד או 052…" autoComplete="off" /></label>
         {hits.length > 0 && <ul className="absolute z-10 mt-1 w-full rounded-lg border bg-white shadow-lg max-h-64 overflow-auto">{hits.map((p) => <li key={p.id}><button type="button" className="w-full text-right px-3 py-2 hover:bg-teal-50 text-sm" onClick={() => pick(p)}>{p.name} · ת.ז. {p.national_id ?? '—'} · {p.phone || 'ללא טלפון'}</button></li>)}</ul>}
       </div>}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <label className="block min-w-0 text-sm font-semibold">שם המטופל/ת *<input className={input} required readOnly={linkedAppeal} minLength={2} value={form.patient_name} onChange={(e) => setForm({ ...form, patient_name: e.target.value, clinic_patient_id: null })} /></label>
-        <label className="block min-w-0 text-sm font-semibold">ת.ז. *<input className={input} required readOnly={linkedAppeal} inputMode="numeric" value={form.national_id} onChange={(e) => setForm({ ...form, national_id: e.target.value })} /></label>
-        <label className="block min-w-0 text-sm font-semibold">טלפון ההורה (לעדכון ב־WhatsApp) *<input className={input} required readOnly={linkedAppeal} inputMode="tel" dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
-        <label className="block min-w-0 text-sm font-semibold">תאריך לידה<input type="date" className={input} readOnly={linkedAppeal} value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.target.value })} /></label>
+        <label className="block min-w-0 text-sm font-semibold">שם המטופל/ת *<input className={patientInput} required readOnly={linkedAppeal} minLength={2} value={form.patient_name} onChange={(e) => setForm({ ...form, patient_name: e.target.value, clinic_patient_id: null })} /></label>
+        <label className="block min-w-0 text-sm font-semibold">ת.ז. *<input className={patientInput} required readOnly={linkedAppeal} inputMode="numeric" value={form.national_id} onChange={(e) => setForm({ ...form, national_id: e.target.value })} /></label>
+        <label className="block min-w-0 text-sm font-semibold">טלפון ההורה (לעדכון ב־WhatsApp) *<input className={patientInput} required readOnly={linkedAppeal} inputMode="tel" dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+        <label className="block min-w-0 text-sm font-semibold">תאריך לידה<input type="date" className={patientInput} readOnly={linkedAppeal} value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.target.value })} /></label>
         {drug ? <>
           <label className="block min-w-0 text-sm font-semibold">שם התרופה *<input className={input} required dir="auto" maxLength={98} value={form.drugName} onChange={(e) => setForm({ ...form, drugName: e.target.value })} /></label>
           <label className="block min-w-0 text-sm font-semibold">מינון וצורת מתן *<input className={input} required dir="auto" maxLength={99} value={form.drugDosage} onChange={(e) => setForm({ ...form, drugDosage: e.target.value })} /></label>
@@ -366,11 +383,11 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
         {uploads.length > 0 && <ul className="text-sm text-slate-700 space-y-1">{uploads.map((u) => <li key={u.path} className="flex items-center gap-2"><bdi className="min-w-0 break-all">{u.filename}</bdi><button type="button" className="shrink-0 text-rose-700 underline" aria-label={`הסרת ${u.filename}`} onClick={() => setForm((f) => ({ ...f, uploads: f.uploads.filter((x) => x.path !== u.path) }))}>הסרה</button></li>)}</ul>}
       </div>
       {drug && <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <label className="flex min-h-8 items-start gap-2 text-sm font-semibold"><input type="checkbox" className="mt-1 shrink-0 accent-teal-700" checked={form.notify_family && !form.test_to_self} disabled={form.test_to_self} onChange={(e) => setForm({ ...form, notify_family: e.target.checked })} />{kind === 'drug_appeal' ? 'לעדכן את המשפחה ב-WhatsApp שהערעור נשלח' : 'לעדכן את המשפחה ב-WhatsApp שהבקשה נשלחה'}</label>
+        <label className="flex min-h-8 items-start gap-2 text-sm font-semibold"><input type="checkbox" className="mt-1 shrink-0 accent-teal-700" checked={form.notify_family && !form.test_to_self} disabled={form.test_to_self} onChange={(e) => setForm({ ...form, notify_family: e.target.checked })} />{kind === 'drug_appeal' ? 'לעדכן את המשפחה ב־WhatsApp שהערעור נשלח' : 'לעדכן את המשפחה ב־WhatsApp שהבקשה נשלחה'}</label>
         {form.test_to_self && <p className="text-sm text-slate-600">במצב בדיקה לא נשלחת הודעה למשפחה.</p>}
         <label className="flex flex-wrap items-center gap-2 text-sm font-semibold">שפת ההודעה<select className="min-w-0 rounded-lg border bg-white p-2" value={form.lang} onChange={(e) => setForm({ ...form, lang: e.target.value as Lang })}><option value="he">עברית</option><option value="ar">ערבית</option></select></label>
         <p className="text-xs font-semibold text-slate-600">תצוגה מקדימה של ההודעה</p>
-        <p lang={form.lang} dir="rtl" className="whitespace-pre-line rounded-lg border border-slate-200 bg-white p-2 text-sm leading-relaxed text-slate-800 [overflow-wrap:anywhere]">{whatsappPreview}</p>
+        <p lang={form.lang} dir="rtl" className="whitespace-pre-line rounded-lg border border-slate-200 bg-white p-2 text-sm leading-relaxed text-slate-800 [overflow-wrap:anywhere]">{renderNotice(whatsappPreview)}</p>
       </div>}
       <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={form.test_to_self} onChange={(e) => setForm({ ...form, test_to_self: e.target.checked })} /> בדיקה: לשלוח לתיבת המכון במקום למכבי</label>
       <div><button type="submit" className="btn-primary max-w-full disabled:opacity-60" disabled={!!busy || appealBlocked} aria-describedby={appealBlocked ? 'desk-appeal-address' : undefined}>{busy === 'send' ? 'שולחת…' : form.test_to_self ? 'שליחת בדיקה' : T.submit}</button></div>
@@ -386,6 +403,21 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
       {closed.length === 0 ? <p className="text-slate-500">אין עדיין.</p> : closed.map(renderCard)}
     </section>
     </div>
+    <dialog ref={readyDialog} dir="rtl" aria-labelledby="desk-ready-title" aria-describedby="desk-ready-recipient" className="fixed inset-0 !m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-auto rounded-xl border border-teal-100 bg-white p-5 text-slate-800 shadow-xl backdrop:bg-slate-950/45" onCancel={(e) => { e.preventDefault(); setConfirm(null); }}>
+      {confirm && notifyRow && isDrugKind(notifyKind) && <div className="space-y-4">
+        <h2 id="desk-ready-title" className="text-xl font-bold text-teal-900">{confirm.action === 'ready' ? 'עדכון המשפחה על ההחלטה' : 'שליחה חוזרת של הודעת ההחלטה'}</h2>
+        <p id="desk-ready-recipient" className="text-sm">{confirm.action === 'ready' ? TEXT[notifyKind].readyConfirm : 'לשלוח שוב הודעת WhatsApp ל־'}<bdi dir="ltr">{notifyRow.phone}</bdi>?</p>
+        <label className="flex flex-wrap items-center gap-2 text-sm font-semibold">שפת ההודעה<select className="min-w-0 rounded-lg border bg-white p-2" value={confirm.lang ?? 'he'} onChange={(e) => { const lang = e.target.value as Lang; setConfirm((previous) => previous && { ...previous, lang }); }}><option value="he">עברית</option><option value="ar">ערבית</option></select></label>
+        <div className="space-y-1">
+          <p className="text-xs font-semibold text-slate-600">תצוגה מקדימה של ההודעה</p>
+          <p lang={confirm.lang ?? 'he'} dir="rtl" className="whitespace-pre-line rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed [overflow-wrap:anywhere]">{renderNotice(drugReadyNotice(notifyKind, confirm.lang, { patientName: notifyRow.patient_name, drug: notifyRow.service }))}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-primary !px-4 !py-2 text-sm" disabled={!!busy} onClick={() => act(notifyRow, confirm.action, confirm.lang)}>{confirm.action === 'ready' ? 'אישור ושליחת הודעה' : 'שליחה חוזרת'}</button>
+          <button type="button" className={small} onClick={() => setConfirm(null)}>ביטול</button>
+        </div>
+      </div>}
+    </dialog>
   </div>;
 
   function renderCard(r: Row) {
@@ -394,7 +426,7 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
     const rowDrug = isDrugKind(rowKind);
     const rowAppeal = rowKind === 'drug_appeal';
     const t = TEXT[rowKind];
-    const due = rowDrug ? responseDue(r.sent_at) : null;
+    const due = rowKind === 'drug_approval' ? responseDue(r.sent_at) : null;
     const overdue = !!due && (r.status === 'sent' || r.status === 'reminded') && israelDay(new Date()) > due;
     const original = r.appeal_of ? mine.find((row) => row.id === r.appeal_of) : null;
     const b = (a: string) => busy === r.id + a;
@@ -413,7 +445,7 @@ export default function SecretaryDesk({ services, imagingTypes, branchEmail, ima
       {original && <p className="text-sm">בקשה מקורית: <a className="font-semibold text-teal-800 underline" href={`#${rowAnchor(original.id)}`}><bdi dir="ltr">{original.reference}</bdi></a></p>}
       {r.last_reply_snippet && <blockquote className="rounded-lg bg-slate-50 p-2 text-sm text-slate-800"><span className="text-xs text-slate-500">תשובת מכבי ({fmt(r.last_reply_at)}):</span><br />{r.last_reply_snippet}</blockquote>}
       {r.status === 'ready' && <p className="text-sm text-emerald-800">{t.readySince} {fmt(r.ready_at)} ({r.ready_source === 'email' ? 'זוהה מהמייל' : 'סומן ידנית'}) · {r.patient_notified_at ? `המשפחה עודכנה ב־WhatsApp ${fmt(r.patient_notified_at)}` : `המשפחה לא עודכנה${r.notify_error ? ` (${r.notify_error})` : ''}`}</p>}
-      {confirm?.id === r.id ? <div className="flex flex-wrap items-center gap-2 text-sm"><span>{confirm.action === 'ready' ? `${t.readyConfirm}${r.phone}?` : confirm.action === 'notify_again' ? `לשלוח שוב WhatsApp ל־${r.phone}?` : confirm.action === 'remind' ? t.remindConfirm : confirm.action === 'cancel' ? (rowAppeal ? 'לבטל את הערעור?' : 'לבטל את הבקשה לאישור תרופה?') : confirm.action === 'rejected' ? (rowAppeal ? 'לסמן שהערעור נדחה?' : 'לסמן שהבקשה לאישור תרופה נדחתה?') : 'לאשר?'}</span><button type="button" className="btn-primary !px-4 !py-1.5 text-sm" disabled={!!busy} onClick={() => act(r, confirm.action)}>כן</button><button type="button" className={small} onClick={() => setConfirm(null)}>ביטול</button></div>
+      {confirm?.id === r.id && !showReadyDialog ? <div className="flex flex-wrap items-center gap-2 text-sm"><span>{confirm.action === 'ready' ? `${t.readyConfirm}${r.phone}?` : confirm.action === 'notify_again' ? `לשלוח שוב WhatsApp ל־${r.phone}?` : confirm.action === 'remind' ? t.remindConfirm : confirm.action === 'cancel' ? (rowAppeal ? 'לבטל את הערעור?' : 'לבטל את הבקשה לאישור תרופה?') : confirm.action === 'rejected' ? (rowAppeal ? 'לסמן שהערעור נדחה?' : 'לסמן שהבקשה לאישור תרופה נדחתה?') : 'לאשר?'}</span><button type="button" className="btn-primary !px-4 !py-1.5 text-sm" disabled={!!busy} onClick={() => act(r, confirm.action)}>כן</button><button type="button" className={small} onClick={() => setConfirm(null)}>ביטול</button></div>
         : <div className="flex flex-wrap gap-2">
           {isOpen && <><button type="button" className={small} disabled={!!busy} onClick={() => act(r, 'check')}>{b('check') ? 'בודקת…' : 'בדיקת מייל עכשיו'}</button>
             <button type="button" className={small} disabled={!!busy} onClick={() => setConfirm({ id: r.id, action: 'remind' })}>{t.remind}</button>
