@@ -333,6 +333,53 @@ imaging approval centre.
   "service: a Maccabi answer on an imaging request never notifies the family by
   itself; the desk confirms it" guards it.
 
+# Maccabi drug approvals and physician appeals (2026-11-27)
+
+## Existing flows that must keep working
+- Commitment (Form 17) and imaging requests on /admin/secretaries: same
+  recipients, subjects, bodies, reminders and WhatsApp texts.
+  npm run test:maccabi covers both (test-maccabi-commitments, -mail, -imaging).
+
+## Requested change (owner, 2026-11-27)
+A third desk, "אישורי תרופות", with two kinds:
+- drug_approval: e-mail to Drugs-approve@mac.org.il
+  (MACCABI_DRUG_APPROVAL_EMAIL, published at
+  https://www.maccabi4u.co.il/eligibilites/3865/). The recommending
+  specialist's letter is mandatory (400 recommendation_required). The diagnosis
+  and medical justification (note, at least 10 characters) are mandatory
+  (400 justification_required).
+- drug_appeal: a physician appeal against a decision, written in the doctor's
+  first person. Reasons are mandatory (justification_required), files are
+  optional. Optional appeal_of = id of the drug_approval row; its reference
+  number goes into the body. Appeals go to ishurTrufut@mac.org.il
+  (MACCABI_DRUG_APPEAL_EMAIL, given by the owner on 27.11.2026). If the
+  constant is ever emptied, an appeal is refused with 503
+  appeal_address_missing except as a test to our own mailbox, and the desk
+  shows the warning and disables sending. No address is ever guessed.
+- Both e-mails are signed by ד״ר בסים נמוז, רופא ילדים מומחה, מס' רישיון 108121.
+- Reminder on the 6th business day (Maccabi answers within 5 working days),
+  up to 3 reminders, same thread.
+- Replies are never classified and never sent to the language model: every
+  reply moves the row to reply_received and a person decides. "Approved"
+  (ready / notify_again) sends the family the drug WhatsApp text.
+- Optional family notice (notify_family, drug kinds only, never in test
+  mode): one WhatsApp after the e-mail was sent and the row saved. A failure
+  never fails the request. The response returns family_notice
+  ('sent' | 'failed' | 'not_requested'); it is recorded in the audit
+  metadata only (no column).
+- Storage: migration 20261127120000_maccabi_drug_approvals.sql widens the kind
+  check to four values and adds appeal_of (uuid, on delete set null). Without
+  it, drug requests are refused before any e-mail (503 drugs_not_ready);
+  commitment and imaging requests are unaffected.
+- Audit: maccabi_drug_approval_requested / maccabi_drug_appeal_requested.
+
+## Changing it
+- Addresses, reminder days and the family WhatsApp texts (DRUG_FAMILY_TEXTS):
+  lib/maccabi/commitment-shared.ts. E-mail and reminder wording:
+  lib/maccabi/commitments.ts.
+- scripts/test-maccabi-drugs.mjs guards the rules above, including the
+  migration on PostgreSQL (PGlite).
+
 # Child development follow-up (2026-11-25)
 
 ## Existing flows that must keep working

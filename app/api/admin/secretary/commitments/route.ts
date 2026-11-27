@@ -6,6 +6,7 @@ import { mailConfigured } from '@/lib/therapists/mail';
 import { asciiDigits } from '@/lib/phone-digits';
 import { MACCABI_ALLOWED_TYPES, MACCABI_MAX_FILES, MACCABI_MAX_FILE_BYTES, MACCABI_MAX_TOTAL_BYTES, type MailAttachment } from '@/lib/maccabi/send-files';
 import { createCommitment } from '@/lib/maccabi/commitment-service';
+import { REQUEST_KINDS, isDrugKind, recipientFor, type RequestKind } from '@/lib/maccabi/commitment-shared';
 import { guard, reply } from '../_guard';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,7 @@ export async function PUT(req: NextRequest) {
 }
 
 const CreateSchema = z.object({
-  kind: z.enum(['commitment', 'imaging']).default('commitment'),
+  kind: z.enum(REQUEST_KINDS as [RequestKind, ...RequestKind[]]).default('commitment'),
   clinic_patient_id: z.string().uuid().nullable().optional(),
   patient_name: z.string().trim().min(2).max(160),
   national_id: z.string().transform(asciiDigits).pipe(z.string().regex(/^[0-9]{5,9}$/)),
@@ -49,9 +50,18 @@ const CreateSchema = z.object({
   note: z.string().max(2000).optional(),
   uploads: z.array(z.object({ path: z.string().min(1), filename: z.string().min(1).max(200) })).max(MACCABI_MAX_FILES).default([]),
   test_to_self: z.boolean().default(false),
+  /** drug_appeal only: the drug_approval row this appeal is about. */
+  appeal_of: z.string().uuid().nullable().optional(),
+  /** Drug kinds only, never in test mode: one WhatsApp to the family once the request was e-mailed and saved. */
+  notify_family: z.boolean().default(false),
+  lang: z.enum(['he', 'ar']).default('he'),
 });
+const ERRORS: Record<string, [string, number]> = {
+  db_insert_failed: ['db', 502], imaging_not_ready: ['imaging_not_ready', 503], drugs_not_ready: ['drugs_not_ready', 503],
+  appeal_address_missing: ['appeal_address_missing', 503], appeal_not_found: ['appeal_not_found', 400],
+};
 
-/** POST – send the request (commitment → branch, imaging approval → imaging center) and start tracking it. */
+/** POST – send the request (commitment → branch, imaging approval → imaging center, drug approval → drug approvals department, drug appeal → appeal mailbox) and start tracking it. */
 export async function POST(req: NextRequest) {
   const g = await guard(req, true); if ('error' in g) return g.error;
   const parsed = CreateSchema.safeParse(await req.json().catch(() => null));
@@ -60,6 +70,15 @@ export async function POST(req: NextRequest) {
   const d = parsed.data;
   // An imaging approval request is meaningless without the recommendation document.
   if (d.kind === 'imaging' && d.uploads.length === 0) return reply({ error: 'recommendation_required' }, 400);
+  if (d.appeal_of && d.kind !== 'drug_appeal') return reply({ error: 'invalid_body', fields: ['appeal_of'] }, 400);
+  if (isDrugKind(d.kind)) {
+    // Diagnosis and medical justification (appeal: the appeal reasons) are the core of the letter.
+    if ((d.note ?? '').trim().length < 10) return reply({ error: 'justification_required' }, 400);
+    // A drug approval request needs the recommending specialist's letter; files are optional for an appeal.
+    if (d.kind === 'drug_approval' && d.uploads.length === 0) return reply({ error: 'recommendation_required' }, 400);
+    // The appeal mailbox is not known yet: never guess an address.
+    if (d.kind === 'drug_appeal' && !d.test_to_self && !recipientFor('drug_appeal')) return reply({ error: 'appeal_address_missing' }, 503);
+  }
   if (d.uploads.some((u) => !u.path.startsWith(`${PREFIX}${g.staff.id}/`) || u.path.includes('..'))) return reply({ error: 'invalid_body' }, 400);
   const db = getSupabaseAdmin();
   const attachments: MailAttachment[] = [];
@@ -80,11 +99,13 @@ export async function POST(req: NextRequest) {
     const row = await createCommitment({
       kind: d.kind, clinicPatientId: d.clinic_patient_id ?? null, patientName: d.patient_name, nationalId: d.national_id, birthDate: d.birth_date || null, phone: d.phone,
       service: d.service, note: d.note, staffName: g.staff.full_name, createdBy: g.staff.id, files: attachments, testToSelf: d.test_to_self,
+      appealOf: d.kind === 'drug_appeal' ? d.appeal_of ?? null : null, notifyFamily: isDrugKind(d.kind) && d.notify_family && !d.test_to_self, lang: d.lang,
     });
     if (d.uploads.length) await db.storage.from(BUCKET).remove(d.uploads.map((u) => u.path));
-    return reply({ ok: true, commitment: row });
+    const { family_notice, ...commitment } = row;
+    return reply({ ok: true, commitment, family_notice });
   } catch (e) {
-    const m = e instanceof Error ? e.message : '';
-    return reply({ error: m === 'db_insert_failed' ? 'db' : m === 'imaging_not_ready' ? 'imaging_not_ready' : 'send_failed' }, m === 'imaging_not_ready' ? 503 : 502);
+    const [error, status] = ERRORS[e instanceof Error ? e.message : ''] ?? ['send_failed', 502];
+    return reply({ error }, status);
   }
 }

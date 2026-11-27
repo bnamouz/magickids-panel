@@ -47,6 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       case 'reopen': return reply({ ok: true, commitment: await setStatus(row, 'sent', actor) });
     }
   } catch (e) {
+    if (e instanceof Error && e.message === 'appeal_address_missing') return reply({ error: 'appeal_address_missing' }, 503);
     return reply({ error: e instanceof Error && /unauthorized|403|insufficient/i.test(e.message) ? 'mail_read_unauthorized' : 'action_failed' }, 502);
   }
 }

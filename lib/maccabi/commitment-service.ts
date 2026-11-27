@@ -5,7 +5,7 @@ import type { MailAttachment } from '@/lib/maccabi/send-files';
 import { readAccess, sendRaw, threadMessages } from '@/lib/maccabi/gmail';
 import {
   OPEN_STATUSES, buildReminderRaw, buildRequestRaw, businessDaysBetween, classifyReply,
-  isBusinessDay, newReference, readyWhatsApp, recipientFor, reminderAfter, rfcId, type CommitmentInput, type CommitmentStatus, type RequestKind,
+  drugFamilyNotice, isBusinessDay, isDrugKind, newReference, readyWhatsApp, recipientFor, reminderAfter, rfcId, type CommitmentInput, type CommitmentStatus, type RequestKind,
 } from '@/lib/maccabi/commitments';
 
 export type CommitmentRow = {
@@ -16,7 +16,11 @@ export type CommitmentRow = {
   notify_provider_id: string | null; notify_error: string | null; created_by: string | null; created_at: string; updated_at: string;
   /** Present after migration 20261125120000; rows without it are commitment requests to the branch. */
   kind?: RequestKind | null; recipient_email?: string | null;
+  /** Present after migration 20261127120000: for a drug_appeal, the drug_approval row it appeals against. */
+  appeal_of?: string | null;
 };
+export type FamilyNotice = 'sent' | 'failed' | 'not_requested';
+const requestedAction: Record<RequestKind, string> = { commitment: 'maccabi_commitment_requested', imaging: 'maccabi_imaging_requested', drug_approval: 'maccabi_drug_approval_requested', drug_appeal: 'maccabi_drug_appeal_requested' };
 const TABLE = 'maccabi_commitments';
 const touch = () => ({ updated_at: new Date().toISOString() });
 
@@ -24,33 +28,56 @@ async function audit(action: string, entityId: string, metadata: Record<string, 
   await getSupabaseAdmin().from('audit_log').insert({ actor_id: actorId, actor_type: actorId ? 'user' : 'system', action, entity_type: 'maccabi_commitment', entity_id: entityId, metadata });
 }
 
-/** Sends the request e-mail (branch for a commitment, imaging center for an imaging approval, or our own mailbox in test mode) and stores the tracking row. */
-export async function createCommitment(input: Omit<CommitmentInput, 'reference' | 'attachments'> & { clinicPatientId?: string | null; createdBy: string | null; files?: MailAttachment[]; testToSelf?: boolean }) {
+/** Sends the request e-mail (branch for a commitment, imaging center, drug approvals department, appeal mailbox, or our own mailbox in test mode) and stores the tracking row.
+ *  Drug kinds may also send the family one "request sent" WhatsApp (notifyFamily, never in test mode); its failure never fails the request. */
+export async function createCommitment(input: Omit<CommitmentInput, 'reference' | 'attachments' | 'appealOfReference'> & { clinicPatientId?: string | null; createdBy: string | null; files?: MailAttachment[]; testToSelf?: boolean; appealOf?: string | null; notifyFamily?: boolean; lang?: 'he' | 'ar' }) {
   const kind: RequestKind = input.kind ?? 'commitment';
+  const drug = isDrugKind(kind);
   const db = getSupabaseAdmin();
   // The kind / recipient columns arrive with a migration: never e-mail an imaging request that could not be tracked afterwards.
   const hasKind = !(await db.from(TABLE).select('kind').limit(1)).error;
   if (kind === 'imaging' && !hasKind) throw new Error('imaging_not_ready');
-  const reference = newReference();
+  // Drug kinds need migration 20261127120000 (wider kind check + appeal_of); checked before anything is sent.
+  if (drug && (!hasKind || (await db.from(TABLE).select('appeal_of').limit(1)).error)) throw new Error('drugs_not_ready');
   const to = input.testToSelf ? sender : recipientFor(kind);
+  if (!to) throw new Error('appeal_address_missing');
+  let appealOf: { id: string; reference: string } | null = null;
+  if (kind === 'drug_appeal' && input.appealOf) {
+    const { data: orig } = await db.from(TABLE).select('id, reference, kind').eq('id', input.appealOf).maybeSingle();
+    if (!orig || (orig as { kind?: string }).kind !== 'drug_approval') throw new Error('appeal_not_found');
+    appealOf = { id: (orig as { id: string }).id, reference: (orig as { reference: string }).reference };
+  }
+  const reference = newReference();
   const files = input.files ?? [];
-  const raw = buildRequestRaw({ ...input, kind, reference, attachments: files.map((f) => f.filename) }, files, to);
+  const raw = buildRequestRaw({ ...input, kind, reference, appealOfReference: appealOf?.reference ?? null, attachments: files.map((f) => f.filename) }, files, to);
   const sent = await sendRaw(raw);
   const { data, error } = await db.from(TABLE).insert({
     reference, clinic_patient_id: input.clinicPatientId ?? null, patient_name: input.patientName, national_id: input.nationalId, birth_date: input.birthDate || null,
     phone: input.phone, service: input.service, note: input.note?.trim() || null, attachments: files.map((f) => ({ filename: f.filename })),
     status: 'sent', gmail_thread_id: sent.threadId, gmail_message_id: sent.id, rfc_message_id: rfcId(reference), created_by: input.createdBy,
-    ...(hasKind ? { kind, recipient_email: to } : {}),
+    ...(hasKind ? { kind, recipient_email: to } : {}), ...(drug ? { appeal_of: appealOf?.id ?? null } : {}),
   }).select('*').single();
   if (error || !data) throw new Error('db_insert_failed');
-  await audit(kind === 'imaging' ? 'maccabi_imaging_requested' : 'maccabi_commitment_requested', data.id, { reference, kind, to, test: Boolean(input.testToSelf), service: input.service, files: files.map((f) => f.filename) }, input.createdBy);
-  return data as CommitmentRow;
+  let family_notice: FamilyNotice = 'not_requested';
+  let familyError: string | null = null;
+  if (drug && input.notifyFamily && !input.testToSelf) {
+    try {
+      const wa = await sendClinicPreferred({ toPhone: input.phone, body: drugFamilyNotice(kind, input.lang, { patientName: input.patientName, drug: input.service }) });
+      family_notice = wa.ok ? 'sent' : 'failed'; familyError = wa.ok ? null : wa.error ?? 'send_failed';
+    } catch (e) { family_notice = 'failed'; familyError = e instanceof Error ? e.message : 'send_failed'; }
+  }
+  await audit(requestedAction[kind], data.id, {
+    reference, kind, to, test: Boolean(input.testToSelf), service: input.service, files: files.map((f) => f.filename),
+    ...(drug ? { appeal_of: appealOf?.reference ?? null, family_notice, family_lang: family_notice === 'not_requested' ? null : input.lang ?? 'he', family_error: familyError } : {}),
+  }, input.createdBy);
+  return { ...(data as CommitmentRow), family_notice };
 }
 
 /** Reminder in the same thread, to the address the request was sent to (rows from before the recipient column go to the default for their kind). */
 export async function sendReminder(row: CommitmentRow, actorId: string | null, testToSelf = false) {
   const nth = row.reminders_count + 1;
   const to = testToSelf ? sender : row.recipient_email || recipientFor(row.kind);
+  if (!to) throw new Error('appeal_address_missing');
   const raw = buildReminderRaw({ kind: row.kind ?? 'commitment', reference: row.reference, patientName: row.patient_name, nationalId: row.national_id, service: row.service, sentAt: new Date(row.sent_at), nth, to });
   const sent = await sendRaw(raw, row.gmail_thread_id);
   const db = getSupabaseAdmin();
@@ -91,8 +118,8 @@ export async function checkOne(row: CommitmentRow, actorId: string | null = null
     const latest = fresh[fresh.length - 1];
     // Strip quoted text of our own message before classification.
     const body = latest.text.split(/\n(?:>|On .* wrote:|בתאריך .* כתב)/)[0].slice(0, 4000);
-    // Imaging answers are not classified (and not sent to the language model): every reply waits for a person on the desk.
-    const cls = row.kind === 'imaging' ? { verdict: 'unclear' as const, reason: 'imaging – manual review', model: false } : await classifyReply(body);
+    // Imaging and drug answers are not classified (and not sent to the language model): every reply waits for a person on the desk.
+    const cls = row.kind === 'imaging' || isDrugKind(row.kind) ? { verdict: 'unclear' as const, reason: `${row.kind} – manual review`, model: false } : await classifyReply(body);
     Object.assign(patch, { last_reply_at: latest.date.toISOString(), last_reply_snippet: body.slice(0, 500) });
     result.verdict = cls.verdict; result.reason = cls.reason;
     if (cls.verdict === 'ready') {
@@ -109,7 +136,7 @@ export async function checkOne(row: CommitmentRow, actorId: string | null = null
   return result;
 }
 
-/** Daily job: read replies for every open request, then remind Maccabi when 3 business days (imaging center: 6) passed without an answer. */
+/** Daily job: read replies for every open request, then remind Maccabi when 3 business days (imaging center and drug requests: 6) passed without an answer. */
 export async function runDailyCheck(opts: { remind?: boolean; now?: Date } = {}) {
   const now = opts.now ?? new Date();
   const db = getSupabaseAdmin();
