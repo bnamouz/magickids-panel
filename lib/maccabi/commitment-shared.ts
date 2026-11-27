@@ -4,8 +4,9 @@ export const MACCABI_BRANCH_EMAIL = 'shfaram@mac.org.il';
 export const MACCABI_IMAGING_EMAILS = ['DimutRequest@mac.org.il', 'ImageConsult@mac.org.il'] as const;
 /** Maccabi drug approvals department (verified on maccabi4u.co.il/eligibilites/3865/). */
 export const MACCABI_DRUG_APPROVAL_EMAIL = 'Drugs-approve@mac.org.il';
-/** Physician appeal mailbox: NOT yet provided by the owner. While empty, appeals are refused (appeal_address_missing) unless sent as a test to self. Never guess. */
-export const MACCABI_DRUG_APPEAL_EMAIL: string = '';
+/** Physician appeal mailbox, given by the owner on 27.11.2026 (spelled exactly as given).
+ *  If this is ever emptied, appeals are refused again (appeal_address_missing) unless sent as a test to self. Never guess an address. */
+export const MACCABI_DRUG_APPEAL_EMAIL: string = 'ishurTrufut@mac.org.il';
 export type RequestKind = 'commitment' | 'imaging' | 'drug_approval' | 'drug_appeal';
 export const REQUEST_KINDS: readonly RequestKind[] = ['commitment', 'imaging', 'drug_approval', 'drug_appeal'];
 export const isDrugKind = (kind: RequestKind | string | null | undefined): kind is 'drug_approval' | 'drug_appeal' => kind === 'drug_approval' || kind === 'drug_appeal';

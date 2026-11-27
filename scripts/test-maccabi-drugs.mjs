@@ -42,11 +42,15 @@ function harness({hasAppealOf=true,shared=realShared,waOk=true,waThrows=false}={
     '@/lib/therapists/mail':mail,'@/lib/maccabi/gmail':gmail,'@/lib/maccabi/commitments':{...cc,classifyReply:async(t)=>{classified.push(t);return {verdict:cc.classifyByKeywords(t),reason:'keywords',model:false};}}});
   return {svc,rows,audits,mails,wa,classified,setReplies:(r)=>{replies=r;}};
 }
-const withAppealAddress={...realShared,MACCABI_DRUG_APPEAL_EMAIL:'appeal@example.test',recipientFor:(k)=>k==='drug_appeal'?'appeal@example.test':realShared.recipientFor(k)};
+const APPEAL='ishurTrufut@mac.org.il';
+/** Simulates the appeal constant being emptied again, to keep the appeal_address_missing guard covered. */
+const noAppealAddress={...realShared,MACCABI_DRUG_APPEAL_EMAIL:'',recipientFor:(k)=>k==='drug_appeal'?'':realShared.recipientFor(k)};
 
-test('recipients: drug approval to the drugs department; the appeal address is empty and never guessed', () => {
+test('recipients: drug approval to the drugs department, appeals to the address the owner gave', () => {
   assert.equal(c.MACCABI_DRUG_APPROVAL_EMAIL,DRUGS); assert.equal(c.recipientFor('drug_approval'),DRUGS);
-  assert.equal(c.MACCABI_DRUG_APPEAL_EMAIL,''); assert.equal(c.recipientFor('drug_appeal'),'');
+  assert.equal(c.MACCABI_DRUG_APPEAL_EMAIL,APPEAL); assert.equal(c.recipientFor('drug_appeal'),APPEAL);
+  assert.equal(to(c.buildRequestRaw({...input,kind:'drug_appeal'},[])),APPEAL);
+  assert.equal(build(noAppealAddress).recipientFor('drug_appeal'),''); // the guard case: empty constant, empty recipient
   assert.equal(c.recipientFor('commitment'),'shfaram@mac.org.il'); assert.equal(c.recipientFor('imaging'),'DimutRequest@mac.org.il, ImageConsult@mac.org.il');
   assert.deepEqual([...c.REQUEST_KINDS],['commitment','imaging','drug_approval','drug_appeal']);
   assert.equal(c.isDrugKind('drug_approval'),true); assert.equal(c.isDrugKind('drug_appeal'),true); assert.equal(c.isDrugKind('imaging'),false); assert.equal(c.isDrugKind(null),false);
@@ -137,8 +141,17 @@ test('service: a failed family WhatsApp does not fail the request and is recorde
   }
 });
 
-test('service: an appeal is refused while the appeal address is empty, except as a test to our own mailbox', async () => {
+test('service: an appeal goes to the appeal mailbox in the same thread for reminders', async () => {
   const h=harness();
+  const ap=await h.svc.createCommitment({...person,kind:'drug_appeal',service:'Dupixent',note:'נימוקי ערעור מפורטים'});
+  assert.equal(h.mails.length,1); assert.equal(to(h.mails[0].raw),APPEAL); assert.equal(ap.recipient_email,APPEAL); assert.equal(ap.kind,'drug_appeal');
+  assert.equal(h.audits[0].action,'maccabi_drug_appeal_requested'); assert.equal(h.audits[0].metadata.to,APPEAL);
+  await h.svc.sendReminder(ap,'staff1'); assert.equal(to(h.mails[1].raw),APPEAL); assert.equal(h.mails[1].threadId,'t1');
+  await h.svc.sendReminder({...ap,recipient_email:null},'staff1'); assert.equal(to(h.mails[2].raw),APPEAL); // legacy row without a stored recipient
+});
+
+test('service: guard – if the appeal address is emptied, an appeal is refused, except as a test to our own mailbox', async () => {
+  const h=harness({shared:noAppealAddress});
   await assert.rejects(()=>h.svc.createCommitment({...person,kind:'drug_appeal',service:'Dupixent',note:'נימוקי ערעור מפורטים'}),/appeal_address_missing/);
   assert.equal(h.mails.length,0); assert.equal(h.rows.length,0);
   const t=await h.svc.createCommitment({...person,kind:'drug_appeal',service:'Dupixent',note:'נימוקי ערעור מפורטים',testToSelf:true,notifyFamily:true});
@@ -147,14 +160,14 @@ test('service: an appeal is refused while the appeal address is empty, except as
 });
 
 test('service: appeal_of must be an existing drug_approval row; its reference goes into the appeal body', async () => {
-  const h=harness({shared:withAppealAddress});
+  const h=harness();
   const orig=await h.svc.createCommitment({...person,kind:'drug_approval',service:'Dupixent',note:JUST,files:[pdf]});
   const com=await h.svc.createCommitment({...person,service:'מבדק MOXO'});
   await assert.rejects(()=>h.svc.createCommitment({...person,kind:'drug_appeal',service:'Dupixent',note:'נימוקי ערעור מפורטים',appealOf:com.id}),/appeal_not_found/);
   await assert.rejects(()=>h.svc.createCommitment({...person,kind:'drug_appeal',service:'Dupixent',note:'נימוקי ערעור מפורטים',appealOf:'00000000-0000-4000-8000-000000000099'}),/appeal_not_found/);
   assert.equal(h.mails.length,2);
   const ap=await h.svc.createCommitment({...person,kind:'drug_appeal',service:'Dupixent',note:'נימוקי ערעור מפורטים',appealOf:orig.id,notifyFamily:true});
-  assert.equal(to(h.mails[2].raw),'appeal@example.test'); assert.equal(ap.appeal_of,orig.id);
+  assert.equal(to(h.mails[2].raw),APPEAL); assert.equal(ap.appeal_of,orig.id);
   assert.ok(bodyOf(h.mails[2].raw).includes(`ערעור על החלטה בבקשה שמספרה ${orig.reference}.`));
   assert.equal(h.audits.at(-1).metadata.appeal_of,orig.reference); assert.equal(ap.family_notice,'sent'); assert.match(h.wa[0].body,/הערעור על ההחלטה/);
 });
@@ -178,7 +191,7 @@ test('service: a Maccabi answer on a drug request is never classified and never 
 });
 
 test('daily check: drug requests are reminded on the 6th business day, a commitment on the 3rd; no reminder to an empty appeal address', async () => {
-  const h=harness();
+  const h=harness({shared:noAppealAddress}); // guard case: appeal constant emptied
   const drug=await h.svc.createCommitment({...person,kind:'drug_approval',service:'Dupixent',note:JUST,files:[pdf]});
   const com=await h.svc.createCommitment({...person,service:'מבדק MOXO'});
   // A legacy appeal row with no stored recipient must not produce a reminder to ''.

@@ -351,10 +351,11 @@ A third desk, "אישורי תרופות", with two kinds:
 - drug_appeal: a physician appeal against a decision, written in the doctor's
   first person. Reasons are mandatory (justification_required), files are
   optional. Optional appeal_of = id of the drug_approval row; its reference
-  number goes into the body. The appeal mailbox (MACCABI_DRUG_APPEAL_EMAIL) is
-  empty until the owner provides it, so an appeal is refused with
-  503 appeal_address_missing except as a test to our own mailbox. No address
-  is ever guessed.
+  number goes into the body. Appeals go to ishurTrufut@mac.org.il
+  (MACCABI_DRUG_APPEAL_EMAIL, given by the owner on 27.11.2026). If the
+  constant is ever emptied, an appeal is refused with 503
+  appeal_address_missing except as a test to our own mailbox, and the desk
+  shows the warning and disables sending. No address is ever guessed.
 - Both e-mails are signed by ד״ר בסים נמוז, רופא ילדים מומחה, מס' רישיון 108121.
 - Reminder on the 6th business day (Maccabi answers within 5 working days),
   up to 3 reminders, same thread.
