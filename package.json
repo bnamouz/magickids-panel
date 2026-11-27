@@ -22,7 +22,7 @@
     "test:moxo-referral": "node --test scripts/test-moxo-referral.mjs",
     "test:moxo-referral-upload": "node --test scripts/test-moxo-referral-upload.mjs",
     "test:development": "node --test scripts/test-development.mjs scripts/test-development-mail.mjs scripts/test-development-followup.mjs && node scripts/test-development-original.mjs",
-    "test:maccabi": "node --test scripts/test-maccabi-commitments.mjs scripts/test-maccabi-mail.mjs scripts/test-maccabi-imaging.mjs"
+    "test:maccabi": "node --test scripts/test-maccabi-commitments.mjs scripts/test-maccabi-mail.mjs scripts/test-maccabi-imaging.mjs scripts/test-maccabi-drugs.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.6.1",

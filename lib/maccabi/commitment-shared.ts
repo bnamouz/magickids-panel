@@ -33,7 +33,7 @@ export const imagingService = (type: string, detail: string) => (type === 'אח�
 export const drugService = (name: string, dosage: string) => [name.trim(), dosage.trim()].filter(Boolean).join(' – ').slice(0, 200);
 export const OPEN_STATUSES: CommitmentStatus[] = ['sent', 'reminded', 'reply_received'];
 
-/** Clinic phone shown to families (same number as lib/maccabi/commitments.ts). */
+/** Clinic phone shown to families and in e-mail signatures (re-exported by lib/maccabi/commitments.ts). */
 export const CLINIC_PHONE = '054-349-6656';
 type DrugKind = 'drug_approval' | 'drug_appeal';
 type FamilyLang = 'he' | 'ar';
@@ -49,8 +49,8 @@ export const DRUG_FAMILY_TEXTS: Record<'sent' | 'ready', Record<DrugKind, Record
       ar: (i) => `تم اليوم إرسال طلب الموافقة على الدواء لـ${i.patientName} (${i.drug}) إلى قسم الموافقة على الأدوية في مكابي.\nحسب مكابي، يصل الرد خلال 5 أيام عمل برسالة نصية إلى رقم الهاتف المسجّل في مكابي.`,
     },
     drug_appeal: {
-      he: (i) => `הערעור על ההחלטה בבקשה לאישור התרופה עבור ${i.patientName} (${i.drug}) נשלח היום למכבי.\nכשתתקבל תשובה ממכבי נעדכן אתכם.`,
-      ar: (i) => `تم اليوم إرسال الاستئناف على القرار بخصوص طلب الموافقة على الدواء لـ${i.patientName} (${i.drug}) إلى مكابي.\nعند وصول الرد من مكابي سنبلغكم.`,
+      he: (i) => `הערעור על ההחלטה בבקשה לאישור התרופה עבור ${i.patientName} (${i.drug}) נשלח היום למכבי.\nהערעור נמצא במעקב מרפאת הילדים.`,
+      ar: (i) => `تم اليوم إرسال الاستئناف على القرار بخصوص طلب الموافقة على الدواء لـ${i.patientName} (${i.drug}) إلى مكابي.\nتتابع عيادة الأطفال الاستئناف.`,
     },
   },
   ready: {

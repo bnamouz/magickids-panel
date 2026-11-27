@@ -2,9 +2,8 @@ import { randomUUID } from 'crypto';
 import { sender } from '@/lib/therapists/mail';
 import { buildRawMessage, type MailAttachment } from '@/lib/maccabi/send-files';
 
-export { MACCABI_BRANCH_EMAIL, MACCABI_IMAGING_EMAILS, IMAGING_TYPES, IMAGING_REMINDER_AFTER_BUSINESS_DAYS, REMINDER_AFTER_BUSINESS_DAYS, reminderAfter, SERVICES, STATUS_LABEL, OPEN_STATUSES, recipientFor, statusLabel, type CommitmentStatus, type RequestKind } from '@/lib/maccabi/commitment-shared';
-import { recipientFor, type RequestKind } from '@/lib/maccabi/commitment-shared';
-export const CLINIC_PHONE = '054-349-6656';
+export { MACCABI_BRANCH_EMAIL, MACCABI_IMAGING_EMAILS, MACCABI_DRUG_APPROVAL_EMAIL, MACCABI_DRUG_APPEAL_EMAIL, IMAGING_TYPES, IMAGING_REMINDER_AFTER_BUSINESS_DAYS, DRUG_REMINDER_AFTER_BUSINESS_DAYS, REMINDER_AFTER_BUSINESS_DAYS, reminderAfter, SERVICES, STATUS_LABEL, OPEN_STATUSES, REQUEST_KINDS, CLINIC_PHONE, isDrugKind, drugService, drugFamilyNotice, drugReadyNotice, recipientFor, statusLabel, type CommitmentStatus, type RequestKind } from '@/lib/maccabi/commitment-shared';
+import { CLINIC_PHONE, drugReadyNotice, isDrugKind, recipientFor, type RequestKind } from '@/lib/maccabi/commitment-shared';
 export const CLINIC_ADDRESS = 'תופיק זיאד 21, שפרעם';
 
 export function newReference(now = new Date()) {
@@ -14,12 +13,17 @@ export function newReference(now = new Date()) {
 
 export const fmtDate = (d: string | Date | null | undefined) => d ? new Date(d).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' }) : null;
 
-export type CommitmentInput = { kind?: RequestKind; reference: string; patientName: string; nationalId: string; birthDate?: string | null; phone: string; service: string; note?: string | null; staffName?: string | null; attachments?: string[] };
+export type CommitmentInput = { kind?: RequestKind; reference: string; patientName: string; nationalId: string; birthDate?: string | null; phone: string; service: string; note?: string | null; staffName?: string | null; attachments?: string[]; /** drug_appeal: reference of the original drug-approval request. */ appealOfReference?: string | null };
 
 type SubjectInput = Pick<CommitmentInput, 'kind' | 'reference' | 'patientName' | 'nationalId' | 'service'>;
 const signature = (staffName?: string | null) => ['בברכה,', staffName ? `${staffName} · מזכירות מרפאת הילדים` : 'מזכירות מרפאת הילדים', `ד״ר בסים נמוז – רופא ילדים · ${CLINIC_ADDRESS}`, `טלפון ${CLINIC_PHONE} · ${sender}`];
 
+/** Drug approval / physician appeal: signed by the doctor (formal, no promises). */
+const drugSignature = () => ['בברכה,', 'ד״ר בסים נמוז, רופא ילדים מומחה, מס\' רישיון 108121', `מרפאת הילדים · ${CLINIC_ADDRESS}`, `טלפון ${CLINIC_PHONE} · ${sender}`];
+
 export function requestSubject(i: SubjectInput) {
+  if (i.kind === 'drug_approval') return `בקשה לאישור תרופה – ${i.patientName} ת.ז. ${i.nationalId} – ${i.service} [${i.reference}]`;
+  if (i.kind === 'drug_appeal') return `ערעור רופא על החלטה בבקשה לאישור תרופה – ${i.patientName} ת.ז. ${i.nationalId} – ${i.service} [${i.reference}]`;
   if (i.kind === 'imaging') return `בקשה לאישור בדיקת דימות – ${i.patientName} ת.ז. ${i.nationalId} – ${i.service} [${i.reference}]`;
   return `בקשה להתחייבות – ${i.patientName} ת.ז. ${i.nationalId} – ${i.service} [${i.reference}]`;
 }
@@ -33,8 +37,28 @@ function imagingBody(i: CommitmentInput) {
     '', 'נודה לתשובתכם במייל זה, ונעדכן את המשפחה.', `מספר אסמכתא לבקשה: ${i.reference}`, '', ...signature(i.staffName)].join('\n');
 }
 
+const patientLines = (i: CommitmentInput) => [`שם: ${i.patientName}`, `ת.ז.: ${i.nationalId}`, ...(i.birthDate ? [`תאריך לידה: ${fmtDate(i.birthDate)}`] : []), `טלפון ליצירת קשר: ${i.phone}`, `התרופה והמינון: ${i.service}`];
+const attachedLines = (i: CommitmentInput) => i.attachments?.length ? ['', 'מסמכים מצורפים:', ...i.attachments.map((f, k) => `${k + 1}. ${f}`)] : [];
+
+/** Drug approval request to the Maccabi drug-approvals department; the specialist's recommendation letter is always attached. */
+function drugApprovalBody(i: CommitmentInput) {
+  return ['שלום רב,', '', 'מבוקש אישור לתרופה עבור המטופל/ת הבא/ה. מכתב ההמלצה של הרופא המומחה מצורף.', '',
+    ...patientLines(i), '', 'אבחנה והצדקה רפואית:', (i.note ?? '').trim(), ...attachedLines(i),
+    '', 'נבקש לקבל את העדכון בבקשה לכתובת מייל זו.', `מספר אסמכתא לבקשה: ${i.reference}`, '', ...drugSignature()].join('\n');
+}
+
+/** Physician appeal against a drug-approval decision, in the doctor's first person. */
+function drugAppealBody(i: CommitmentInput) {
+  return ['שלום רב,', '', 'אני מגיש בזאת ערעור על ההחלטה בבקשה לאישור תרופה עבור המטופל/ת הבא/ה.',
+    ...(i.appealOfReference ? [`ערעור על החלטה בבקשה שמספרה ${i.appealOfReference}.`] : []), '',
+    ...patientLines(i), '', 'נימוקי הערעור:', (i.note ?? '').trim(), ...attachedLines(i),
+    '', 'אבקש לקבל את ההחלטה בערעור לכתובת מייל זו.', `מספר אסמכתא לערעור: ${i.reference}`, '', ...drugSignature()].join('\n');
+}
+
 export function requestBody(i: CommitmentInput) {
   if (i.kind === 'imaging') return imagingBody(i);
+  if (i.kind === 'drug_approval') return drugApprovalBody(i);
+  if (i.kind === 'drug_appeal') return drugAppealBody(i);
   const lines = ['שלום רב,', '', `נבקש להנפיק התחייבות (טופס 17) עבור המטופל/ת הבא/ה, בעקבות הפניית ד״ר בסים נמוז:`, '',
     `שם: ${i.patientName}`, `ת.ז.: ${i.nationalId}`, ...(i.birthDate ? [`תאריך לידה: ${fmtDate(i.birthDate)}`] : []), `טלפון ההורה: ${i.phone}`, `השירות המבוקש: ${i.service}`,
     ...(i.note?.trim() ? ['', 'פרטים נוספים:', i.note.trim()] : []),
@@ -45,6 +69,11 @@ export function requestBody(i: CommitmentInput) {
 }
 
 export function reminderBody(i: SubjectInput & { sentAt: Date; nth: number }) {
+  const nth = i.nth > 1 ? ` (${i.nth})` : '';
+  if (i.kind === 'drug_approval') return ['שלום רב,', '', `תזכורת${nth} לבקשה לאישור תרופה שנשלחה ב־${fmtDate(i.sentAt)} עבור ${i.patientName}, ת.ז. ${i.nationalId}. התרופה והמינון: ${i.service}.`,
+    'נודה לעדכון על סטטוס הבקשה במייל זה.', `מספר אסמכתא: ${i.reference}`, '', ...drugSignature()].join('\n');
+  if (i.kind === 'drug_appeal') return ['שלום רב,', '', `תזכורת${nth} לערעור שהגשתי ב־${fmtDate(i.sentAt)} על ההחלטה בבקשה לאישור תרופה עבור ${i.patientName}, ת.ז. ${i.nationalId}. התרופה והמינון: ${i.service}.`,
+    'אבקש לעדכן אותי על סטטוס הערעור במייל זה.', `מספר אסמכתא: ${i.reference}`, '', ...drugSignature()].join('\n');
   if (i.kind === 'imaging') return ['שלום רב,', '', `תזכורת${i.nth > 1 ? ` (${i.nth})` : ''} לבקשה לאישור בדיקת דימות שנשלחה ב־${fmtDate(i.sentAt)} עבור ${i.patientName}, ת.ז. ${i.nationalId}. הבדיקה המבוקשת: ${i.service}.`,
     'נודה לעדכון על סטטוס הבקשה במייל זה.', `מספר אסמכתא: ${i.reference}`, '', 'בברכה,', 'מזכירות מרפאת הילדים – ד״ר בסים נמוז', `טלפון ${CLINIC_PHONE}`].join('\n');
   return ['שלום רב,', '', `תזכורת${i.nth > 1 ? ` (${i.nth})` : ''} לבקשת ההתחייבות שנשלחה ב־${fmtDate(i.sentAt)} עבור ${i.patientName}, ת.ז. ${i.nationalId}, לשירות: ${i.service}.`,
@@ -52,6 +81,7 @@ export function reminderBody(i: SubjectInput & { sentAt: Date; nth: number }) {
 }
 
 export function readyWhatsApp(i: { kind?: RequestKind | null; patientName: string; service: string; lang?: 'he' | 'ar' }) {
+  if (i.kind && isDrugKind(i.kind)) return drugReadyNotice(i.kind, i.lang, { patientName: i.patientName, drug: i.service });
   if (i.kind === 'imaging') return i.lang === 'ar'
     ? `مرحبًا، معكم عيادة الأطفال – د. بسيم نموز.\nوصلت موافقة مكابي على إجراء فحص التصوير لـ${i.patientName} (${i.service}).\nيمكنكم حجز موعد للفحص في أحد معاهد التصوير المتعاقدة مع مكابي.\nللاستفسار: ${CLINIC_PHONE}`
     : `שלום, כאן מרפאת הילדים של ד״ר בסים נמוז.\nהתקבל ממכבי אישור לביצוע בדיקת הדימות עבור ${i.patientName} (${i.service}).\nאפשר לקבוע תור לבדיקה באחד ממכוני הדימות שבהסכם עם מכבי.\nלשאלות: ${CLINIC_PHONE}`;

@@ -146,11 +146,13 @@ test('daily check: imaging is reminded on the 6th business day, a commitment on 
 
 test('API and desk: the recommendation document is mandatory for imaging on both sides', () => {
   const route=fs.readFileSync('app/api/admin/secretary/commitments/route.ts','utf8');
-  assert.match(route,/kind: z\.enum\(\['commitment', 'imaging'\]\)\.default\('commitment'\)/);
+  assert.match(route,/kind: z\.enum\(REQUEST_KINDS as \[RequestKind, \.\.\.RequestKind\[\]\]\)\.default\('commitment'\)/);
+  assert.ok(fs.readFileSync('lib/maccabi/commitment-shared.ts','utf8').includes("REQUEST_KINDS: readonly RequestKind[] = ['commitment', 'imaging',"));
   assert.match(route,/d\.kind === 'imaging' && d\.uploads\.length === 0\) return reply\(\{ error: 'recommendation_required' \}, 400\)/);
   assert.ok(route.indexOf("recommendation_required")<route.indexOf('createCommitment({')); // refused before anything is sent
   const desk=fs.readFileSync('components/admin/SecretaryDesk.tsx','utf8');
-  assert.match(desk,/kind === 'imaging' && uploads\.length === 0\) \{ setFileError\(true\)/);
+  assert.ok(desk.includes("const requireFile = kind === 'imaging' || kind === 'drug_approval';"));
+  assert.match(desk,/if \(requireFile && !uploads\.length\) \{\s*setFileError\(true\)/);
   assert.match(desk,/recommendation_required: /);
   assert.match(fs.readFileSync('supabase/migrations/20261125120000_maccabi_imaging_requests.sql','utf8'),/add column if not exists kind text not null default 'commitment' check \(kind in \('commitment','imaging'\)\)/);
 });
