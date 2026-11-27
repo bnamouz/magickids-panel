@@ -44,7 +44,7 @@ const attachedLines = (i: CommitmentInput) => i.attachments?.length ? ['', 'מס
 function drugApprovalBody(i: CommitmentInput) {
   return ['שלום רב,', '', 'מבוקש אישור לתרופה עבור המטופל/ת הבא/ה. מכתב ההמלצה של הרופא המומחה מצורף.', '',
     ...patientLines(i), '', 'אבחנה והצדקה רפואית:', (i.note ?? '').trim(), ...attachedLines(i),
-    '', 'נבקש לקבל את העדכון בבקשה לכתובת מייל זו.', `מספר אסמכתא לבקשה: ${i.reference}`, '', ...drugSignature()].join('\n');
+    '', 'נבקש לקבל עדכון על הבקשה לכתובת מייל זו.', `מספר אסמכתא לבקשה: ${i.reference}`, '', ...drugSignature()].join('\n');
 }
 
 /** Physician appeal against a drug-approval decision, in the doctor's first person. */

@@ -56,7 +56,7 @@ test('recipients: drug approval to the drugs department; the appeal address is e
 test('drug approval: subject and body (patient, drug and dosage, justification, attached documents, reply by e-mail, doctor signature)', () => {
   assert.equal(c.requestSubject(input),'בקשה לאישור תרופה – אחמד חדאד ת.ז. 123456782 – Dupixent – 200 מ״ג כל שבועיים [MK-261127-DR01]');
   const raw=c.buildRequestRaw(input,[pdf]); const body=bodyOf(raw);
-  for (const s of ['מבוקש אישור לתרופה','מכתב ההמלצה של הרופא המומחה מצורף','שם: אחמד חדאד','ת.ז.: 123456782','תאריך לידה: 5.3.2018','טלפון ליצירת קשר: 0521234567','התרופה והמינון: Dupixent – 200 מ״ג כל שבועיים','אבחנה והצדקה רפואית:',JUST,'מסמכים מצורפים:','1. מכתב המלצה.pdf','לכתובת מייל זו','מספר אסמכתא לבקשה: MK-261127-DR01','ד״ר בסים נמוז, רופא ילדים מומחה, מס\' רישיון 108121','מרפאת הילדים · תופיק זיאד 21, שפרעם','טלפון 054-349-6656 · magickids@magickidsinstitute.com']) assert.ok(body.includes(s),s);
+  for (const s of ['מבוקש אישור לתרופה','מכתב ההמלצה של הרופא המומחה מצורף','שם: אחמד חדאד','ת.ז.: 123456782','תאריך לידה: 5.3.2018','טלפון ליצירת קשר: 0521234567','התרופה והמינון: Dupixent – 200 מ״ג כל שבועיים','אבחנה והצדקה רפואית:',JUST,'מסמכים מצורפים:','1. מכתב המלצה.pdf','נבקש לקבל עדכון על הבקשה לכתובת מייל זו.','מספר אסמכתא לבקשה: MK-261127-DR01','ד״ר בסים נמוז, רופא ילדים מומחה, מס\' רישיון 108121','מרפאת הילדים · תופיק זיאד 21, שפרעם','טלפון 054-349-6656 · magickids@magickidsinstitute.com']) assert.ok(body.includes(s),s);
   for (const s of ['טופס 17','התחייבות','דימות','מובטח','מצוין']) assert.equal(body.includes(s),false,s);
   assert.match(raw,/Content-Type: application\/pdf/);
 });
@@ -78,6 +78,15 @@ test('drug service line, status labels and reminder delay', () => {
   assert.equal(c.reminderAfter('drug_approval'),6); assert.equal(c.reminderAfter('drug_appeal'),6); assert.equal(c.DRUG_REMINDER_AFTER_BUSINESS_DAYS,6); assert.equal(c.reminderAfter('commitment'),3);
 });
 
+test('appeal texts (e-mail, reminder, family WhatsApp) never mention a 5-working-day timeline', () => {
+  const ap={...input,kind:'drug_appeal',appealOfReference:'MK-261120-DR09'};
+  const texts=[c.requestBody(ap),c.reminderBody({...ap,sentAt:new Date(),nth:1}),c.reminderBody({...ap,sentAt:new Date(),nth:2}),
+    ...['he','ar'].flatMap((l)=>[c.drugFamilyNotice('drug_appeal',l,{patientName:'x',drug:'y'}),c.drugReadyNotice('drug_appeal',l,{patientName:'x',drug:'y'})])];
+  for (const t of texts) assert.equal(/5 ימי|חמישה|ימי עבודה|ימי עסקים|5 أيام|أيام عمل|خمسة/.test(t),false,t);
+  for (const l of ['he','ar']) assert.match(c.drugFamilyNotice('drug_approval',l,{patientName:'x',drug:'y'}),/5 ימי|5 أيام/); // the check itself does catch the request notice
+  assert.equal(c.reminderAfter('drug_appeal'),6); // the automatic reminder on the 6th business day stays
+});
+
 test('reminders for both drug kinds stay in the thread and keep the doctor signature', () => {
   const raw=c.buildReminderRaw({...input,sentAt:new Date('2026-11-15T08:00:00Z'),nth:1});
   assert.equal(to(raw),DRUGS); assert.match(raw,/In-Reply-To: <MK-261127-DR01@magickidsinstitute\.com>/);
@@ -93,7 +102,9 @@ test('family WhatsApp texts: ready and request-sent, Hebrew and Arabic, both kin
   assert.match(c.readyWhatsApp({kind:'drug_approval',patientName:'أحمد',service:'Dupixent',lang:'ar'}),/^مرحبًا، معكم عيادة الأطفال – د\. بسيم نموز\.\nوصلت موافقة مكابي على الدواء لـأحمد \(Dupixent\)/);
   assert.match(c.readyWhatsApp({kind:'drug_appeal',patientName:'أحمد',service:'Dupixent',lang:'ar'}),/تم قبول الاستئناف/);
   assert.equal(c.drugFamilyNotice('drug_approval','he',{patientName:'אחמד',drug:'Dupixent'}),'שלום, כאן מרפאת הילדים של ד״ר בסים נמוז.\nהבקשה לאישור התרופה עבור אחמד (Dupixent) נשלחה היום למחלקת אישורי התרופות של מכבי.\nלפי מכבי, תשובה ניתנת בתוך 5 ימי עבודה, במסרון לטלפון המעודכן במכבי.\nלשאלות: 054-349-6656');
-  assert.match(c.drugFamilyNotice('drug_appeal','he',{patientName:'אחמד',drug:'Dupixent'}),/הערעור על ההחלטה בבקשה לאישור התרופה עבור אחמד \(Dupixent\) נשלח היום למכבי/);
+  assert.equal(c.drugFamilyNotice('drug_appeal','he',{patientName:'אחמד',drug:'Dupixent'}),'שלום, כאן מרפאת הילדים של ד״ר בסים נמוז.\nהערעור על ההחלטה בבקשה לאישור התרופה עבור אחמד (Dupixent) נשלח היום למכבי.\nהערעור נמצא במעקב מרפאת הילדים.\nלשאלות: 054-349-6656');
+  assert.equal(c.drugFamilyNotice('drug_appeal','ar',{patientName:'أحمد',drug:'Dupixent'}),'مرحبًا، معكم عيادة الأطفال – د. بسيم نموز.\nتم اليوم إرسال الاستئناف على القرار بشأن طلب الموافقة على الدواء لـأحمد (Dupixent) إلى مكابي.\nالاستئناف قيد المتابعة في عيادة الأطفال.\nللاستفسار: 054-349-6656');
+  for (const k of ['drug_approval','drug_appeal']) for (const l of ['he','ar']) assert.equal(/נעדכן|سنبلغ|מובטח|نضمن/.test(c.drugFamilyNotice(k,l,{patientName:'x',drug:'y'})),false,k+l); // no promises
   assert.match(c.drugFamilyNotice('drug_approval','ar',{patientName:'أحمد',drug:'Dupixent'}),/خلال 5 أيام عمل[\s\S]*للاستفسار: 054-349-6656$/);
   assert.match(c.drugFamilyNotice('drug_appeal',undefined,{patientName:'אחמד',drug:'X'}),/^שלום, כאן/); // default Hebrew
   // Commitment and imaging texts are unchanged.
